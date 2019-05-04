@@ -1,0 +1,114 @@
+
+curry f(frictionCoeff,x:NumericList(4))->
+  begin
+    local dx:=[x[2],x[3],0            ,-9.81        ]-
+              [0   ,0   ,frictionCoeff,frictionCoeff]*sqrt(sqr(x[3]+x[2]))*x; //damping term
+    dx/max(10,dx.sqr.agg(+).sqrt);
+  end;
+
+USE rungeKutta;
+
+throw(angleInDegrees:Numeric,frictionCoeff:Numeric,dt0,v0)->begin
+  local state:=[0,0,v0*cos(angleInDegrees*pi/180),
+                    v0*sin(angleInDegrees*pi/180)];
+  local P:=[state.head(2)];
+  local dt:=dt0;
+  local prev:=state;
+  while((dt/=4)>1E-3,begin
+    state:=prev;
+    local step:=integrator(CASH_KARP,f(frictionCoeff),dt,1E-6);
+    state:=state.step;
+    while(state[1]>=0,begin
+      P||=state.head(2);
+      prev:=state;
+      state:=state.step;
+    end);
+  end);
+  P||=state.head(2);
+  P;
+end;
+
+thrownDist(angleInDegrees:Numeric,frictionCoeff:Numeric,dt0,v0)->begin
+  local P:=throw(angleInDegrees,frictionCoeff,dt0,v0).trailing(2);
+  P[1,0]-(P[1,0]-P[0,0])*
+  P[1,1]/(P[1,1]-P[0,1]);
+end;
+
+@SuppressUnusedWarning
+furthestAngle(fric:Numeric)->begin
+  local a   :=45/2;
+  local da  :=45/2;
+  local dist:=thrownDist(a,fric);
+  [1..20].each(i,begin
+    local aUp:=a+(da/=2);
+    local distUp:=thrownDist(aUp,fric);
+    distUp>dist
+    ? begin
+        dist:=distUp;
+        a:=aUp;
+      end
+    : begin
+        local aDn:=a- da;
+        local distDn:=thrownDist(aDn,fric);
+        distDn>dist
+        ? begin
+            dist:=distDn;
+            a:=aDn;
+          end
+        : void;
+      end;
+    void;
+  end);
+  print('furthestAngle(',fric,')=',a);
+  a;
+end;
+
+plotSome(friction)->begin
+  ['autoscaleFactor'=>1.0,
+   'autoscaleX'=>true,
+   'autoscaleY'=>true,
+   'axisStyleX'=>0,
+   'axisStyleY'=>0,
+   'fontsize'=>10.0,
+   'logscaleX'=>false,
+   'logscaleY'=>false,
+   'preserveAspect'=>true].toMap.setOptions;
+  local styleByAngle:=
+    [30 => 'l RGB1,0,0',
+     35 => 'l RGB0.9,0,0',
+     39 => 'l RGB0.8,0,0',
+     42 => 'l RGB0.7,0,0',
+     44 => 'l RGB0.6,0,0',
+     45 => 'l RGB0,0,0',
+     46 => 'l RGB0,0.6,0',
+     48 => 'l RGB0,0.7,0',
+     51 => 'l RGB0,0.8,0',
+     55 => 'l RGB0,0.9,0',
+     60 => 'l RGB0,1,0'].toMap;
+
+
+  plot();
+  local v0:=sqrt(9.81);
+  [30,60,35,55,39,51,42,48,44,46,45]
+  .pEach(angle,[throw(angle,friction,0.2,v0),angle])
+  .each(c,addPlot(c[0],styleByAngle[c[1]]),c[0].trailing[0],max)
+  .{addPlot([[0,0],[$x,0]],'black')};
+  postDisplay;
+  drawTextAbsolute(0.1,1,'friction='&friction,10,'TL');
+end;
+
+
+begin
+  clearAnimation;
+  sqr(ln([200..1]/
+          200)/ln(0.5435224558395387)).each(f,
+  [f,plotSome(f)],addAnimationFrame);
+end;
+
+
+//
+//throw(45,0,0.01,sqrt(10)).plot('. l');
+//throw(40,0,0.01,sqrt(10)).addPlot('. l');
+//throw(50,0,0.01,sqrt(10)).addPlot('. l');
+//
+

@@ -1,0 +1,178 @@
+GIT_REPO:='C:\dev\git\mnh5';
+TEMP_FOLDER:='C:\dev\temp\';
+
+private tprint(...)->formatTime('hh:mm:ss ',systime).print@...;
+
+latestRunTimes->(readDatastore(TEMP_FOLDER&'regTest\testExpectation.mnh','runTimes') orElse [].toMap)
+.pEach(caseEntry,[caseEntry[0],caseEntry[1,'FOWin64'].trailing[1]]).toMap;
+
+runGit(...)->begin
+  local r:='git'.exec(...);
+  r[1]==0 ? note('ok: git '&join(...,' '))
+          : fail('fail: git '&join(...,' ')&"\n"&(r[0].join("\n")));
+  r;
+end;
+
+clone->begin
+  changeDirectory(TEMP_FOLDER);
+  allFiles('.').pMap(::deleteFile);
+  allFolders('.').minus(['.']).map(::deleteDir);
+  runGit('clone',GIT_REPO,'.');
+  runGit('submodule','init'  );
+  runGit('submodule','update');
+  tprint('Cloned git repository');
+end;
+
+datastore sizes:=[].toMap;
+datastore times:=[].toMap;
+datastore tagToTime;
+
+memoized tagsInNumericalOrder->
+  tagToTimeMap.getInner(0)
+              .map({[$x.copy(1,$x.length).softCast,$x]})
+              .sort
+              .getInner(1);
+
+memoized tagToTimeMap->begin
+  tagToTime.isVoid
+  ? begin
+      changeDirectory(TEMP_FOLDER);
+      runGit('checkout','master');
+      tagToTime:=
+      runGit('log','--simplify-by-decoration','--pretty="%ad,%D"','--date=short')
+         .head
+         .map({$x.split(",").trim})
+         .map({parseTime('YYYY-MM-DD',$x.head)|$x.tail.filter({$y.matches("tag:")}).map({$t.split(' ').trailing})})
+         .filter({$x.size>=2})
+         .each(e,e.tail.each(tag,[tag,e[0]]),|).toMap;
+    end
+  : tagToTime;
+end;
+
+FIRST_BUILDABLE:='B181';
+
+buildableTags->tagsInNumericalOrder.filter({$x.length=FIRST_BUILDABLE.length AND $x>=FIRST_BUILDABLE});
+
+checkoutTag(tag:String)->begin
+  changeDirectory(TEMP_FOLDER);
+  (local R:=runGit('checkout','--force',tag)).trailing=0
+  ? tprint('Checked out ',tag)
+  : fail('Failed checking out '<,tag,"\n",R.head.join("\n"));
+  runGit('submodule','init');
+  runGit('submodule','update');
+end;
+
+runTest->begin
+  tprint('Running test');
+  changeDirectory(TEMP_FOLDER);
+  deleteFile(TEMP_FOLDER&'regTest\testExpectation.datastore1');
+  fileExists('mnh.exe') ? deleteFile('mnh.exe') : void;
+  execPipeless('cmd',['/C','make.bat','mnh.exe!']);
+end;
+
+lightExeName(tag:String)->myPath.extractFileDirectory&'/mnh_'&tag&'_light.exe';
+
+buildExe(tag:String)->begin
+  tprint('Building');
+  changeDirectory(TEMP_FOLDER);
+  fileExists('mnh_light.exe') ? deleteFile('mnh_light.exe') : void;
+  execPipeless('cmd',['/C','make.bat','status']);
+  fileExists('mnh_light.exe')
+  ? copyFile('mnh_light.exe',lightExeName(tag))
+  : warn('Could not build; ',tag);
+end;
+
+RESOURCE_EXT:=['.lfm','.lpi','.svg','.txt'];
+SOURCE_EXT  :=['.inc','.lpr','.pas'];
+SCRIPT_EXT  :=['.bat','.mnh','.sh'];
+
+categorize(filename:String)->begin
+  local ext:=filename.extractFileExt;
+  ext in RESOURCE_EXT OR filename.matches('/resources/')
+                    ? 'res' :
+  ext in SOURCE_EXT ? 'src' :
+  ext in SCRIPT_EXT ? 'mnh' :
+  'NONE';
+end;
+
+sourceStats->allFiles(TEMP_FOLDER)
+             .pMap({[categorize($f),$f]})
+             .filter({$x[0]<>'NONE'})
+             .group(0)
+             .map({$x[0,0]|$x.size|$x.getInner(1).fileStats.agg(+)[[0,2]]})
+             .sort(0);
+
+
+updateSizes->begin
+  tagsInNumericalOrder.each(tag,
+      sizes[tag.copy(1,4).softCast].isVoid
+    ? begin
+        checkoutTag(tag);
+        sizes[tag.copy(1,4).softCast]:=sourceStats;
+        void;
+      end
+    : void);
+end;
+
+@SuppressUnusedWarning
+runAllTests->begin
+  buildableTags.each(tag,begin
+    writeDataStores;
+    checkoutTag(tag);
+    runTest;
+    times[tag]:=latestRunTimes;
+    void;
+  end);
+end;
+
+@SuppressUnusedWarning
+buildAll->
+  buildableTags.each(tag,
+  lightExeName(tag).fileExists
+  ? void
+  : begin
+      checkoutTag(tag);
+      buildExe(tag);
+      void;
+    end);
+
+@SuppressUnusedWarning
+plotSizes->begin
+  local VerMnhResSrc:=sizes.sort.map({$x[0]|($x[1].getInner(3)/1024^2)}).map({[$x[0],$x[1],$x[1]+$x[2],$x[1]+$x[2]+$x[3]]});
+  plot(   VerMnhResSrc.getInner([0,3]),'f l TI0');
+  addPlot(VerMnhResSrc.getInner([0,2]),'f l TI0');
+  addPlot(VerMnhResSrc.getInner([0,1]),'f l TI0');
+end;
+
+main('clone')->clone;
+main('sizes')->updateSizes;
+main('list')->buildableTags.map({$x&"\t"&(times[$x].isVoid ? ' - untested' : '')}).join("\n").print;
+main('test',tag)->begin
+  checkoutTag(tag);
+  runTest;
+  times[tag]:=latestRunTimes;
+end;
+main('build')->buildAll;
+
+@SuppressUnusedWarning
+testTimeData(testcase:String)->begin
+  times.each(tagEntry,begin
+    local tag:=tagEntry[0];
+    local t  :=tagEntry[1,testcase];
+    [tagToTimeMap[tag],t];
+  end).sort;
+end;
+
+testTimeData->begin
+  local commonTests:=intersect@((times.getInner(1).map({$x.getInner(0)}).minus([[].toSet])).toList).sort;
+  times.each(tagEntry,begin
+    local tag:=tagEntry[0];
+    local t  :=tagEntry[1].getAll(commonTests).agg(+);
+    [tagToTimeMap[tag],t];
+  end).sort;
+end;
+
+//testTimeData('sequenceOfNonSquares').plot('. l');
+//testTimeData('travellingSalesmanProblem').addPlot('. l');
+//testTimeData('sudoku').addPlot('. l');
+//testTimeData('vampire').addPlot('. l');

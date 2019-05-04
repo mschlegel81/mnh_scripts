@@ -1,0 +1,68 @@
+private curry sumand(n,k)->4*powMod(16,n-k,8*k+1)/(8*k+1)
+                          -2*powMod(16,n-k,8*k+4)/(8*k+4)
+                          -  powMod(16,n-k,8*k+5)/(8*k+5)
+                          -  powMod(16,n-k,8*k+6)/(8*k+6);
+//see also: https://en.wikipedia.org/wiki/Bailey%E2%80%93Borwein%E2%80%93Plouffe_formula
+private calcPiHexDigit(n)->begin
+  //Calculate the n-th hexadecimal digit of pi
+  local d:=[0..n].map(sumand(n)).agg(+);
+  (d:=floor(d*16) mod 16)<0 ? d+16 : d;
+end;
+
+private hexToDecimal(hexDigits:IntList)->
+  //Transform hexadecimal digits to decimal form:
+  //  - compose to one big integer
+  //  - multiply in order to normalize to base 10
+  //  - use as digits after decimal point
+  '3.'&(hexDigits.composeDigits(16)*10^floor(hexDigits.size*ln(16)/ln(10))).shiftRight(4*hexDigits.size);
+
+
+private datastore calculatedDigitsOfPi:=[];
+
+private calcPi(digitCount>=1)->begin
+  //Calculate how many decimal digits correspond to the given number of hexadecimal digits
+  local hexDigitCount:=ceil(ln(10)/ln(16)*digitCount);
+  calculatedDigitsOfPi.size<hexDigitCount
+  ? calculatedDigitsOfPi:=calculatedDigitsOfPi | (calculatedDigitsOfPi.size+[0..hexDigitCount-calculatedDigitsOfPi.size]).pMap(::calcPiHexDigit)
+  : void;
+
+  //Calculate hexadecimal digits of pi
+  calculatedDigitsOfPi.head(hexDigitCount).hexToDecimal;
+end;
+
+//*Calculate showing statistics instead of pi
+main('x')->begin
+  local quit:=localAsync({ask('Press enter to quit')});
+  local lastPrint:=time;
+  local toCompute:=8;
+  while(quit().isVoid,begin
+    calculatedDigitsOfPi|=(calculatedDigitsOfPi.size+[0..toCompute-1]).pMap(::calcPiHexDigit);
+    print('Digit #',calculatedDigitsOfPi.size,'; ',toCompute/(time-lastPrint),' digits per second');
+    toCompute:=round(10*toCompute/(time-lastPrint)).max(8).min(200);
+    lastPrint:=time;
+  end);
+  print("\nCalculation stopped @ ",calculatedDigitsOfPi.size,' hexadecimal digits',
+        "\n                    = ",floor(ln(16)/ln(10)*calculatedDigitsOfPi.size),' decimal digits');
+end;
+
+main(digitsOfPiToCompute)->calcPi(digitsOfPiToCompute.toInt).print;
+
+//*Continuous calculation; output every 10 seconds
+main->begin
+  local quit:=localAsync({ask('Press enter to quit')});
+  local currPi:=calculatedDigitsOfPi==[] ? '3.' : hexToDecimal(calculatedDigitsOfPi);
+  local lastPrint:=time;
+  print;
+  printDirect(currPi);
+  local toCompute:=8;
+  while(quit().isVoid,begin
+    calculatedDigitsOfPi|=(calculatedDigitsOfPi.size+[0..toCompute-1]).pMap(::calcPiHexDigit);
+    local newPi:=hexToDecimal(calculatedDigitsOfPi);
+    printDirect(newPi.copy(currPi.length,newPi.length-currPi.length));
+    currPi:=newPi;
+    toCompute:=round(10*toCompute/(time-lastPrint)).max(8).min(200);
+    lastPrint:=time;
+  end);
+  print("\nCalculation stopped @ ",calculatedDigitsOfPi.size,' hexadecimal digits',
+        "\n                    = ",floor(ln(16)/ln(10)*calculatedDigitsOfPi.size),' decimal digits');
+end;

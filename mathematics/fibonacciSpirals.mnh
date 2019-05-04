@@ -1,0 +1,75 @@
+FIBFAK:=2*pi/sqr((sqrt(5)-1)/2);
+fp(P:NumericList)->[cos(FIBFAK*P),sin(FIBFAK*P)].transpose*sqrt(P);
+fp(n:Numeric    )->[cos(FIBFAK*n),sin(FIBFAK*n)]*sqrt(n);
+FP:=[0..5000].fp;
+
+fibonacciList:=begin
+  local f:=[1,2];
+  [0..17].each(k,f[0],begin f:=f.tail|f.agg(+); void; end);
+end;
+
+ordSort(modulus:Int)->begin
+  local k:=max(fibonacciList[fibonacciList<modulus]);
+  [0..modulus]*k mod modulus;
+end;
+
+tolerantToInt(x:String)->try({x.toInt},void);
+
+highlight(m,x,y)->begin
+  local xy:=[x,y];
+  local k:=FP.pMap({($p-xy).sqr.agg(+)}).argMin mod m;
+  removePlot;
+  addPlot(FP[[0..FP.size-1] mod m = k],'1.2 . l black');
+  postDisplay;
+end;
+//angleSortPerm(L:List)->L.pMap({arctan2($x[1],$x[0])}).sortPerm;
+
+USE customFormUtil;
+
+main->begin
+  local ignoreMe:='144';
+  local modulus:=144;
+  local animating:=false;
+  setOptions(['autoscaleFactor'=>1.0,'autoscaleX'=>true,'autoscaleY'=>true,'axisStyleX'=>0,'axisStyleY'=>0,'preserveAspect'=>true]);
+  plot(FP,'GREY0.7 1.2 .');
+  addPlot(FP,'.');
+  postDisplay;
+  showDialog('Fibonacci Spirals',
+    [newComboBox(fibonacciList.map(::toString))
+       .withActionOnChange({modulus:=$x.tolerantToInt orElse modulus})
+       .bind(::ignoreMe),
+     newPlotLink
+       .withMouseMoved({highlight(modulus,$x,$y)}),
+     newLabel
+       .withCaption('Hover mouse over plot to highlight spiral.'),
+     newButton
+       .withCaption({animating
+                     ? 'Stop animation'
+                     : 'Show animation'})
+       .withAction({animating
+                    ? begin clearAnimation; plot(FP,'GREY0.7 1.2 .'); addPlot(FP,'.'); postDisplay; animating:=false; end
+                    : begin
+                        clearAnimation;
+                        //angleSortPerm(fp([modulus*2..modulus*3-1]))
+                        ordSort(modulus)
+                        .each(i,begin
+                          local mask:=[0..FP.size-1] mod modulus=i;
+                          plot(FP[mask],'1.2 . l');
+                          addPlot(FP[!mask],'GREY0.7 1.2 .');
+                          addAnimationFrame;
+                        end);
+                        animating:=true;
+                      end})]);
+end;
+
+//setOptions(['autoscaleFactor'=>1.0,'autoscaleX'=>false,'autoscaleY'=>false,'axisStyleX'=>0,'axisStyleY'=>0,'preserveAspect'=>true,
+//            'x0'=>-50,'x1'=>50,'y0'=>-50,'y1'=>50]);
+//clearAnimation;
+//fibonacciList.each(fib,begin
+//  plot;
+//  [0..fib-1].each(f,
+//    FP[[0..FP.size-1] mod fib=f].addPlot('red'));
+//  FP.addPlot(". black 0.5");
+//  addAnimationFrame;
+//end);
+//

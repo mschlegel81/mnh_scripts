@@ -1,0 +1,27 @@
+//ducktype Vec3(x:NumericList(3))->true;
+//cross(x:Vec3,y:Vec3)->
+//  x[[1,2,0]]*y[[2,0,1]]-y[[1,2,0]]*x[[2,0,1]];
+norm(x:NumericList)->x.sqr.agg(+).sqrt;
+
+@SuppressUnusedParameterWarning
+ducktype Vec2(x:NumericList(2))->true;
+
+rotate(v:Vec2)->[-v[1],v[0]];
+ofLength(v:Vec2,len:Numeric)->v*(len/norm(v));
+
+F(x,y)->sqrt(sqr(x)+sqr(y)).sin;
+
+Fdx(x,y)->(F(x+5E-10,y)-F(x-5E-10,y))*1E9;
+Fdy(x,y)->(F(x,y+5E-10)-F(x,y-5E-10))*1E9;
+
+stepSize:=1E-3;
+
+plot({pi*[cos($t),sin($t)]},1.8*pi,2*pi,100);
+begin
+  local p:=[pi,0];
+  local L:=[p];
+  [0..20000].each(i,begin
+    L||=p+=rotate([Fdx@p,Fdy@p]).ofLength(stepSize);
+  end);
+  L;
+end.addPlot('l');

@@ -1,0 +1,66 @@
+@SuppressUnusedWarning
+memoized curry benchmarkNumber(factorCount>=1,k:Int)->begin
+  local start:=ceil(k^(1/factorCount));
+  local large:=rangeGenerator(start).filter(::isPrime).head(factorCount);
+  local small:=rangeGenerator(start,2).filter(::isPrime).head(factorCount);
+  union(large,small).subSets(factorCount).map({$x.agg(*)}).filter({$x>=k}).min;
+end;
+
+USE plotUtil;
+
+mutable factTimes:=[].toMap;
+mutable isPrTimes:=[].toMap;
+synchronized logTime(bin:Int, factTime:Numeric, isPrTime:Numeric)->begin
+  factTimes[bin]|=[factTime];
+  isPrTimes[bin]|=[isPrTime];
+  void;
+end;
+
+logTime->begin
+  local bins:=2^factTimes.sort.getInner(0);
+  bins:=bins|(bins.trailing*2);
+  local f   :=   factTimes.sort.getInner(1).map({$x.sort[round([0.1,0.5,0.9]*($x.size-1))]}).transpose;
+  local p   :=   isPrTimes.sort.getInner(1).map({$x.sort[round([0.1,0.5,0.9]*($x.size-1))]}).transpose;
+  local high:=max(f.flatten.max,p.flatten.max);
+  plot([[2^31-1,high],[2^63-1,high]],'black i 2');
+  addBinPlot(bins,f[0],f[1],f[2],LINE.coloredRed);
+  addBinPlot(bins,p[0],p[1],p[2],LINE.coloredBlue);
+  postDisplay;
+  print('Total samples: ',factTimes.getInner(1).map(::size).agg(+));
+end;
+
+tester->begin
+  {begin save; round(10^(6+15*random))+intRandom(100); end}
+  .toIteratableExpression
+  .pEach(n,begin
+    local factResult   :=time(::factorize,[n]);
+    local isPrimeResult:=time(::isPrime  ,[n]);
+    (factResult['result'].size=1)==isPrimeResult['result']
+    ? logTime(floor(ln(n)/ln(2)),max(1E-7,factResult['time']),max(1E-7,isPrimeResult['time']))
+    : fail('Inconsistent results n=',n,'; ',factResult['result'],' / ',isPrimeResult['result']);
+  end);
+end;
+
+incremenalPlot->begin
+  setPlotPreserveAspect(false);
+  setPlotLogscale('x',true);
+  setPlotLogscale('y',true);
+  async(::tester);
+  while(true,begin
+    sleep(10);
+    logTime;
+  end);
+end;
+
+validate(specificList:IntList)->specificList.pEach(n,begin
+  print(index,':',n);
+  local factors:=factorize(n);
+  local ip:=n.isPrime;
+  ip==(factors.size=1) ? void : fail('n=',n,'; isPrime=',ip,'; factors=',factors);
+end) orElse print;
+
+validate->[0..9999].pMap({round(10^(8+12*random))+intRandom(100)}).validate;
+
+incremenalPlot;
+
+main->validate;

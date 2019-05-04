@@ -1,0 +1,14 @@
+workflow:=['nlm:2,0.1',
+           'sharpen:0.1,0.5',
+           'normalizeV'];
+
+files('C:\dev\data\moon*.bmp').pEach(file,
+  begin
+    local out:=file.changeFileExt('.jpg');
+    out.fileExists
+    ? print('Skip ',file)
+    : begin
+        print(file,' -> ',out);
+        workflow.executeWorkflow(file,out);
+      end;
+end);

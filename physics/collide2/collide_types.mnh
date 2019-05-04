@@ -1,0 +1,41 @@
+@SuppressUnusedParameterWarning
+ducktype Vector(vec:NumericList(2)):=true;
+type BoundingBox(L:List(2))->L[0].isVector AND L[1].isVector;
+type Matrix(mat:List(2))->mat[0].isVector AND
+                          mat[1].isVector;
+type EdgeSystem(L:List(5))->L[0].isMatrix AND //Orthonormal matrix A
+                            L[1].isMatrix AND //inverse of A
+                            L[2].isVector AND //offset
+                            L[3].isNumeric AND //edgeLength
+                            L[4].isBoundingBox; //bounding box
+@Override
+OPERATOR_MULT(m:Matrix,v:Vector)->m.each(r,r*v[index],+);
+
+@SuppressUnusedWarning=all
+normalSystem(a:Vector,b:Vector)->begin
+  local parallel:=b-a;
+  local edgeLength:=parallel.sqr.agg(+).sqrt;
+  local perpendicular:=[-parallel[1],parallel[0]]/edgeLength;
+  local M:=[parallel,perpendicular].toMatrix;
+  [M,
+   (abs(local determinant:=M[0,0]*M[1,1]-M[1,0]*M[0,1])>1E-30
+   ? [[ M[1,1],-M[0,1]],
+      [-M[1,0], M[0,0]]]/determinant
+   : [[Nan,Nan],[Nan,Nan]]).toMatrix,
+   a,
+   edgeLength,
+   boundingBoxOfEdge(a,b)].toEdgeSystem;
+end;
+
+private boundingBoxOfEdge(a:Vector,b:Vector)->[a,b].transpose.map({$x.sort}).toBoundingBox;
+boundingBoxOfBall(p:Vector,v:Vector,timeStepSize)->[p,p+v*timeStepSize].transpose.map({$x.sort+[-1,1]}).toBoundingBox;
+
+boundingBoxesIntersect(box1:BoundingBox,box2:BoundingBox)->
+  rangesIntersect@(box1[0]|box2[0]) AND
+  rangesIntersect@(box1[1]|box2[1]);
+
+pointIsInBox(point:Vector,box:BoundingBox)->
+  box[0,0]<=point[0]<=box[0,1] AND
+  box[1,0]<=point[1]<=box[1,1];
+
+private rangesIntersect(a0,a1,b0,b1)->max(a0,b0)<=min(a1,b1);

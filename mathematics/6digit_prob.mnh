@@ -1,0 +1,20 @@
+
+
+sixDigits(x>=10^5)->            digits(x);
+sixDigits(x>=10^4)-> 0         |digits(x);
+sixDigits(x>=1000)->[0,0      ]|digits(x);
+sixDigits(x>=100 )->[0,0,0    ]|digits(x);
+sixDigits(x>=10  )->[0,0,0,0  ]|digits(x);
+sixDigits(x      )->[0,0,0,0,0]|digits(x);
+
+print('Probability of distinct digits:');
+[0..10^6-1].pMap({$x.sixDigits.elementFrequency.getInner(1).sort}).elementFrequency.sort(1).map({format("%s\t%6.3f%%",$x[0].join,$x[1]*10^-4)}).join("\n").print;
+
+
+pattern(x)->begin
+  local m:=[].toMap;
+  local next:=64;
+  sixDigits(x).each(d,m[d] orElse m[d]:=byteToChar(next+=1),&);
+end;
+
+[0..10^6-1].pMap(::pattern).elementFrequency.sort(0).sort(1).map({format("%s\t%6.3f%%",$x[0].join,$x[1]*10^-4)}).join("\n").print;

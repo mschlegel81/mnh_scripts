@@ -1,0 +1,127 @@
+sample:=//!~
+with adbkk as (select dings from bums), blubb as (select a, b,c from adbkk)
+SELECT
+ADBKK.AD_BKK_KONTO_NR,
+ADBKK.AD_BKK_INHABER,
+AZBAN.AZ_BAN_BLZ,
+AZBAN.AZ_BAN_LBEZ,
+ADBKK.AD_BKK_BIC,
+ADBKK.AD_BKK_IBAN,
+ADBVB.AA_UDP_NR
+FROM
+ADBVB_BANK_REG ADBVB,
+ADBKK_BANKK    ADBKK,
+AZBAN_BANK     AZBAN
+WHERE
+ADBVB.AA_ANL_NR    = 6822704
+AND ADBVB.AA_DEP_NR    = 6822704
+--AND ADBVB.AA_UDP_NR    = 34
+AND ADBVB.AZ_BKV_ART <> 82
+-- AND ADBVB.AD_BVB_VDAT  <= TO_DATE(:HV-BIS-DATUM,'YYYYMMDD')
+-- AND (ADBVB.AD_BVB_BDAT >= TO_DATE(:HV-VON-DATUM,'YYYYMMDD')
+--                    OR ADBVB.AD_BVB_BDAT IS NULL)
+AND ADBVB.AD_BKK_ID  = ADBKK.AD_BKK_ID
+AND ADBKK.AZ_BAN_NR  = AZBAN.AZ_BAN_NR
+ORDER BY
+ADBVB.AZ_BKV_ART;~.split("\n");
+
+
+//Use in DBeaver as follows
+// command: [path to mnh_light.exe] [path to this file] ${file}
+// check the "use temp file" checkbox
+
+BREAK_LINE_BEFORE:=0;
+PUSH_INDENT:=1;
+POP_INDENT:=2;
+BREAK_LINE_AFTER_COMMA:=3;
+
+KEYWORDS:=['BETWEEN','CASE','WHEN','MERGE','COALESCE','NVL','INNER','LEFT','OUTER','RIGHT','NOT','NULL','SUM','MAX','MIN','BY','WITH','AS'];
+FMT:=([['SELECT',[BREAK_LINE_BEFORE,"SELECT"]],
+       ['DELETE',[BREAK_LINE_BEFORE,"DELETE"]],
+       ['UPDATE',[BREAK_LINE_BEFORE,"UPDATE"]],
+       ['FROM'  ,[BREAK_LINE_BEFORE,"  FROM"]],
+       ['JOIN'  ,[BREAK_LINE_BEFORE,"  JOIN"]],
+       ['WHERE' ,[BREAK_LINE_BEFORE," WHERE"]],
+       ['MERGE' ,[BREAK_LINE_BEFORE," MERGE"]],
+       ['AND'   ,[BREAK_LINE_BEFORE,"   AND"]],
+       ['ON'    ,[BREAK_LINE_BEFORE,"    ON"]],
+       ['ORDER' ,[BREAK_LINE_BEFORE," ORDER"]],
+       ['GROUP' ,[BREAK_LINE_BEFORE," GROUP"]],
+       ['('     ,[PUSH_INDENT      ,'('     ]],
+       [')'     ,[POP_INDENT       ,')'     ]],
+       [','     ,[BREAK_LINE_AFTER_COMMA ,','     ]]]
+      |map(KEYWORDS,{[$w,$w]})).toMap;
+
+formatNonKeyword(s:String)->begin
+  (local result:=s.trim) = ''
+  ? ' '
+  : result.matches('^--')
+    ? result
+    : result.lower;
+end;
+
+@SuppressUnusedWarning
+trimLeadingBlankLines(L:StringList)->begin
+  local result:=L;
+  while(head(result)=='',result:=tail(result));
+  result;
+end;
+
+tokenIterator(tokens:StringList)->{begin
+  local i:=-1;
+save;
+  local r:=tokens[i+=1];
+  r.isVoid ? void : FMT[upper(r)] orElse r.formatNonKeyword;
+end}.toIteratableExpression;
+
+formatTokens(tokens:StatefulExpression,indentation:String)->begin
+  local lineToPrint:=indentation;
+  local firstToken:=true;
+  while(true,begin
+    local next:=tokens();
+    next.isVoid
+    ? return print(lineToPrint)
+    : void;
+    next.isString ?
+      lineToPrint&=next :
+    next[0]==BREAK_LINE_BEFORE ?
+      lineToPrint==indentation ? lineToPrint&=next.trailing :
+      begin
+        print(lineToPrint);
+        lineToPrint:=indentation&next.trailing;
+      end :
+    next[0]==BREAK_LINE_AFTER_COMMA ?
+      begin
+        print(lineToPrint&next.trailing);
+        lineToPrint:=indentation;
+      end :
+    next[0]==PUSH_INDENT ?
+      begin
+        print(lineToPrint&next.trailing);
+        formatTokens(tokens,repeat(" ",indentation.length+7));
+        lineToPrint:=indentation;
+      end :
+    next[0]==POP_INDENT ?
+      return print(lineToPrint&next.trailing) :
+    fail("Don't know what to do with ",next);
+    firstToken:=false;
+  end);
+end;
+
+formatLines(S:StringList)->begin
+  local tokens:=S.replace('--','//').map({$line.tokenSplit | ' '}).flatten.map({$token.replace('//',"\n--")});
+  tokenIterator(tokens).formatTokens('');
+
+end;
+//    .map(::reformat)
+//    .toIteratable
+//    .join
+//    .split("\n")
+//    .trimLeadingBlankLines
+//    .join("\n")
+//    .print;
+
+//*Applies formatting rules to fileToFormat and prints out the result
+main(fileToFormat)->fileToFormat.fileLines.formatLines;
+
+formatLines(sample);

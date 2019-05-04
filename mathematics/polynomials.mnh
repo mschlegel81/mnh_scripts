@@ -1,0 +1,123 @@
+type Polynomial(L:NumericList)->L.size>=1;
+
+@SuppressUnusedWarning
+factorial(n:Int)->n<1 ? 1 : [2..n].agg(*);
+
+ducktype OddInt(i:Int)->(i and 1)=1;
+memoized
+abstractDifferentiation(k=0)->[[0,1,0]];
+abstractDifferentiation(k:OddInt)->
+  abstractDifferentiation(k-1).each(d,[d[0]+1, d[1]/2/k,d[2]-1],
+                                      [d[0]-1,-d[1]/2/k,d[2]-1]).group(0,::polyAgg).sort;
+abstractDifferentiation(k:Int)->
+  abstractDifferentiation(k-2).each(d,[d[0]+1,   d[1]/k,d[2]-2],
+                                      [d[0]  ,-2*d[1]/k,d[2]-2],
+                                      [d[0]-1,   d[1]/k,d[2]-2]).group(0,::polyAgg).sort;
+
+private memoized
+xPow(0  )->1;
+xPow(1  )->{$x};
+xPow(n>1)->{$x}^n;
+
+private polyAgg(a:List(2),b:List(2))->[a.head,a.trailing+b.trailing];
+private polyAgg(a:List(3),b:List(3))->[a.head,a[1]+b[1],a.trailing];
+private groupToPolynomial(L:List)->begin
+  local Q:=L.group(0,::polyAgg).toMap;
+  [0..Q.getInner(0).max].each(k,Q[k] orElse 0);
+end.toPolynomial;
+
+@SuppressUnusedWarning
+toExpression(P:Polynomial)->P.each(factor,factor=0 ? void : factor*xPow(index),+);
+toExpression(l)->typecast.toExpression;
+
+@Override
+OPERATOR_PLUS(A:Polynomial,B:Polynomial)->[0..max(A.size,B.size)-1].each(i,A[i]+B[i]).toPolynomial;
+OPERATOR_PLUS(A:Polynomial,b:Numeric   )->A.each(a,index=0 ? a+b : a).toPolynomial;
+OPERATOR_PLUS(a:Numeric   ,B:Polynomial)->B.each(b,index=0 ? a+b : b).toPolynomial;
+
+@Override
+OPERATOR_MINUS(A:Polynomial,B:Polynomial)->[0..max(A.size,B.size)-1].each(i,A[i]-B[i]).toPolynomial;
+OPERATOR_MINUS(A:Polynomial,b:Numeric   )->A.each(a,index=0 ? a-b :  a).toPolynomial;
+OPERATOR_MINUS(a:Numeric   ,B:Polynomial)->B.each(b,index=0 ? a-b : -b).toPolynomial;
+
+@Override
+OPERATOR_MULT(A:Polynomial,f:Numeric)->(A.toBuiltin*f).toPolynomial;
+OPERATOR_MULT(f:Numeric,A:Polynomial)->(A.toBuiltin*f).toPolynomial;
+OPERATOR_MULT(A:Polynomial,B:Polynomial)->
+A.each(a_i,begin
+  local k:=index;
+  B.each(b_i,[index+k,a_i*b_i]);
+end,|).groupToPolynomial;
+
+
+
+//*Binominal coefficient
+memoized bc(n=0)->[1];
+         bc(n>0)->(0|bc(n-1))+(bc(n-1)|0);
+         bc(n,k)->bc(n)[k] orElse 0;
+
+bcWeightAgg(L:List)->(L*bc(L.size-1)*0.5^(L.size-1)).agg(+);
+
+//*Returns a Polynomial R(x) = P(x+dx)
+@SuppressUnusedWarning
+shift(P:Polynomial,dx:Numeric)->
+  // R = p[0] + p[1]*(x+dx) + p[2]*(x+dx)^2 + ...
+  //
+  // p[n]*(x+dx)^n = p[n] * sum_k=0^n( bc(n,k) * dx^k * x^(n-k) )
+  //               = bc(n).each(b,(p[n] * b    * dx^k)* x^(n-k),+);
+  P.each(p_n,begin
+    local n:=index;
+    bc(n).each(b,[n-index,p_n*b*dx^index]);
+  end,|).groupToPolynomial;
+
+@SuppressUnusedWarning
+sublistsOfLength(L:List,subLength>0)->begin
+  [0..L.size-subLength].each(offset,
+    L[[0..subLength-1]+offset]);
+end;
+
+
+discreteTaylor(L:List,dx:Numeric)->
+!L.size.isOddInt ? fail('L must have odd length') :
+begin
+  local Y:=L.each(p,[index-L.size div 2,p]).toMap;
+  [0..L.size-1].each(k,begin
+    abstractDifferentiation(k)
+    .map({[$x[0],$x[1]*dx^$x[2]]})
+    .each(entry,Y[entry[0]]*entry[1],+);
+  end).toPolynomial;
+end;
+
+discreteTaylor(L:List,dx:Numeric,maxDegree:Int)->
+!L.size.isOddInt ? fail('L must have odd length') :
+begin
+  local maxDeg:=min(maxDegree,L.size-2);
+  maxDeg:=maxDeg.isOddInt ? maxDeg : maxDeg+1;
+  [(L.size-maxDeg) div 2..-(L.size-maxDeg) div 2].each(k,begin
+    local Y:=k=0
+             ? L
+             : k<0 ? L.trailing(L.size+2*k)
+                   : L.head    (L.size-2*k);
+    while(Y.size+1>maxDeg,Y:=Y.tail.leading);
+    Y.discreteTaylor(dx).shift(k*dx);
+  end).bcWeightAgg.toPolynomial;
+end;
+
+
+h:=0.1;
+X:=[-50..50]*h;
+Y:=sin(X);
+
+T0:=Y.discreteTaylor(h).toExpression;
+T1:=discreteTaylor(Y,h,12).toExpression;
+
+plot   (abs(T0-::sin),-1,1,1000);
+addPlot(abs(T1-::sin),-1,1,1000);
+
+//weights
+//     1
+//  -h   h
+//h^2   -2h^2   h^2
+
+
+//cos(0.1)/0.1^2-2*cos(0)/0.1^2+cos(-0.1)/0.1^2;

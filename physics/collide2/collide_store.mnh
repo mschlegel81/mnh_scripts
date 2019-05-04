@@ -1,0 +1,112 @@
+@SuppressUnusedWarning=all
+
+TIME_STEP_SIZE:=0.2;
+DOWNWARD_ACCEL:=-0.1;
+USE collide_types,collide_initialState;
+datastore collisions:=[].toMap;
+storedCollisions->collisions.getInner(0).sort;
+
+mutable current:=[];
+
+memoized circleStyle(val:Numeric)->'ellipse fs HUE'&val;
+
+getRanges(geometry:Geometry,positions:List,velocities:List)->begin
+  positions.size=0 ? return [[-1,1],[-1,1]] : void;
+  local x0:= Inf;
+  local x1:=-Inf;
+  local y0:= Inf;
+  local y1:=-Inf;
+  positions.each(p,begin
+    local v:=velocities[index];
+    x0:=min(x0,p[0]);
+    x1:=max(x1,p[0]);
+    y0:=min(y0,p[1]);
+    local t_top:=max(0,-v[1]/DOWNWARD_ACCEL);
+    y1:=max(y1,p[1]+v[1]*t_top+DOWNWARD_ACCEL/2*sqr(t_top));
+    void;
+  end);
+  [[(max(geometry['limits','x0'],x0-1)+geometry['limits','x0'])/2-1,
+    (min(geometry['limits','x1'],x1+1)+geometry['limits','x1'])/2+1],
+   [(y0+geometry['limits','y0'])*0.5-1,
+    y1+1]];
+end;
+
+updateRange(range)->range;
+updateRange(oldRange,newRange)->[[0.95*oldRange[0,0]+0.05*newRange[0,0],
+                                  0.95*oldRange[0,1]+0.05*newRange[0,1]],
+                                 [min(oldRange[1,0],newRange[1,0],
+                                  0.95*oldRange[1,0]+0.05*newRange[1,0]),
+                                  0.95*oldRange[1,1]+0.05*newRange[1,1]]];
+
+
+resetPlot->drawSystem(BLANK_GEOMETRY,[],[]);
+drawSystem(geometry:Geometry,ballPositions,ballVelocities)->begin
+  local drawCircle:={addPlot([$xy-1,$xy+1],circleStyle($col))};
+  local ranges:=ballPositions==[] ? void : getRanges(geometry,ballPositions,ballVelocities);
+save;
+  ballPositions.size=0
+  ? return ranges:=void
+  : void;
+  ranges:=updateRange(ranges,getRanges(geometry,ballPositions,ballVelocities));
+  plot.setOptions([['x0',ranges[0,0]],['x1',ranges[0,1]],['y0',ranges[1,0]],['y1',ranges[1,1]],
+      ['autoscaleX',false],
+      ['autoscaleY',false],
+      ['preserveAspect',true],
+      ['axisStyleX',0],
+      ['axisStyleY',0],
+      ['fontsize',6]].toMap);
+  plot(geometry['nodes'],'black 2');
+  ballPositions.each(p,drawCircle(p,index*2/(3*ballPositions.size-3)));
+  addAnimationFrame;
+end;
+
+synchronized storeInitial(geometry:Geometry,ballPositions)->
+  current:=[geometry['name'],ballPositions];
+synchronized storeStep(ballPositions)->
+  current||=ballPositions;
+storeReplay(velocities:List,name:String)->begin
+  collisions[name]:=current|[velocities];
+  writeDataStores;
+end;
+doReplay(name:String)->begin
+  local data:=collisions[name];
+  data.isVoid ? return false : void;
+  print('Replaying ',name);
+  local geometry  :=getGeometryInfo(data[0]);
+  local prevPos   :=data[1];
+  local velocities:=data[1].map({[0,0]});
+  resetPlot; clearAnimation;
+  data.tail.leading.each(positions,begin
+    velocities:=(positions-prevPos)/TIME_STEP_SIZE;
+    drawSystem(geometry,positions,velocities);
+    prevPos:=positions;
+    void;
+  end);
+  postDisplay;
+  print('Done replaying.');
+  true;
+end;
+
+canResumeCalculation(name)->!isVoid(collisions[name]) AND stillMoving(collisions[name].leading);
+resumeCalculation(name)->begin
+  current:=collisions[name];
+  current.isVoid ? return void : void;
+  local result:=[getGeometryInfo(current[0]),
+                 current[current.size-2],
+                 current[current.size-1]];
+  current:=current.leading;
+  result;
+end;
+
+stillMoving(snapshot)->
+  snapshot.size <21 OR
+  begin
+    local threshold:=exp(snapshot.size/200.0)*1E-5;
+    snapshot.trailing(20)
+           .transpose.each(x,(x[19]-x[ 0]).sqr.agg(+)>threshold OR
+                             (x[19]-x[ 5]).sqr.agg(+)>threshold OR
+                             (x[19]-x[10]).sqr.agg(+)>threshold OR
+                             (x[19]-x[15]).sqr.agg(+)>threshold,OR);
+  end;
+
+stillMoving->current.stillMoving;

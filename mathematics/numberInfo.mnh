@@ -1,0 +1,58 @@
+private pythagoreanTripletsContaining(a,b,c,scanFor,timeOut)->
+  time>timeOut OR a>scanFor AND b>scanFor AND c>scanFor
+  ? []
+  : (a mod scanFor=0 ? [[scanFor,b*a div scanFor,c*a div scanFor]] : void) |
+    (b mod scanFor=0 ? [[a*b div scanFor,scanFor,c*b div scanFor]] : void) |
+    (c mod scanFor=0 ? [[a*c div scanFor,b*c div scanFor,scanFor]] : void) |
+    (time<timeOut ? pythagoreanTripletsContaining( a-2*b+2*c, 2*a-b+2*c, 2*a-2*b+3*c, scanFor,timeOut) : void)|
+    (time<timeOut ? pythagoreanTripletsContaining( a+2*b+2*c, 2*a+b+2*c, 2*a+2*b+3*c, scanFor,timeOut) : void)|
+    (time<timeOut ? pythagoreanTripletsContaining(-a+2*b+2*c,-2*a+b+2*c,-2*a+2*b+3*c, scanFor,timeOut) : void);
+
+private pythagoreanTripletsContaining(scanFor)->begin
+  local timeOut:=time+1;
+  local result:=pythagoreanTripletsContaining(3,4,5,scanFor,timeOut);
+  time>timeOut ? print('Search for pythagorean triplets timed out') : void;
+  result;
+end;
+
+private simpleForm(i:Int)->begin
+  local bases:=[2,3,5..7,10..15,17..24,26..31,33..35,37..48];
+  local exponents:=round(ln(i)/ln(bases));
+  local offsets:=i-bases^exponents;
+  local k:=argMin(abs(offsets)+bases+exponents);
+  format("%s^%s{$2<0 ? $2 : $2>0 ? '+'&$2 : ''}",bases[k],exponents[k],offsets[k]);
+end;
+
+private properDividers(i:Int)->begin
+  local factors:=factorize(i).elementFrequency;
+  local factorCount:=factors.map({$x[1]+1}).agg(*)-1;
+  factorCount>24 ? return format('{factorCount} proper dividers in total') : void;
+  local dividers:=[1].toSet;
+  factors.each(entry,begin
+    dividers*=toSet(entry[0]^[0..entry[1]]);
+    void;
+  end);
+  dividers.sort.filter({$x<>i}).join(",");
+end;
+
+infoOnNumber(i:Int)->begin
+  print('Number: ',i);
+  print ('      = ',simpleForm(i));
+  print ('      = ',i.digits(2).join,'b');
+  printf('      = %xx',i);
+  begin
+    local t:=pythagoreanTripletsContaining(i);
+    t==[] ? print ('Not part of any Pythagorean triplet')
+          : print ('Pythagorean triplets containing ',i) orElse
+            printf("  \t%s\v^2+\v%s\v^2=\v%s\v^2",t.getInner(0),t.getInner(1),t.getInner(2));
+  end;
+
+  print ('Factorization   : ',i.isPrime ? i&' is prime' : i.factorize.join("*"));
+  print ('Proper dividers : ',properDividers(i));
+  print ('Adjacent primes : ',rangeGenerator(i-1,0).filter(::isPrime).head(1)[0],' ',
+                              rangeGenerator(i+1  ).filter(::isPrime).head(1)[0]);
+  print ('Adjacent squares: ',i.sqrt.floor.sqr,' ',
+                              i.sqrt.ceil.sqr);
+end;
+
+primes(2000).filter({pythagoreanTripletsContaining(3,4,5,$n,time+1).size=0}).map(::print);

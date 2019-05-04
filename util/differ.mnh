@@ -1,0 +1,24 @@
+USE customFormUtil,guiScripts;
+
+main(file1:String,file2:String)->begin
+  local fileAName:=fileExists(file1) ? file1 : 'A';
+  local fileBName:=fileExists(file2) ? file2 : 'B';
+  local a:=fileExists(file1) ? file1.fileLines.join("\n") : '';
+  local b:=fileExists(file2) ? file2.fileLines.join("\n") : '';
+  local diffLines:=2;
+  showDialog('Diff',
+     [newGrid(3,
+      [newLabel.withCaption(fileAName),
+       newEdit.withCaption('Diff').withAction({begin
+         local d:=softCast($0);
+         d.isInt AND d>=0
+         ? diffLines:=d
+         : void;
+       end}),
+       newLabel.withCaption(fileBName),
+       newInputEditor('txt').bind(::a),
+       newOutputEditor('diff').withCaption({unifiedDiff('A','B',a.split("\n"),b.split("\n"),diffLines).join("\n")}),
+       newInputEditor('txt').bind(::b)])]);
+end;
+
+main->main('','');

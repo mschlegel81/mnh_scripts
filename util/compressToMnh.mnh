@@ -1,0 +1,32 @@
+asHereDoc(s:String)->begin
+  local rest:='DATA:=//!~'&s&'~';
+  local result:=[];
+  while(length(rest)>256,begin
+    result|=rest.copy(0,256);
+    rest:=rest.copy(256,length(rest)-256);
+  end);
+  result|=rest;
+  result|='.base64decode.decompress.deserialize;';
+  result;
+end;
+
+decodeCode(destFolder)->//!~
+main->begin
+  allFiles(%).map(::deleteFile);
+  allFolders(%).map(::deleteDir);
+  DATA.each(f,writeFile(%&f[0],$f[1]));
+end;~.replace('%',escape(destFolder));
+
+main(folder,outputFile)->begin
+  local root:=replace(folder&'?',['\','/?','?'],['/','?','']);
+  local sourceCode:=
+        allFiles(root)
+        .pEach(file,[file.replace(root,''),file.fileContents])
+        .serialize
+        .compress
+        .base64encode
+        .asHereDoc|
+        decodeCode(extractFileName(folder));
+  outputFile.changeFileExt('.mnh').writeFileLines(sourceCode);
+  print(outputFile.changeFileExt('.mnh'),' was generated');
+end;

@@ -1,0 +1,84 @@
+plain script;
+USE GUI;
+
+//CX:=sin([0..50]/50*2*pi);
+//CY:=cos([0..50]/50*2*pi);
+mutable inner:=false;
+mutable radius:=0.5;
+mutable tracePoint:=1;
+mutable alive:=true;
+
+async({begin
+  local t:=0;
+  local displaySpan:=0;
+  local trace:=[[Nan,Nan],[Nan,Nan]];
+  local getConfigState:={[inner,radius,tracePoint]};
+  local cfg:=getConfigState();
+  clearAnimation;
+  plot([[-1,-1],[1,1]],'ellipse');
+  addPlot(trace);
+  addPlot(trace);
+  addPlot(trace);
+  while(alive,begin
+    displaySpan:=displaySpan*0.95+0.0505*(inner
+                                          ? max(1,1+(radius-1)*(tracePoint+1))
+                                          : 1+radius*(1+tracePoint));
+    setOptions([['x0',-displaySpan],['x1',displaySpan],
+                ['y0',-displaySpan],['y1',displaySpan],
+                ['autoscaleX',false],
+                ['autoscaleY',false],
+                ['axisStyleX',0],
+                ['axisStyleY',0]]);
+    removePlot(3);
+    local center:=inner
+                  ? (1-radius)*[cos(t),sin(t)]
+                  : (1+radius)*[cos(t),sin(t)];
+    local phi:=(inner
+                ?  t*(  1/radius-1)
+                : -t*(1+1/radius))+pi/2;
+    local tp:=center+[sin(phi),cos(phi)]*tracePoint*radius;
+    cfg==getConfigState()
+    ? trace||=tp
+    : begin
+        trace:=[tp,tp];
+        cfg:=getConfigState();
+      end;
+    trace.size>400 ? trace[0]:=void : void;
+    addPlot(trace,'blue');
+    addPlot([center-radius,center+radius],'red ellipse');
+    addPlot([center,tp],'. l red');
+    postDisplay;
+    sleep(0.02);
+    t+=(inner ? 2 : 1)*0.0314;
+  end);
+end});
+
+tolerantStrToNum(s:String,minValue:Numeric,maxValue:Numeric)->begin
+  local value:=s.softCast;
+  value.isNumeric
+  ? void
+  : value:=try({s.interpret},void);
+  !value.isVoid AND minValue<=value<=maxValue
+  ? value
+  : void;
+end;
+
+USE customFormUtil;
+
+begin
+  local radius_:=toString(radius);
+  local trace_ :=toString(tracePoint);
+  showDialog('Spiro',[
+    newCheckbox.withCaption('inner circle')
+               .withAction ({inner:=$0}),
+    newEdit.withCaption('Circle radius')
+           .bind(nameOf radius_)
+           .withAction({radius_:=toString(radius:=tolerantStrToNum(radius_,0.001,10) orElse radius)}),
+    newEdit.withCaption('Trace radius')
+           .bind(nameOf trace_)
+           .withAction({trace_:=toString(tracePoint:=tolerantStrToNum(trace_,0.001,Inf) orElse tracePoint)}),
+    newPlotDock
+  ]);
+  alive:=false;
+  sleep(0.1);
+end;

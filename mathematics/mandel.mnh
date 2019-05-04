@@ -1,0 +1,39 @@
+circle  (t)->[cos(t),sin(t)];
+circle_d(t)->[-sin(t),cos(t)];
+f  (t)->circle  (t)*0.5-circle  (2*t)*0.25;
+f_d(t)->circle_d(t)*0.5-circle_d(2*t)*0.5;
+
+
+approximateMandelbrot->begin
+  plot(::f,0,2*pi,500,'black 0.5 polygon');
+  [2..35].each(i,begin
+    [1..i].each(j,gcd(i,j)>1 ? void : begin
+      local phi  :=2*pi*j/i;
+      local radius:=f_d(phi).sqr.agg(+).sqrt / sqr(i);
+
+      local touchAt:=f(phi);
+      local center :=touchAt+radius*(f_d(phi)/(f_d(phi).sqr.agg(+).sqrt)).reverseList*[1,-1];
+      addPlot(center+radius*::circle,0,2*pi,50,'red 0.5 polygon');
+      i<=7 ?
+      drawText(center[0],center[1],j&'/'&i,6,'C')
+      : void;
+    end);
+  end,|);
+end;
+
+approximateMandelbrot;
+[[-0.11573023977341751,0.8380615318574115],
+ [-0.202077693924303  ,0.798786811801712 ],
+ [-0.0404631744056031 ,0.786769321888783 ],
+ [-0.219275136385908  ,0.751338446455837 ],
+ [-0.0303104674101976 ,0.741185739460432 ]].addPlot('x black');
+
+//addPlot([-0.12499999999999974,0.756]+::circle*0.096225044864937617
+//        -{circle(2*$t-pi/2)*0.01}
+//,0,2*pi,100,'black');
+//
+//
+
+
+addPlot({(circle($t))*0.25+
+         [-1,0]},0,2*pi,100);

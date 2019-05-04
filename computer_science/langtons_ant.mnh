@@ -1,0 +1,50 @@
+plain script;
+
+turnMove(antState:List(2),turnLeft:Boolean)->begin
+ local MOVE:=[[[ 1, 0],0],
+              [[ 0, 1],0],
+              [[-1, 0],0],
+              [[ 0,-1],0]];
+save;
+  local turn:=[antState[0],(antState[1]+(turnLeft ? 1 : 3)) mod 4];
+  turn+MOVE[turn[1]];
+end;
+
+step(antState:List(2),activeCells:Set)->begin
+  antState[0] in activeCells
+  ? [turnMove(antState,false),activeCells.minus([antState[0]])]
+  : [turnMove(antState,true ),activeCells ||     antState[0]];
+end;
+
+INITIAL:=[[[0,0],0],[].toSet];
+
+paint(antState:List(2),activeCells:Set)->begin
+  local ANT_CHAR:=['>','^','<','v'];
+save;
+  local x0:=antState[0,0];
+  local x1:=antState[0,0];
+  local y0:=antState[0,1];
+  local y1:=antState[0,1];
+  activeCells.each(c,begin
+    x0:=min(x0,c[0]);
+    x1:=max(x1,c[0]);
+    y0:=min(y0,c[1]);
+    y1:=max(y1,c[1]);
+    void;
+  end);
+  print("\f",
+  [y1..y0].each(y,
+    "\n",
+    [x0..x1].each(x,
+      [x,y]==antState[0] ? ANT_CHAR[antState[1]] orElse '*' :
+      [x,y] in activeCells ? '#' : ' ',&),&));
+end;
+
+begin
+  local S:=INITIAL;
+  while(true,begin
+    paint@S;
+    S:=step@S;
+    sleep(0.02);
+  end);
+end;

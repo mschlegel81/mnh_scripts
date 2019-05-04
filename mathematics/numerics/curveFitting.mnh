@@ -1,0 +1,83 @@
+USE downhillSimplex;
+
+distance_(samples:List,pointsInTime:NumericList,dimensions:Int)->{begin
+  //local P:=pointsInTime.pMap($parameters.toNdExpression(dimensions));
+  local P:=toNdValues($parameters,dimensions,pointsInTime);
+  local distMatrix:=P.pEach(p,samples.each(q,(p-q).sqr.agg(+)));
+  (distMatrix          .map(::min).agg(+) +
+   distMatrix.transpose.map(::min).agg(+))/(P.size+samples.size);
+end};
+
+distance(samples:List,sampleCount>=1,dimensions:Int)->distance_(samples,[0..sampleCount-1]/sampleCount*2*pi,dimensions);
+
+private
+part(0,param)->param;
+part(i,0    )->[];
+part(1,param)->['+',param,'*','sin','(','$t',')'];
+part(2,param)->['+',param,'*','cos','(','$t',')'];
+part(i,param)->['+',param,'*',(i and 1)=1 ? 'sin' : 'cos','(','$t','*',(i+1) div 2,')'];
+
+private parts(parameters:NumericList)->parameters.each(p,part(index,p),|);
+
+private toNdExpression(parameters:NumericList,N>=1)->begin
+  local E:='['.|
+  ([0..N-1].each(n,
+    index=0 ? void : ',',
+    parameters[[0..parameters.size-1] mod N=n].parts,|)).|(']').toExpression;
+  E.isExpression(0)
+  ? E+{$t*0}
+  : E;
+end;
+
+private
+value(0,param,T:NumericList)->T.map({param});
+value(i,param,T:NumericList)->
+  (i and 1)=1
+  ? param*sin(T*((i+1) div 2))
+  : param*cos(T*((i+1) div 2));
+
+private toNdValues(parameters:NumericList,N>=1,T:NumericList)->begin
+  [0..N-1].each(n,
+  parameters[[0..parameters.size-1] mod N=n].each(p,value(index,p,T),+)).transpose;
+end;
+
+private extremes(parCount)->begin
+  local f:=[2..parCount div 2];
+  max(8,4*f.agg(*) div gcd@f);
+end;
+
+
+
+fit(samples:List,parametersPerDimension>=2)->begin
+  local numberOfDimensions:=samples.head.size;
+  local range:=samples.flatten.abs.max*2;
+
+  local P:=[];
+  local currParametersPerDimension:=1;
+  while(currParametersPerDimension<parametersPerDimension,begin
+    currParametersPerDimension:=min(currParametersPerDimension+2,parametersPerDimension);
+    local fidelity:=samples.distance(extremes(currParametersPerDimension),numberOfDimensions);
+    local spaceSize:=currParametersPerDimension*numberOfDimensions;
+
+    while(P.size<spaceSize,P|=0);
+    addPlot(P.toNdExpression(numberOfDimensions),0,2*pi,1000);
+    P:=downhillSimplex(fidelity,P,range,0.01,DEFAULT_DOWNHILL_SIMPLEX_OPTIONS.withActionOnBestPoint(
+     {begin
+        print(spaceSize,' ',$x[0]);
+        removePlot;
+        addPlot($x[1].toNdExpression(2),0,2*pi,1000);
+        display;
+      end})).trailing;
+    print(P.toNdExpression(numberOfDimensions));
+    display;
+  end);
+  P;
+end;
+
+SAMPLE_COUNT:=200;
+HEART:=([1..SAMPLE_COUNT]/SAMPLE_COUNT*2*pi).map({[12*sin($x)-4*sin(3*$x),
+       13*cos($x)-5*cos(2*$x)-2*cos(3*$x)-cos(4*$x)-4]});;
+
+plot(HEART,'.');
+display;
+fit(HEART,11);

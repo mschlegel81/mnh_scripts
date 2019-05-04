@@ -1,0 +1,83 @@
+//workflow(n:String)->
+//['load:C:\dev\mnh_scripts\physics\collide2\hour_glass_1_'&n&'.png',
+// 'crop:-1:1x0:1',
+// 'stash:0',
+// 'load:C:\dev\mnh_scripts\physics\collide2\hour_glass_2_'&n&'.png',
+// 'crop:0:2x0:1',
+// 'maxStash:0'];
+//
+//combine(i:Int)->begin
+//  local counter:=format('%3.3d',i);
+//  workflow(counter).executeWorkflow(960,1080,'C:\dev\mnh_scripts\physics\hourGlasses_'&counter&'.png');
+//  print(counter,' done');
+//end;
+//
+
+fileExistsVerbose(filename:String)->fileExists(filename) ? true : print(filename,' does not exist') orElse false;
+fileNExistsVerbose(filename:String)->fileExists(filename) ? print(filename,' already exists') orElse false : true;
+
+combineImages1x4(filename1:String,
+                 filename2:String,
+                 filename3:String,
+                 filename4:String,
+                 output   :String)->begin
+  fileExistsVerbose(filename1) AND
+  fileExistsVerbose(filename2) AND
+  fileExistsVerbose(filename3) AND
+  fileExistsVerbose(filename4) AND
+  fileNExistsVerbose(output)
+  ? executeWorkflow(['crop:0,1x0,4' ,            'stash:0',
+   'load:'&filename2,'crop:0,1x-1,3', '+stash:0','stash:0',
+   'load:'&filename3,'crop:0,1x-2,2', '+stash:0','stash:0',
+   'load:'&filename4,'crop:0,1x-3,1', '+stash:0'],
+   filename1,output,::print)
+  : void;
+end;
+
+combineImages2x4(filename1:String,filename2:String,filename3:String,filename4:String,
+                 filename5:String,filename6:String,filename7:String,filename8:String,
+                 output   :String)->begin
+  fileExistsVerbose(filename1) AND
+  fileExistsVerbose(filename2) AND
+  fileExistsVerbose(filename3) AND
+  fileExistsVerbose(filename4) AND
+  fileExistsVerbose(filename5) AND
+  fileExistsVerbose(filename6) AND
+  fileExistsVerbose(filename7) AND
+  fileExistsVerbose(filename8) AND
+  fileNExistsVerbose(output)
+  ? print('Creating ',output) orElse
+    executeWorkflow(['crop:0,2x0,4' ,            'stash:0',
+   'load:'&filename2,'crop:0,2x-1,3', '+stash:0','stash:0',
+   'load:'&filename3,'crop:0,2x-2,2', '+stash:0','stash:0',
+   'load:'&filename4,'crop:0,2x-3,1', '+stash:0','stash:0',
+   'load:'&filename5,'crop:-1,1x0,4' , '+stash:0','stash:0',
+   'load:'&filename6,'crop:-1,1x-1,3', '+stash:0','stash:0',
+   'load:'&filename7,'crop:-1,1x-2,2', '+stash:0','stash:0',
+   'load:'&filename8,'crop:-1,1x-3,1', '+stash:0','stash:0'],
+   filename1,output)
+  : void;
+end;
+
+combineImages3x1(filename1:String,
+                 filename2:String,
+                 filename3:String,
+                 output   :String)->begin
+  fileExistsVerbose(filename1) AND
+  fileExistsVerbose(filename2) AND
+  fileExistsVerbose(filename3) AND
+  fileNExistsVerbose(output)
+  ? executeWorkflow(['crop:0,3x0,1' ,            'stash:0',
+   'load:'&filename2,'crop:-1,2x0,1', '+stash:0','stash:0',
+   'load:'&filename3,'crop:-2,1x0,1', '+stash:0','stash:0'],
+   filename1,output,::print)
+  : void;
+end;
+
+
+combineImages(index)->
+  combineImages3x1(format('C:\dev\mnh_scripts\physics\d_hrd__%3.3d.png',index),
+                   format('C:\dev\mnh_scripts\physics\d_med__%3.3d.png',index),
+                   format('C:\dev\mnh_scripts\physics\d_sft__%3.3d.png',index),
+                   format('C:\dev\mnh_scripts\physics\droplet_%3.3d.png',index));
+[0..500].pMap(::combineImages);

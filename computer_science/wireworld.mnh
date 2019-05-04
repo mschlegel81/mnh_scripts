@@ -1,0 +1,71 @@
+EMPTY:=0;
+ELECTRON_HEAD:=1;
+ELECTRON_TAIL:=2;
+CONDUCTOR:=3;
+
+STRING_TO_STATE:=[['.',CONDUCTOR],
+                  ['o',ELECTRON_HEAD],
+                  ['O',ELECTRON_TAIL]].toMap;
+STATE_TO_STRING:=[' ','o','O','.'];
+
+parseState(S:String)->begin
+  local state:=S.split("\n").each(line,
+    line.trimRight.chars.map({STRING_TO_STATE[$c] orElse EMPTY}));
+  local nonempties:=[0..state.size-1].cross([0..state.map(::size).max-1])
+                    .filter({state[$c[0],$c[1]] in [ELECTRON_HEAD,ELECTRON_TAIL,CONDUCTOR]});
+  local dn:=cross([-1..1],[-1..1]).filter({!($x==[0,0])});
+  local neighbors:=nonempties.pEach(c,[c,dn.map({c+$d}).intersect(nonempties).toList]).toMap;
+  [state,neighbors];
+end;
+
+stateToString(state:List)->state.map({STATE_TO_STRING[$line].join}).join("\n");
+
+nextState(stateAndNeighbors:List(2))->begin
+  local old      :=stateAndNeighbors[0];
+  local neighbors:=stateAndNeighbors[1];
+  local new:=
+  old.each(line,begin
+    local i:=index;
+    line.each(cell,cell=EMPTY         ? EMPTY         :
+                   cell=ELECTRON_HEAD ? ELECTRON_TAIL :
+                   cell=ELECTRON_TAIL ? CONDUCTOR     :
+                   neighbors[[i,index]].each(n,old[n[0],n[1]]=ELECTRON_HEAD).trueCount in [1,2]
+                   ? ELECTRON_HEAD
+                   : CONDUCTOR);
+  end);
+  [new,neighbors];
+end;
+
+evolve(stateAndNeighbors:List(2))->begin
+  local san:=stateAndNeighbors;
+  while(true,begin
+    print("\f\n",stateToString(san[0]));
+    san:=nextState(san);
+    sleep(0.2);
+  end);
+end;
+
+
+#parseState(//!~
+#             ....
+# o          .
+#O .......... ....
+# .          .
+#             ....
+# ~).evolve;
+
+parseState(//!~
+  ......................
+  .                    .
+  .                    .
+  .oO...................
+  .
+ ...
+ . .
+  .   ..
+  .... ....................
+  .   ..                  .
+  .                       .
+  .........................
+
+~).evolve;

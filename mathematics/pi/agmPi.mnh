@@ -1,0 +1,19 @@
+//*Compute pi
+//*Method of Gauss, Salamin and Brent
+agmPi(scale:Int)->begin
+  //We use a fixed point representation
+  local a:=[local SCALE_FACTOR:=10^scale,isqrt(10^(scale*2-1)*5)[0]];
+  local prevQuotient:=1;
+  local quotient:=0;
+  local quotFactor:=2;
+  while(quotient!=prevQuotient,begin
+    a:=[a.agg(+).shiftRight(1),a.agg(*).isqrt[0]];
+    prevQuotient:=quotient;
+    quotient+=sqr(a).agg(-)*(quotFactor*=2) div SCALE_FACTOR;
+  end);
+  a:=4*a[0]^2 div (SCALE_FACTOR - quotient);
+  '3.'&toString(a).copy(1);
+end;
+
+//*Computes and outputs pi based on the method of Gauss, Salamin and Brent
+main(digitsToCompute)->digitsToCompute.toInt.agmPi.print;

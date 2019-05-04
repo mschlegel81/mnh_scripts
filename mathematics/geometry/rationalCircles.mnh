@@ -1,0 +1,113 @@
+textSize:=[2..11].map({[$i,256/$i^2]}).toMap;
+
+drawRationalCircles(maxDenominator>1)->begin
+
+[['autoscaleFactor',1.0],
+ ['autoscaleX',false],
+ ['autoscaleY',false],
+ ['axisStyleX',0],
+ ['axisStyleY',0],
+ ['fontsize',6.2],
+ ['logscaleX',false],
+ ['logscaleY',false],
+ ['preserveAspect',true],
+ ['x0',0],
+ ['x1',1.0],
+ ['y0',-0.1],
+ ['y1',0.25]].setOptions;
+plot([0,0],'0.5 black');
+addPlot({0.5-sqrt(1-4*   $x ^2)*0.5},0  ,0.5,100,'0.5 black');
+addPlot({0.5-sqrt(1-4*(1-$x)^2)*0.5},0.5,1  ,100,'0.5 black');
+[2..maxDenominator].each(i,[1/i,1/4],[1/i,1/i^2],[1/i,1/4]).addPlot('. l black .5');
+[maxDenominator..2].each(i,[1-1/i,1/4],[1-1/i,1/i^2],[1-1/i,1/4]).addPlot('. l black .5');
+[2..maxDenominator].each(i,[1..i-1].each(j,gcd(i,j)=1 ? j/i : void),|).sort.map({[$x,-0.1]}).addPlot('i 0.5 black l');
+[2..maxDenominator]
+  .each(denominator,
+    [1..denominator-1]
+    .each(enumerator,gcd(denominator,enumerator)=1 ? [denominator,enumerator,enumerator/denominator,0.5/sqr(denominator)] : void)
+    .each(part,begin
+      local fontSize:=textSize[part[0]];
+      fontSize.isVoid
+      ? void
+      : drawText(part[2],part[3],format('%s/%s',part[1],part[0]),fontSize,'C','Times New Roman');
+      [[part[2]-part[3],0],
+       [part[2]+part[3],2*part[3]]];
+    end,|).addPlot('ellipse 0.5'));
+end;
+
+@SuppressUnusedWarning
+animate->begin
+  clearAnimation;
+  [2..50].each(k,drawRationalCircles(k),addAnimationFrame,postDisplay);
+end;
+
+phi(1)->1;
+phi(n:Int)->factorize(n).elementFrequency.each(p,p[0]^(p[1]-1)*(p[0]-1),*);
+
+@SuppressUnusedWarning
+coveredArea(kMax>=1)->[kMax..1].pEach(k,phi(k)*sqr(0.5/k^2),+)*pi;
+coveredArea(kMax< 1)->0;
+
+coveredArea->0.8722840410656279761751975321712258706402777808899330325203521477849855827764542436166542228628979856;
+             //=pi/4 * sum_i=1^inf(phi(i)/i^4) = 45*zeta(3)/(2*pi^3);
+
+memoized colorOf(d:Int)->begin
+  local k:=d.factorize.size;
+  k<=1 ? 'red'   :
+  k =2 ? 'green' :
+  k =3 ? 'blue'  :
+         'black';
+end;
+
+
+drawDetail(centerX,stretch)->begin
+
+[['autoscaleFactor',1.0],
+ ['autoscaleX',false],
+ ['autoscaleY',false],
+ ['axisStyleX',0],
+ ['axisStyleY',0],
+ ['fontsize',6.2],
+ ['logscaleX',false],
+ ['logscaleY',false],
+ ['preserveAspect',true],
+ ['x0',centerX-stretch],
+ ['x1',centerX+stretch],
+ ['y0',0],
+ ['y1',stretch*0.8]].setOptions;
+
+plot([0,0],'0.5 black');
+//r = 0.5/d^2 >= 0.005*stretch
+//    d^2/0.5 <= 200/stretch
+//    d^2     <= 400/stretch
+//    d       <= ceil(sqrt(400/stretch))
+[2..ceil(sqrt(400/stretch))].each(denominator,
+  begin
+    local radius:=0.5/denominator^2;
+    // x0<= e/d+radius, e/d-radius <=x1
+    // (x0-radius)*d<=e<=(x1+radius)*d
+    [floor((centerX-stretch-radius)*denominator)..
+     ceil ((centerX+stretch+radius)*denominator)]
+    .pEach(enumerator,gcd(denominator,enumerator)=1 ? [denominator,enumerator,enumerator/denominator] : void)
+    .pEach(part,
+      local fontSize:=radius/stretch*100;
+      500>fontSize>2
+      ? drawText(part[2],radius,format('%s/%s',part[1],part[0]),fontSize,'C','Times New Roman')
+      : void;
+      [[part[2]-radius,0],
+       [part[2]+radius,2*radius]],|)
+    .{$L.size=0 ? void : $L.addPlot('ellipse f 0.5 '&colorOf(denominator))};
+  end);
+end;
+
+
+drawZoomin->begin
+  clearAnimation;
+  (0.4*0.0000025^(map([0..300]/300,{$x^2*(1-$x)+(1-(1-$x)^2)*$x}))).each(zoom,
+  drawDetail(777/1340,zoom),
+  addAnimationFrame,
+  postDisplay,
+  print('Frame #',index,' ready @',zoom));
+end;
+
+main->drawZoomin;

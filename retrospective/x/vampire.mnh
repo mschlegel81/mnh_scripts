@@ -1,0 +1,30 @@
+private areFangs(fangs,sortedDigits)->fangs.digits.flatten.sort == sortedDigits;
+
+private testRange(digitCount,mid)->testRange(10^(digitCount-1),mid,10^digitCount-1);
+private testRange(t0,t1,t2)->abs(t2-t1)<abs(t1-t0) ? [t1..t2]
+                                                   : [t0..t1];
+private getFangs(i:Int)->begin
+  local iDigits:=i.digits.sort;
+  local toTest:=testRange(iDigits.size div 2,round(sqrt(i)));
+  toTest:=toTest[i mod toTest=0];
+  [i div toTest,toTest].transpose.pFilter({$f.areFangs(iDigits)});
+end;
+
+private printVampire(i:Int)->begin
+  local fangs:=getFangs(i);
+  fangs==[]
+  ? void
+  : print(i," is a vampire. It's fangs are: ",join(fangs," or ")) orElse true;
+end;
+
+private vampireCandidateGenerator->{
+begin
+  local next:=9;
+save;
+  (next+=1) in [100,10000,1000000]
+  ? next*=10
+  : next;
+end}.toGenerator;
+
+//*As above but abridged for regression test
+main->vampireCandidateGenerator().lazyMap(::printVampire).head(25);

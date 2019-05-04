@@ -1,0 +1,14 @@
+USE mathUtils,complex;
+
+zeta(N:Int,s)->[1..N-1].each(i,i^-s,+)+
+           N^(1-s)/(s-1)+
+           1/2*N^(-s)+
+           [1..N].pEach(m,
+             Bernoulli(2*m)/
+             factorial(2*m)*N^(-s-2*m+1)*[0..2*m-2].each(i,s+i,*),+);
+
+plot();
+//plot   ({zeta(10,$x+0*i).abs},-10,-1,100,'red'  ); postDisplay;
+//addPlot({zeta(20,$x+0*i).abs},-10,-1,100,'green'); postDisplay;
+addPlot({zeta(30,$x).abs},-8,-1,100,'blue' ); postDisplay;
+addPlot({zeta(50,$x).abs},-8,-1,100,'black'); postDisplay;

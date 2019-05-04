@@ -1,0 +1,55 @@
+//*Remove duplicates using the builtin function "unique"
+removeDuplicates1a(L:List)->L.unique;
+//*Remove duplicates by sorting and comparing successive elements
+removeDuplicates1b(L:List)->begin
+  local S:=L.sort;
+  local prev:=void;
+  S.each(element,
+    prev==element ? void : prev:=element);
+end;
+//*Remove duplicates by conversion to set
+removeDuplicates2a(L:List)->L.toSet;
+//*Remove duplicates by adding each element to a set
+removeDuplicates2b(L:List)->begin
+  local result:=[].toSet;
+  L.each(element,result|=element);
+  result;
+end;
+//*Remove duplicates by comparing each element with each other element
+removeDuplicates3(L:List)->
+  L.each(element,
+    L.head(index).each(other,other==element,OR)
+    ? void
+    : element);
+
+samples(n:Int)->intRandom(round(n/5),n);
+
+compareTiming->begin
+  local T:=[];
+  (local S:=2^[4..15])
+  .each(problemSize,begin
+    local input:=[samples(problemSize)];
+    T||=[::removeDuplicates1a,
+         ::removeDuplicates1b,
+         ::removeDuplicates2a,
+         ::removeDuplicates2b,
+         problemSize>=1000 ? void :
+         ::removeDuplicates3].map({time($f,input)['time']});
+  end);
+  T:=T.transpose;
+  setOptions(['fontsize'=>8,
+              'logscaleX'=>true,
+              'logscaleY'=>true,
+              'preserveAspect'=>false].toMap);
+  plot   (S,T[0],'black l .');
+  addPlot(S,T[1],'black x');
+  addPlot(S,T[2],'red l .');
+  addPlot(S,T[3],'red x');
+  addPlot(S.head(T[4].size),T[4],'blue l .');
+  drawTextAbsolute(0.1,0.95,'Remove duplicates by sorting','TL','Times New Roman',[0,0,0],[255,255,255]);
+  drawTextAbsolute(0.1,0.9,'Remove duplicates by hash set','TL','Times New Roman',[255,0,0],[255,255,255]);
+  drawTextAbsolute(0.1,0.85,'Remove duplicates by elementwise comparisons','TL','Times New Roman',[0,0,255],[255,255,255]);
+  display;
+end;
+
+main->compareTiming;

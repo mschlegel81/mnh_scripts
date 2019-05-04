@@ -1,0 +1,59 @@
+private force(delta:NumericList(2))->delta*sqr(delta).agg(+)^(-3/2);
+
+
+memoized zeros(listSize>1)->[0..listSize-1].map({[0.0, 0.0]});
+memoized pairIndexes(listSize>1)->[1..listSize-1].each(i,[0..i-1].each(j,[j,i]),|);
+
+getDelta(sys:List(2))->begin
+  local p:=sys[0];
+  local a:=zeros(p.size);
+  pairIndexes(p.size).each(k,begin
+    local f:=force((p[k]).agg(-));
+    a[k[0]]-=f;
+    a[k[1]]+=f;
+  end);
+  [sys[1],a];
+end;
+
+step(sys:List(2),dt)->begin
+  local d:=sys.getDelta;
+  [sys[0]+dt*d[0]+sqr(dt)/2*d[1],
+   sys[1]+dt*d[1]];
+end;
+
+circlePoint(phi)->[cos(phi/180*4*arctan(1)),
+                           sin(phi/180*4*arctan(1))];
+
+initialState:=
+  [[circlePoint(  0),
+    circlePoint(120),
+    circlePoint(240)],
+   [0.76*circlePoint( 90),
+    0.76*circlePoint(120+90),
+    0.76*circlePoint(240+90)]];
+
+PARTICLE_COUNT:=100;
+randomInitialState->
+  begin
+    local p:=[random(PARTICLE_COUNT),random(PARTICLE_COUNT)].transpose;
+    local center:=p.agg(+)/PARTICLE_COUNT;
+    p:=p.map({$p-center});
+    local v:=[random(PARTICLE_COUNT),random(PARTICLE_COUNT)].transpose;
+    center:=v.agg(+)/PARTICLE_COUNT;
+    v:=v.map({$p-center});
+    [p,v];
+  end;
+
+begin
+  local s:=randomInitialState;
+
+  plot(s[0],'.'); display;
+  while(true,begin
+    s:=s.step(0.01);
+    plot(s[0],'.'); display;
+
+
+  end);
+
+end;
+

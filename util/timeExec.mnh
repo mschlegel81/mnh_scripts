@@ -1,0 +1,20 @@
+//*Executes the given program at least 3 times and at least for 5 seconds and returns the average time
+main('MULTI',programToRun,...)->begin
+  local t0:=time;
+  local timeout:=t0+5;
+  local callCount:=0;
+  while(callCount<3 OR time<timeout,begin
+    callCount==0
+    ? execPipeless(programToRun,...)
+    : exec        (programToRun,...);
+    callCount+=1;
+  end);
+  print(callCount,' executions took ',(time-t0)/callCount,'s on average');
+end;
+
+//*Executes the given program and returns the used time
+main(programToRun,...)->begin
+  local t0:=time;
+  execPipeless(programToRun,...);
+  print('Execution took ',time-t0,'s');
+end;

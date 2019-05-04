@@ -1,0 +1,27 @@
+plain script;
+
+[["lt_boolean"    ,true],
+ ["lt_int"        ,4],
+ ["lt_real"       ,3.2],
+ ["lt_string"     ,'test'],
+#["lt_expression" ,{$x+1}],
+ ["lt_list"       ,[1,'s']],
+ ["lt_booleanList",[true] ],
+ ["lt_intList"    ,[1]    ],
+ ["lt_realList"   ,[pi]   ],
+ ["lt_numList"    ,[1,1/7]],
+ ["lt_stringList" ,['a']  ],
+ ["lt_emptyList"  ,[]     ],
+ ["lt_set"        ,[1,'s'].toSet],
+ ["lt_booleanSet" ,[true] .toSet],
+ ["lt_intSet"     ,[1]    .toSet],
+ ["lt_realSet"    ,[pi]   .toSet],
+ ["lt_numSet"     ,[1,1/7].toSet],
+ ["lt_stringSet"  ,['a']  .toSet],
+ ["lt_emptySet"   ,[]     .toSet],
+ ["lt_map"        ,[[1,2]].toMap],
+ ["lt_emptyMap"   ,[].toMap]]
+.each(entry,entry[1].serialize.bytes.head(2).ord|entry[0])
+.map({$x.join("\t")})
+.join("\n")
+.print;

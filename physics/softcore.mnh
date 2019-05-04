@@ -1,0 +1,166 @@
+particleInteractionStrength:=1;
+TIME_STEP_SIZE:=0.01/sqrt(particleInteractionStrength);
+
+absForce(x)->1-x^-3*max(0,0.2-x);
+
+//absForce(x)->x>1 ? 1/x : -cos(x*pi);
+//absForce(x)->-cos(x*pi*5)/x;
+
+
+force(ab:List)->begin
+  local n:=ab[1]-ab[0];
+  local d:=euklideanNorm(n);
+  n*(particleInteractionStrength/d*absForce(d));
+//  particleInteractionStrength*n*(d-1)/d^3;
+end;
+
+bottomForce(p:NumericList(2))->[0,-absForce(p[1])];
+  //[0,-1]*(p[1]-1)/p[1]^2;
+
+//force(ab:List)->begin
+//  local n:=ab[1]-ab[0];
+//  local d:=euklideanNorm(n);
+//  d>1 ? [0,0] : n*(particleInteractionStrength*-cos(d*4.71238898038469)/d);
+//end;
+//
+//bottomForce(p:NumericList(2))->  p[1]>1 ? [0,0] : [0,cos(p[1]*4.71238898038469)];
+
+
+memoized pairIndexes(listSize>1)->[1..listSize-1].each(i,[0..i-1].each(j,[j,i]),|);
+memoized zeroVectors(listSize>1)->[0..listSize-1].map({[0.0, 0.0]});
+//memoized downfall   (listSize>1)->[0..listSize-1].map({[0.0,-1E-1]});
+
+dynamicMovement(sys:List(2),grav)->begin
+  local p:=sys[0];
+  local a:=p.pMap(::bottomForce)*grav;
+  pairIndexes(p.size).each(k,begin
+    local f:=force(p[k]);
+    a[k[0]]+=f;
+    a[k[1]]-=f;
+  end);
+  [sys[1],a];
+end;
+
+MAX_RANGE:=2E-3;
+
+timeStep(x0:List(2),dx:List(2),dt,damping)->begin
+  local x:=[ x0[0]+dx[0]*dt+dx[1]*dt^2/2,
+            (x0[1]+dx[1]*dt             )*damping];
+  x[0].getInner(1).each(py,
+    py<0 ? begin
+             x[0,index,1]:=0;
+             x[1,index,1]:=-0.5*x[1,index,1];
+           end
+         : void);
+  x;
+end;
+
+stepForward(sys:List(2),dampingFactor<0.0)->begin
+  local dSys:=dynamicMovement(sys,1);
+  local naiveStep:=timeStep(sys,dSys,TIME_STEP_SIZE,exp(TIME_STEP_SIZE*dampingFactor));
+  local err :=dynamicMovement(naiveStep,1)[1]-dSys[1];
+  local maxStep:=err.map(::euklideanNorm).max;
+  local dt:=MAX_RANGE/maxStep;
+  local subStepCount:=dt.isNan ? 1 : ceil(TIME_STEP_SIZE/dt).max(1).min(500);
+  subStepCount<=1
+  ? naiveStep
+  : begin
+      dt:=TIME_STEP_SIZE/subStepCount;
+      local dampingPerTimeStep:=exp(dt*dampingFactor);
+      local s:=sys.timeStep(dSys,dt,dampingPerTimeStep);
+      [2..subStepCount].each(step,begin
+        s:=s.timeStep(dynamicMovement(s,1),dt,dampingPerTimeStep);
+        void;
+      end);
+      s;
+    end;
+end;
+
+FIBFAK:=2*pi/sqr((sqrt(5)-1)/2);
+fp(P:NumericList)->[cos(FIBFAK*P),sin(FIBFAK*P)].transpose*sqrt(P);
+fp(n:Numeric    )->[cos(FIBFAK*n),sin(FIBFAK*n)]*sqrt(n);
+
+plotSystem(points:List)->begin
+  plot();
+  points.each(p,begin
+    local i:=index;
+    local r:=points.each(q,i=index ? void : (q-p).euklideanNorm,min).min(p[1])/2;
+    [p-r,p+r];
+  end,|).{$L.addPlot('RGB0.8,0.8,1 e fs 0.5') orElse
+          $L.addPlot('blue e 0.5')};
+  local lowY:=points.getInner(1).min/2;
+  addPlot([[-5,lowY],[5,lowY]],'RGB1,0.8,0.8 fs 0.5');
+  addPlot([[-5,lowY],[5,lowY]],'red 0.5');
+
+ // addPlot(points,'. blue');
+  addAnimationFrame;
+  postDisplay;
+end;
+
+USE root;
+
+initialDroplets(particleCount>1)->
+begin
+  local p:=fp([1..particleCount]);
+  local c:=p.agg(+)/p.size;
+  p:=p.map({$s-c});
+  local n:=p.map({$x/euklideanNorm($x)});
+  local scale:=regulaFalsi({dynamicMovement([p*$a,zeroVectors(p.size)],0)[1].each(a,(a*n[index]).agg(+),+)},0.09,0.08,1E-3,1E-3);
+  print('Scaling initial system by ',scale);
+  //plot({dynamicMovement([p*$a,zeroVectors(p.size)],0)[1].each(a,(a*n[index]).agg(+),+)},0.01,1,100);
+  //addPlot({dynamicMovement([p*$a,zeroVectors(p.size)],0)[1].each(a,(a*n[index]).agg(+),+)},0.2,0.3,100);
+  //display;
+  //ask('Press enter to Continue');
+
+  p*=scale;
+  local dx:=0.2-p.getInner(1).min;
+  [p.map({$x+[0,dx]}),zeroVectors(p.size)];
+end;
+
+flatInitial(particleCount>1)->
+begin
+  local p:=[[1..particleCount],random(particleCount)*0.01].transpose;
+  local c:=p.agg(+)/p.size;
+  p:=p.map({$s-c});
+  local n:=p.map({$x/euklideanNorm($x)});
+//  p*=regulaFalsi({dynamicMovement([p*$a,zeroVectors(p.size)],0)[1].each(a,(a*n[index]).agg(+),+)},0.1,1,1E-3,1E-3);
+  local dx:=1-p.getInner(1).min;
+  [p.map({$x+[0,dx]}),zeroVectors(p.size)];
+end;
+
+main(sysSize)->begin
+  local syss:=sysSize.toInt;
+
+  print('Initializing system with ',sysSize,' entries');
+
+  resetOptions;
+  local sys:=initialDroplets(syss);
+//  local sys:=flatInitial(syss);
+
+  local counter:=0;
+  clearAnimation;
+  setOptions(
+   ['autoscaleFactor'=>1,
+    'autoscaleX'=>false,
+    'autoscaleY'=>false,
+    'axisStyleX'=>3,
+    'axisStyleY'=>3,
+    'x0'=>-1,
+    'x1'=> 1,
+    'y0'=> 0.0,
+    'y1'=> 2.0,
+    'logscaleX'=>false,
+    'logscaleY'=>false,
+    'preserveAspect'=>true]);
+
+
+  plotSystem(sys[0]);
+  while(counter<500,begin
+    local t0:=time;
+    sys:=stepForward(sys,-1);
+    printf('%3d %7.3fs',counter+=1,time-t0);
+    plotSystem(sys[0]);
+  end);
+end;
+
+

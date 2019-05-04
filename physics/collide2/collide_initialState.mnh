@@ -1,0 +1,239 @@
+USE collide_types;
+@SuppressUnusedWarning=all
+
+GEOMETRIES:=[['simple'    ,[[-5,6],[-5,0],[5,0],[5,6]]],
+             ['hour glass',  [[-6,24],[-1.5,14],[-6,4],[-6,0],[6,0],[6,4],[1.5,14],[6,24]]],
+             ['hour glass 2',[[-6,30],[-1.5,14],[-6,4],[-6,0],[6,0],[6,4],[1.5,14],[6,30]]],
+             ['six'       ,(([0..19]/10*pi).map({[-(6-$x/pi)*cos($x),6-(6-$x/pi)*sin($x)]})|([10..0]/20*pi).map({[5-9*sin($x),8+9*cos($x)]}))],
+             ['dented'    ,[[-4*sin(2*pi/3)-1,6],
+                            [-4*sin(2*pi/3)-1,0],
+                            [-4*sin(2*pi/3)+1,0],
+                            [-4*sin(2*pi/3)+1,1],
+                            [-1 ,1],
+                            [-1 ,0],
+                            [ 1 ,0],
+                            [ 1 ,1],
+                            [ 4*sin(2*pi/3)-1,1],
+                            [ 4*sin(2*pi/3)-1,0],
+                            [ 4*sin(2*pi/3)+1,0],
+                            [ 4*sin(2*pi/3)+1,6]]],
+             ['dented2'   ,[[-5    ,6.9282032302755105],
+                            [-4    ,6.9282032302755105],
+                            [-4    ,6.1961524227066329],//[-4   ,5.464101615137755],
+                            [-5    ,6.1961524227066329],//[-5   ,5.464101615137755],
+                            [-5    ,3.4641016151377553],
+                            [-4    ,3.4641016151377553],
+                            [-4    ,2.7320508075688776],//[-4   ,2.0],
+                            [-5    ,2.7320508075688776],//[-5   ,2.0],
+                            [-5,0.0],[5,0.0],
+                            [ 5    ,2.7320508075688776],//[ 5   ,2.0],
+                            [ 4    ,2.7320508075688776],//[ 4   ,2.0],
+                            [ 4    ,3.4641016151377553],
+                            [ 5    ,3.4641016151377553],
+                            [ 5    ,6.1961524227066329],//[ 5   ,5.464101615137755],
+                            [ 4    ,6.1961524227066329],//[ 4   ,5.464101615137755],
+                            [ 4    ,6.9282032302755105],
+                            [ 5    ,6.9282032302755105]]],
+             ['zig zag'   ,[[-(1+5*sin(2*pi/3)),23.25],[1  ,20.25],
+                            [-(1+5*sin(2*pi/3)),17.25],
+                            [-(1+5*sin(2*pi/3)),13.75], [0,11],
+                            [-(1+5*sin(2*pi/3)),11],
+                            [-(1+5*sin(2*pi/3)),0],
+                            [ (1+5*sin(2*pi/3)),6],
+                            [ (1+5*sin(2*pi/3)),12],[-2,15.5],
+                            [ (1+5*sin(2*pi/3)),19]]],
+             ['snail',      begin
+                              local f1:={[-cos($t),-sin($t)]*(9-1.2*$t/pi)};
+                              local f2:={begin
+                                      local r:=f1($t);
+                                      local a:=r.sqr.agg(+).sqrt;
+                                      r/a*(a-2.2);
+                                    end};
+                            (([0..110]/10*pi/2).map(f1)|
+                             ([70..-10]/10*pi/2).map(f2));
+                            end],
+             ['vial'      ,[[-5,10],[0,0],[5,10]]],
+             ['tubes'     ,[[-4,6],
+                            [-4.0               ,0                   +1.414],
+                            [-3.9498558243636475,-0.44504186791262856+1.414],
+                            [-3.801937735804838 ,-0.867767478235116  +1.414],
+                            [-3.56366296493606  ,-1.2469796037174667 +1.414],
+                            [-3.2469796037174676,-1.5636629649360594 +1.414],
+                            [-2.8677674782351166,-1.801937735804838  +1.414],
+                            [-2.445041867912629 ,-1.9498558243636472 +1.414],
+                            [-2.0000000000000004,-2.0                +1.414],
+                            [ 4                 ,-2                  +1.414],
+                            [ 4                 ,0.001               +1.414],
+                            [-1.999             ,0.001               +1.414],
+                            [-1.999,6],
+                            [-1,6],
+                            [-1,2],[1.001,2],[1.001,6],[1.999,6],[1.999,2],[4,2]]],
+             ['round'     ,([0..10]/10*pi).map({[-6*cos($x),6-6*sin($x)]})]].toMap;
+
+private GEOMETRY_COMPONENTS:=['edges','nodes','limits','name'].toSet;
+type Geometry(G:Map)-> G.getInner(0).intersect(GEOMETRY_COMPONENTS)==GEOMETRY_COMPONENTS;
+BLANK_GEOMETRY:=GEOMETRY_COMPONENTS.map({[$id,[]]}).toMap.toGeometry;
+
+expandToTop(L:List)->begin
+  local newFirst:=L.head;     newFirst[1]:=max(newFirst[1],1000);
+  local newLast :=L.trailing; newLast [1]:=max(newLast [1],1000);
+  [newFirst]|L|[newLast];
+end;
+
+getGeometryInfo(geometryName in (GEOMETRIES.getInner(0)))->begin
+  local nodes:=GEOMETRIES[geometryName];
+  local ballLimits:=[['y0',max(nodes.getInner(1))+1],
+                     ['x0',min(nodes.head[0],nodes.trailing[0])+1],
+                     ['x1',max(nodes.head[0],nodes.trailing[0])-1]].toMap;
+  local sysLimits:= [['y0',min(nodes.getInner(1))],
+                     ['x0',min(nodes.getInner(0))],
+                     ['x1',max(nodes.getInner(0))]].toMap;
+  nodes:=nodes.expandToTop;
+  local edges:=[nodes.leading,nodes.tail].transpose.each(edgePair,normalSystem@edgePair);
+  [['edges'     ,edges],
+   ['nodes'     ,nodes],
+   ['limits'    ,sysLimits],
+   ['ballLimits',ballLimits],
+   ['name'      ,geometryName]].toMap.toGeometry;
+end;
+
+stacked(geometry:Geometry,count)->begin
+  local yMin:=geometry['ballLimits','y0'];
+  local xMin:=geometry['ballLimits','x0'];
+  local xMax:=geometry['ballLimits','x1'];
+  local xCenter:=(xMin+xMax)*0.5;
+  local xShift :=(xMax-xMin)*1E-3;
+  [0..count-1].each(i,[xCenter+(0.5-random)*xShift,2*i+yMin]);
+end;
+
+leftAligned(geometry:Geometry,count)->begin
+  local yMin:=geometry['ballLimits','y0'];
+  local xMin:=geometry['ballLimits','x0'];
+  local xMax:=geometry['ballLimits','x1'];
+  local xShift :=(xMax-xMin)*1E-3;
+  [0..count-1].each(i,[xMin+random*xShift,2*i+yMin]);
+end;
+
+rectangularGrid(geometry:Geometry,count)->begin
+  local y   :=geometry['ballLimits','y0']-2;
+  local xMin:=geometry['ballLimits','x0'];
+  local xMax:=geometry['ballLimits','x1'];
+  local ballsInOneRow:=floor((xMax-xMin)/2+1);
+  xMin+=((xMax-xMin)-(ballsInOneRow-1)*2)/2;
+  local x:=xMin;
+  ([0..count-1] mod ballsInOneRow).each(i,begin
+    i=0 ? begin y+=2; x:=xMin; end : x+=2;
+    [x,y];
+  end);
+end;
+
+denseGrid(geometry:Geometry,count)->begin
+  local y   :=geometry['ballLimits','y0'];
+  local xMin:=geometry['ballLimits','x0'];
+  local xMax:=geometry['ballLimits','x1'];
+  local x:=xMin-2;
+  local c:=count;
+  local shifted:=true;
+  local result:=[];
+  while((c-=1)>=0,begin
+    (x+=2)>xMax ? begin
+      (shifted:=!shifted)
+      ? x:=xMin
+      : x:=xMin+1;
+      y+=2*sin(2*pi/3);
+    end : void;
+    result||=[x,y];
+  end);
+  local shift:=((xMax-xMin)-(result.getInner(0).max-xMin))/2;
+  result.map({$x+[shift,0]});
+end;
+
+denseRotatedGrid(geometry:Geometry,count)->begin
+  local y   :=geometry['ballLimits','y0'];
+  local xMin:=geometry['ballLimits','x0'];
+  local xMax:=geometry['ballLimits','x1'];
+  local x:=xMin-4*sin(2*pi/3);
+  local c:=count;
+  local shifted:=false;
+  local result:=[];
+  while((c-=1)>=0,begin
+    (x+=4*sin(2*pi/3))>xMax
+    ? begin
+        y+=1;
+        x:=xMin+((shifted:=!shifted) ? 2*sin(2*pi/3) : 0);
+      end
+    : void;
+    result||=[x,y];
+  end);
+  local shift:=((xMax-xMin)-(result.getInner(0).max-xMin))/2;
+  result.map({$x+[shift,0]});
+end;
+
+randomInitialState(geometry:Geometry,count)->begin
+  local y   :=geometry['ballLimits','y0'];
+  local xMin:=geometry['ballLimits','x0'];
+  local xMax:=geometry['ballLimits','x1'];
+  local randomX:={xMin+random*(xMax-xMin)};
+  local result:=[[randomX(),y]];
+  local accept:={result.each(r,(r-$0).sqr.agg(+)>=4,AND) ? [$0] : void};
+  while(result.size<count,
+    result|=accept([randomX(),y+=0.01]));
+  result;
+end;
+
+INITIAL_BALL_POSITIONS:=[['stacked'     ,::stacked],
+                         ['left aligned',::leftAligned],
+                         ['random'      ,::randomInitialState],
+                         ['rectangular' ,::rectangularGrid],
+                         ['dense'       ,::denseGrid],
+                         ['dense2'      ,::denseRotatedGrid]].toMap;
+
+getInitialSystem(geometryName in (GEOMETRIES.getInner(0)),
+                 ballPosName in (INITIAL_BALL_POSITIONS.getInner(0)),
+                 numberOfBalls>=1)->begin
+  local geometry:=getGeometryInfo(geometryName);
+  local positions:=INITIAL_BALL_POSITIONS[ballPosName](geometry,numberOfBalls);
+  local velocities:=positions.map({[0,0]});
+  [geometry,positions,velocities];
+end;
+
+getInitialSystemName(geometryName,
+                     ballPosName,
+                     numberOfBalls)->format('%s, %s, %s',geometryName,ballPosName,numberOfBalls);
+
+GEOMETRIES['tubes'].plot('blue 2 . l');
+
+
+addPlot({[2*cos($t)-2,2*sin($t)]},pi,3*pi/2,8,'red');
+
+
+([0..7]/7*pi/2+pi).map({[2*cos($t)-2,2*sin($t)]});
+
+
+//plotBall(xy)->([0..100]/100*2*pi).map({[sin($t)+xy[0],cos($t)+xy[1]]}).addPlot("red polygon");
+//rectangularGrid(getGeometryInfo('simple'),10).map(::plotBall);
+//rm(a)->[[cos(a),sin(a)],[-sin(a),cos(a)]].toMatrix;
+//
+//
+//[[-2.001,0],[-2.001,-6],[0,-6],[0,0]].map({rm(-  pi/8)*$x}).plot;
+//[[-2.001,0],[-2.001,-6],[0,-6],[0,0]].map({rm(-3*pi/8)*$x+[-1.8486829445550848,0.76574954816254459]}).addPlot;
+//
+//[[-2.001,0],[-2.001,-6],[0,-6]].map({rm(-3*pi/8)*$x+[-1.8486829445550848,0.76574954816254459]});
+//[[-2.001,0],[-2.001,-6],[0,-6],[0,0]].map({rm(-  pi/8)*$x});
+//
+//
+//[[-4,2.04051],
+// [-8.15770968778535,0.3183318985270903],
+// [-7.391960139622805,-1.5303510460279943],
+// [-1.8486829445550848,0.76574954816254459],
+// [-4.1447835387456236,-4.7775276469051757],
+// [-2.2961005941905386,-5.54327719506772],
+// [0.0,0.0],
+// [2.2961005941905386,-5.54327719506772],
+// [4.1447835387456236,-4.7775276469051757],
+// [1.8486829445550848,0.76574954816254459],
+// [7.391960139622805,-1.5303510460279943],
+// [8.15770968778535,0.3183318985270903],
+// [4,2.04051]].plot('red 2');
+//
+//

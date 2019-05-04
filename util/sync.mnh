@@ -1,0 +1,31 @@
+syncFilePair(sourceFile:String,targetFile:String)->
+  fileExists(sourceFile)
+  ? fileExists(targetFile) AND (fileInfo(sourceFile).getAll(['time','size'])-fileInfo(targetFile).getAll(['time','size'])<0.01).agg(AND)
+    ? void
+    : print(sourceFile,' -> ',targetFile) orElse copyFile(sourceFile,targetFile)
+  : fileExists(targetFile)
+    ? deleteFile(targetFile)
+    : void;
+
+normalizePath(path:String)->regex.replace(path.expandedFileName,'/$','');
+
+sync(sourceFolder:String,targetFolder:String,filterExpression:Expression(1),hard:Boolean)->begin
+  local source:=sourceFolder.normalizePath;
+  local dest  :=targetFolder.normalizePath;
+  union(allFiles(source).filter(filterExpression).map({[$x,$x.replace(source,dest)]}),
+        allFiles(dest  ).filter(filterExpression).map({[$x.replace(dest,source),$x]}),
+        hard ? allFiles(dest).filter(!filterExpression).map({['',$x]}) : void)
+  .map({syncFilePair@$pair});
+  void;
+end;
+
+MNH_TARGETS:=['mnh','mnh_light','mnhi','mnh_debug','mnh_light_debug','mnhi_debug','mnh_prof','mnh_light_prof'].each(tgt,tgt,tgt&'.exe');
+
+pascalSourceFilter(file:String)->!file.matches('/lib/|/\.git|\.res$|fileViewer\.datastore0|oeis_server\.datastore|travellingSalesmanProblem\.datastore|\.log$|inputs/.*\.txt$|\.png$|\.zip$|\.exe$');
+mnhFilter(file:String)->pascalSourceFilter(file) AND !(file.extractFileName in MNH_TARGETS);
+
+main-> sync('C:\dev\mnh5'      ,'N:\dev\mnh5'      ,::mnhFilter,true)
+orElse sync('C:\dev\art.source','N:\dev\art.source',::pascalSourceFilter,true);
+
+main('r')->sync('N:\dev\mnh5'      ,'D:\dev\mnh5'      ,::mnhFilter,false)
+    orElse sync('N:\dev\art.source','D:\dev\art.source',::pascalSourceFilter,false);

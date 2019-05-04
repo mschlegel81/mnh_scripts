@@ -1,0 +1,100 @@
+DENS_TAB:=//!~
+JHjaHc+7L51xHMfxvh1KqjVYJFYRt6o/QSyYjI4iEY57lbpz3NX1oIRZJGI
+zmRgl9sZo6GQyWTt8DL6fZ3m/8nme/PJ7nreSxtI8VUG0mlS0ho/RWj5H6y
+iPfqUhWk9r9Bs90Qbyou1J08mpDgqj36mMdtIW7SI/2pu0j0/RDEXR/qQDd
+EcHUXLzEHEoHEY79gfF0VF07zWCLu0Y+uAbf6IKO46a7QQatb9Qzk6iUzuN
+ruwUOrcz6MbOojs7R0F0Hv31WkBPdhE92yX03y7HN/oPs+jVewV98V5FZXY
+tebtBU3QTNXmtJ89+oxa7jTJ2C6XtHtq1++jM7qKsPUDXdgdN2hy6sIfo1h
+6hB/sHPdpj9M+eoJfUO3Commw=~.base64decode.decompress.deserialize.map({$x/[100,1000]}).sort;
+
+densAt(a)->begin
+  local i:=indexOf(DENS_TAB.getInner(0)>=a)[0];
+  isVoid(i)
+  ? return 1
+  : i==0
+  ? return DENS_TAB[0,1]
+  : begin
+      local a0:=DENS_TAB[i-1]; local d0:=a0[1]; a0:=a0[0];
+      local a1:=DENS_TAB[i  ]; local d1:=a1[1]; a1:=a1[0];
+      d0+(d1-d0)/(a1-a0)*(a-a0);
+    end;
+end;
+
+randomAs(count)->begin
+  local A:=2.5+1.5*round(count/10).random;
+  while(A.size<count,begin
+    A|=(2.5+1.5*random(2*(count-A.size))).pFilter({random<densAt($a)});
+  end);
+  A.head(count);
+end;
+
+
+
+
+
+//logEq(a)->{a*$x*(1-$x)};
+//
+//begin
+//  local a:=[0..10000];
+//  a:=0+4*a/a.size;
+//  local x:=random(size(a));
+//  [0..100].each(i,
+//    x:=a*x*(1-x));
+//  [a,x].transpose;
+//end.plot('. 0.2 red');
+
+//f1(a)->1-1/a;
+//addPlot({1-1/$a},1,3,100,'blue');
+
+
+POINTS:=100000;
+
+begin
+  setOptions([['y0',0],['y1',1],['autoscaleY',false],
+              ['x0',2.5],['x1',4],['autoscaleX',false],['fontsize',7]].toMap);
+  local A:=randomAs(POINTS);
+  local X:=random(POINTS); //([0..POINTS] mod 9)*0.1+0.025;
+  local X1:=X;
+  local X2:=X;
+  local X3:=X;
+  clearAnimation;
+  [1..100].each(step,begin
+    //plot   (A,X3,'. 0.2 GREY0.25');
+    //addPlot(A,X2,'. 0.2 GREY0.5');
+    //addPlot(A,X1,'. 0.2 GREY0.75');
+    //addPlot(A,X ,'. 0.2 GREY0');
+    plot(A,X,'. 0.2');
+    addAnimationFrame;
+    postDisplay;
+    X3:=X2;
+    X2:=X1;
+    X:=A*(X1:=X)*(1-X1);
+    void;
+  end);
+end;
+
+//
+//
+//calcDens(a:Numeric)->begin
+//  local X:=random(10000);
+//  local A:=a;
+//  [0..100].each(i,begin
+//    X:=A*X*(1-X);
+//    void; end);
+//  local F:=X.round(3).elementFrequency.getInner(1).sort.reverseList;
+//  local i:=1;
+//  X:=F[0];
+//  while ((i<F.size) AND (F[i]>0.1*X),begin
+//    X:=(X+F[i])*0.5;
+//    i+=1;
+//  end);
+//  i;
+//end;
+//
+//[250..400].pEach(i,begin
+//  print([i,calcDens(i/100)],',');
+//end);
+//
+//
+//plot(::dens,2.5,4,100,'l . f');
+//

@@ -1,0 +1,189 @@
+@SuppressUnusedParameterWarning
+ducktype Vector(x:NumericList(2))->true;
+ducktype VectorList(L:List)->L.each(v,v.isVector,AND);
+ducktype AdjacencyList(L:Set)->L.each(v,v.isIntList(3) AND (v>=0).agg(and),AND);
+ducktype Triangle(x:List(3))->x.each(e,e.isVector,AND);
+ducktype FiniteNumber(n:Numeric)->n.isInt OR !(n.isNan OR n.isInfinite);
+type Circle(circle:List(2))->circle[0].isVector AND circle[1].isFiniteNumber;
+ducktype CircleList(L:List)->L.each(c,c.isCircle,AND);
+ducktype CircleTriplet(t:CircleList)->t.size=3;
+
+
+@Override
+toCircleTriplet(triangle:Triangle)->begin
+  local d:=[euklideanNorm(triangle[0]-triangle[1]),
+            euklideanNorm(triangle[1]-triangle[2]),
+            euklideanNorm(triangle[2]-triangle[0])];
+  local radius:=
+  [[ 0.5, 0.5,-0.5],
+   [-0.5, 0.5, 0.5],
+   [ 0.5,-0.5, 0.5]].each(x,d[index]*x,+);
+  local result:=triangle.each(center,[center,radius[index]].toCircle);
+  begin
+    local a:=triangle[1]-triangle[0];
+    local b:=triangle[2]-triangle[0];
+    a[0]*b[1]-a[1]*b[0]>0
+    ? result.reverseList
+    : result;
+  end.toCircleTriplet;
+end;
+
+@Override
+plot(c:Circle       ,style)->plot.plot([c[0]-c[1],c[0]+c[1]],style & ' ellipse');
+plot(t:CircleList   ,style)->plot.plot(t.each(c,c[0]-c[1],c[0]+c[1]),style & ' ellipse');
+@Override
+addPlot(c:Circle    ,style)->plot.addPlot([c[0]-c[1],c[0]+c[1]],style & ' ellipse');
+addPlot(t:CircleList,style)->plot.addPlot(t.each(c,c[0]-c[1],c[0]+c[1]),style & ' ellipse');
+
+ //*Returns the real roots of {a*x^2+b*x+c} or void if there is none
+rootOfQuadraticPoly(squareFactor:Numeric,
+                    linearFactor:Numeric,
+                    constantPart:Numeric)->begin
+  local discriminant:=linearFactor^2-4*squareFactor*constantPart;
+  discriminant<0 ? return [] : void;
+  (-linearFactor+sqrt(discriminant)*[-1,1])/(2*squareFactor);
+end;
+
+soddyCircleRadii(radii:NumericList(3))->begin
+  local k:=1/radii;
+  local r:=
+  1/rootOfQuadraticPoly(1,
+    - 2*k.agg(+),
+      2* k.sqr.agg(+) - k.agg(+).sqr);
+  (r<0).agg(and) ? -r : r;
+end;
+
+circlesTouch(a:Circle,b:Circle)->abs(euklideanNorm(a[0]-b[0])-abs(a[1]+b[1]))<1E-12;
+circlesTouch(a:Circle,T:CircleTriplet)->T.each(b,circlesTouch(a,b),AND);
+
+findSoddyCircles(c:CircleTriplet)->begin
+  local rs:=soddyCircleRadii(c.getInner(1));
+  rs.each(r,begin
+    local candidates:=circleIntersection(c[0,0],c[0,1]+r,c[1,0],c[1,1]+r).map({[$center,r].toCircle});
+    candidates.filter({$newCircle.circlesTouch(c[2])});
+  end,|);
+end;
+
+circleIntersection(c0:Vector,r0,
+                   c1:Vector,r1)->begin
+  local d:=euklideanNorm(c1-c0);
+  local a:=(r0^2-r1^2+d^2)/(2*d);
+  local h:=r0^2-a^2;
+  h<0 ? return void : h:=sqrt(h);
+  local X:=c0+a*(c1-c0)/d;
+  local Y:=[c1[1]-c0[1],c0[0]-c1[0]]*h/d;
+  [X+Y,X-Y];
+end;
+
+exRound(x)->x.round(6);
+
+soddyIteration(initialState:CircleTriplet,radiusLimit>0.0,verbose:Boolean)->begin
+  local adjacency:=[].toSet;
+  local circles:=initialState;
+  //first round...
+  begin
+    findSoddyCircles(circles[[0,1,2]]).each(newCircle,
+    begin
+       local k:=circles.size;
+       circles||=newCircle;
+       adjacency|=[[0,1,k],
+                   [0,2,k],
+                   [1,2,k]];
+    end);
+  end;
+  local aboveRadius:=true;
+  while(aboveRadius,begin
+    local existingCircles:=circles.map(::exRound).toSet;
+    local updates:=
+    adjacency.pEach(A,findSoddyCircles(circles[A]).each(newCircle,begin
+      radiusLimit<newCircle[1] AND !(exRound(newCircle) in existingCircles)
+      ? [A,newCircle]
+      : void; end),|);
+    adjacency:=
+    updates.each(upd,begin
+      local k:=circles.size;
+      local A:=upd[0];
+      circles|=[upd[1]];
+      verbose AND (0 in A) AND (1 in A) ? print('Adjacent to 0,1: ',upd[0],' ',upd[1]) : void;
+      [[k,A[0],A[1]],
+       [k,A[0],A[2]],
+       [k,A[1],A[2]]];
+    end,|);
+    aboveRadius:=(updates.size>0);// AND (circles.size<1000);
+    verbose
+    ? begin
+        circles.plot('');
+        updates.size>0 ? begin
+          print('New Radii >',updates.getInner(1).getInner(1).min,' ',circles.size,' ',circles.unique.size);
+          updates.getInner(1).addPlot('red f');
+        end
+        : void;
+        display;
+          addAnimationFrame;
+      end
+    : void;
+  end);
+  verbose
+  ? void
+  : begin
+      plot();
+      circles.tail.each(c,begin
+        addPlot([c[0]-c[1],c[0]+c[1]],circleStyleByRadius(round(c[1],2)));
+      end);
+      addPlot([[-1,-1],[1,1]],'black ellipse 0.5');
+    end;
+  circles;
+end;
+
+memoized circleStyleByRadius(r)->
+  r<0 ? 'black ellipse 0.5' : 'HUE'&((1-r.sqrt)/6)&' ellipse fs 0';
+
+initialSoddy(alpha,r0,r1)->begin
+  note('Initial ',$params);
+  local C:=[[0,0],(r0-1)*[cos(alpha),sin(alpha)]];
+  local R:=[-1,r0,r1];
+  C||=circleIntersection(C[0],R[0]+r1,C[1],R[1]+r1).head;
+  [C,R].transpose.map(::toCircle).toCircleList;
+end;
+
+soddyFrameParameter(frameIndex:Int)->begin
+  local A:={[-1.127885282721258,0.3,0.3]                             *(1-($i mod 50)/50)+
+            [-2.7589065153098242,0.2361873928408471,0.16569700634984494]*($i mod 50)/50};
+  local B:={[ pi/6,sqrt(3/4)/(1+sqrt(3/4)),sqrt(3/4)/(1+sqrt(3/4))] *(1-($i mod 50)/50)+
+            [-pi/6,0.2240092377397957     ,sqrt(3/4)/(1+sqrt(3/4)) ]*   ($i mod 50)/50};
+  local C:={[0 ,1/2,1/3]*(1-($i mod 50)/50)+
+            [0 ,1/2,1/6]*   ($i mod 50)/50};
+  local int:={begin local w:=0.5-0.5*cos(pi/50*$t); $f($t)*(1-w)+$g($t)*w; end};
+  initialSoddy@(
+  frameIndex<200 ? A(frameIndex) :
+  frameIndex<250 ? int(frameIndex-200,A,B) :
+  frameIndex<450 ? B(frameIndex) :
+  frameIndex<500 ? int(frameIndex-450,B,C) :
+  frameIndex<700 ? C(frameIndex)
+                 : int(frameIndex-700,C,A));
+end;
+
+renderAnimation->begin
+  local fname:={format('soddy_%3.3d.png',$x)};
+  [0..750].each(i,begin
+    print('Creating ',local dest:=fname(i));
+    fileExists(dest) ? void :
+    i in [50..200,300..450,550..700]
+    ? copyFile(fname(i-50),dest)
+    : begin
+        setOptions(['axisStyleX'=>0,'axisStyleY'=>0]);
+        soddyFrameParameter(i).soddyIteration(0.001,false);
+        renderToFile(dest,1920,1080,1);
+      end;
+  end);
+end;
+
+main('anim')->renderAnimation;
+
+initialSoddy(pi/6,sqrt(3/4)/(1+sqrt(3/4)),sqrt(3/4)/(1+sqrt(3/4))).soddyIteration(0.0001,true);
+
+// k (pk) = res (px)*size / range
+//
+
+
+

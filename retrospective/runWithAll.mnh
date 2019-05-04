@@ -1,0 +1,47 @@
+#!/usr/bin/mnh_light +out ?.log
+private timeRun(parameter:String,runner:String)->
+  begin
+    local timingResult:=time({exec(runner,[parameter])});
+    [runner,
+     [timingResult['result'].trailing==0
+      ? timingResult['time']
+      : 'failed']];
+  end;
+
+private BAR_SIZE:=100;
+private asciiArtResult(L:List)->begin
+  local runners:=L.getInner(0).map({$x.split('_')[1]});
+  local times  :=L.getInner(1).map({$x.isString ? $x : $x.sort});
+  local tMax:=times.flatten.filter(::isNumeric).max;
+  local f:=BAR_SIZE/tMax;
+  local medianIdx:=times.map(::size).max div 2;
+  local bars:=
+  times.each(X,X.isString ? X : begin
+    local t :=round(X*f);
+    local mt:=t[medianIdx];
+    t:=t.toSet;
+    format('%7.3f',X[medianIdx]) & (
+    [0..BAR_SIZE].each(k,k=mt ? '#' : k in t ? '-' : ' ',&));
+  end);
+  printDirect("\r#=median        \n-=sample(s)",repeat(' ',BAR_SIZE-6),format('%7.3f|',tMax),"\n");
+  printf("%s\t%s",runners,bars);
+end;
+
+private runTest(scriptName:String,runCount>=1)->begin
+  print(repeat("=",13+BAR_SIZE));
+  print('Testing ',scriptName,' @',runCount,' samples/exe');
+  local runners:=files('mnh_B*_light.exe');
+  runners:=[1..runCount].each(run,runners,|);
+  //randomize order of execution
+  runners:=runners[random(runners.size).sortPerm];
+
+  runners.each(exe,timeRun(scriptName,exe),printDirect("\r",index+1,"/",runners.size))
+         .group(0,{[$x[0],$x[1]|$y[1]]})
+         .map({[$x[0],$x[1].filter({$y.isNumeric AND $y>=0})]})
+         .map({[$x[0],$x[1]==[] ? 'failed' : $x[1].sort]})
+         .sort
+         .asciiArtResult;
+end;
+
+//*Compares timing for the given script
+main(script,runCount)->runTest(script,runCount.toInt);

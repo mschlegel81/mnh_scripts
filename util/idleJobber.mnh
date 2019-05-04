@@ -1,0 +1,50 @@
+#!/usr/bin/mnh_light +out ?.log -headless
+THRESHOLD_PERCENT     :=25;
+COUNT_BEFORE_ACTIVATE :=3;
+CHECK_INTERVAL_SECONDS:=60;
+
+cpuUsage->exec('wmic',['path','Win32_PerfFormattedData_PerfOS_Processor','get','Name,','PercentProcessorTime'])[0]
+         .tail.filter({$x!=''}).map({$line.trim.replace('  ',' ').split(' ').softCast}).toMap['_Total'] orElse 100;
+
+execTask([])->false;
+execTask(taskFile:String)->
+  taskFile.extractFileExt.lower=='.bat'
+  ? begin
+      print('Executing task ',taskFile);
+      'cmd'.execPipeless(['/C',taskFile]);
+      deleteFile(taskFile);
+      true;
+    end
+  : taskFile.extractFileExt.lower=='.mnh'
+  ? begin
+      print('Executing task ',taskFile);
+      executor.execPipeless(['-out',changeFileExt(taskFile,'.log'),taskFile]);
+      deleteFile(taskFile);
+      true;
+    end
+  : false;
+
+IPC_ID:='24593l4jnf2on';
+
+main('kill')->isIpcServerRunning(IPC_ID) AND sendIpcRequest(IPC_ID,'kill');
+
+serve('kill')->fail;
+serve(x)->'?';
+
+main->begin
+  startIpcServer(IPC_ID,::serve);
+  local belowThresholdCount:=0;
+  while(true,begin
+    local usage:=cpuUsage;
+    print(formatTime('c',systime),' CPU ',usage,'%');
+    usage<THRESHOLD_PERCENT
+    ? (belowThresholdCount+=1)>COUNT_BEFORE_ACTIVATE
+      ? head(files('N:\task*.bat')|
+             files('N:\task*.mnh')).execTask
+        ? belowThresholdCount:=0
+        : void
+      : void
+    : belowThresholdCount:=0;
+    sleep(CHECK_INTERVAL_SECONDS);
+  end);
+end;

@@ -1,0 +1,109 @@
+//*A physics simulation of two elastically colliding blocks in 1D
+//*The number of collisions will be approximately pi*sqrt(m0/m1)
+//*If a parameter is given, then m1 = m0 * 100 ^ <parameter>
+//*Default is m1 = m0 * 100^4
+plain script;
+USE plotUtil;
+//Simulation constants
+POWER       :=isVoid($1) ? 4 : toInt($1);
+FILE_OUTPUT :=!isVoid($2);
+MIN_FRAME_COUNT:=FILE_OUTPUT AND ($2=='file') ? 840 : 0;
+MASS_RATIO  :=100^POWER;
+BLOCK_TEXT_1:=POWER=0 ? '1kg' : ([1..POWER*2]*0|1).each(i,index mod 3=0<index ? '.' :void, i).reverseList.join&'kg';
+BLOCK_SIZE_0:=1;
+BLOCK_SIZE_1:=POWER=0 ? 1 : 2;
+TIME_STEP_SIZE:=0.01;
+
+//*Draw the blocks and add an animation frame
+draw(p0,p1,collisionCount)->begin
+  setPlotRangeManually(-0.1,10,-0.03,BLOCK_SIZE_1+0.25);
+  setPlotPreserveAspect(true);
+  setPlotAxisStyle('x',false,false,false);
+  setPlotAxisStyle('y',false,false,false);
+  local frameIndex:=-1;
+  FILE_OUTPUT ? void : clearAnimation;
+save;
+  plot([[p0                          ,0           ],
+        [p0+BLOCK_SIZE_0             ,BLOCK_SIZE_0],
+        [p1+BLOCK_SIZE_0             ,0           ],
+        [p1+BLOCK_SIZE_0+BLOCK_SIZE_1,BLOCK_SIZE_1]],'box fs 0 RGB1,0.7,0.5');
+  addPlot([[p0                          ,0           ],
+          [p0+BLOCK_SIZE_0             ,BLOCK_SIZE_0],
+          [p1+BLOCK_SIZE_0             ,0           ],
+          [p1+BLOCK_SIZE_0+BLOCK_SIZE_1,BLOCK_SIZE_1]],'box 0.7 RGB0.5,0.35,0.25');
+  addPlot([[0,BLOCK_SIZE_1],[0,0],[10,0]],'black l 0.5');
+
+  drawTextAbsolute(0,1,' Collisions: '&collisionCount,8,'TL');
+  drawText(p0+BLOCK_SIZE_0/2,BLOCK_SIZE_0/2,'1kg',6,'C');
+  drawText(p1+BLOCK_SIZE_0+BLOCK_SIZE_1/2,BLOCK_SIZE_1/2,BLOCK_TEXT_1,6,'C');
+  FILE_OUTPUT
+  ? begin
+      local filename:=format('c%spi_%3.3d.png',POWER,frameIndex+=1);
+      renderToFile(filename,960,270,0);
+      print(filename,'; collisions: ',collisionCount);
+    end
+  : begin
+      addAnimationFrame;
+      postDisplay;
+    end;
+end;
+
+begin
+  local p0:= 1;
+  local v0:= 0;
+  local p1:= 2;
+  local v1:=-1;
+  local collisionCount:=0;
+  draw(p0,p1,collisionCount);
+  local frameCount:=1;
+  local restStep:=TIME_STEP_SIZE;
+  local t_wall  :=0;
+  local t_blocks:=0;
+  local stepForward:={
+    begin
+      p0+=v0*$timestep;
+      p1+=v1*$timestep;
+      restStep-=$timestep;
+    end};
+
+  local stepRest:={
+    begin
+      p0+=v0*restStep;
+      p1+=v1*restStep;
+      draw(p0,p1,collisionCount);
+      frameCount+=1;
+      restStep:=TIME_STEP_SIZE;
+    end};
+
+  local wallBounce:={
+    begin
+      stepForward(t_wall);
+      v0:=-v0;
+      collisionCount+=1;
+    end};
+
+  local w0:=2           /(1+MASS_RATIO);
+  local w1:=2*MASS_RATIO/(1+MASS_RATIO);
+  local blockBounce:={
+    begin
+      stepForward(t_blocks);
+      local u:=v0*w0+v1*w1;
+      v0:=u-v0;
+      v1:=u-v1;
+      collisionCount+=1;
+    end};
+
+  while((t_wall<Inf OR t_blocks<Inf) AND frameCount<=1000,begin
+    (t_wall   := v0<0  ? -p0    /    v0  : Inf)<
+    (t_blocks := v1<v0 ? (p0-p1)/(v1-v0) : Inf)
+    ? t_wall<restStep
+      ? wallBounce()
+      : stepRest()
+    : t_blocks<restStep
+      ? blockBounce()
+      : stepRest();
+  end);
+  //extra frames
+  [0..30].each(step,stepRest());
+  while(frameCount<MIN_FRAME_COUNT,stepRest());
+end;

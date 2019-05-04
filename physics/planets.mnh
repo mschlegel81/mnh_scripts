@@ -1,0 +1,77 @@
+USE GUI,rungeKutta;
+
+ducktype SingleBodyState(x:List(3))->x[0].isNumeric AND
+                                   x[1].isNumericList(2) AND
+                                   x[2].isNumericList(2);
+
+private planetPoint(t)->  1.002*[cos(t/1.004),sin(t/1.004)];
+private sunPoint   (t)->-998E-6*[cos(t/1.004),sin(t/1.004)];
+private sunWeight   :=1;
+private planetWeight:=1E-3;
+
+
+rotateSys(x:NumericList(2),t:Numeric)->begin
+  local c:=cos(t/1.004);
+  local s:=sin(t/1.004);
+  [x[0]*c+x[1]*s,
+   x[1]*c-x[0]*s];
+end;
+
+private circlePoint(phi)->[cos(phi/180*4*arctan(1)),
+                           sin(phi/180*4*arctan(1))];
+
+private planetInitial(dist,angle)->[0,
+                                           dist *circlePoint(angle),
+                                    1/sqrt(dist)*circlePoint(angle+90)];
+
+private force(delta:NumericList(2))->delta*sqr(delta).agg(+)^(-3/2);
+
+private F(x:SingleBodyState)->
+           [1,    // dt/dt
+            x[2], // dx/dt
+            force(sunPoint   (x[0])-x[1])*sunWeight+
+            force(planetPoint(x[0])-x[1])*planetWeight];
+
+
+newTrailPlotter(style)->{begin
+  local trace:=[];
+save;
+  trace:=trailing( trace|[$x],100);
+  addPlot([$x],style&' .');
+  addPlot(trace,style&' l');
+end};
+
+
+private timeStepSize:=2*pi*1.004/300;
+
+begin
+  plot.setOptions([['x0',-1.1],['y0',-1.1],['x1',1.1],['y1',1.1],['axisStyleX',3],['axisStyleY',3]]);
+  local INTEGRATOR:=integrator(CASH_KARP,::F,timeStepSize,1E-4);
+  local t:=0;
+  local stepAndPlot:={begin
+    local state:=$x[0]();
+    (-2<state[1,0]<2) AND
+    (-2<state[1,1]<2)
+    ? begin
+        $x[1](rotateSys(state[1],t));
+        [future(INTEGRATOR,[state]),$x[1]];
+      end
+    : print('Body dropped');
+  end};
+
+  local statesAndPlotters:=[[future(INTEGRATOR,[planetInitial(1, 60)]),newTrailPlotter('black')],
+                            [future(INTEGRATOR,[planetInitial(1,-60)]),newTrailPlotter('black')]];
+  local sunPlotter:=[newTrailPlotter('red 2'),
+                     newTrailPlotter('blue 2')];
+
+  local frameTime:=time;
+  while(!plotClosed,begin
+    frameTime:=time;
+    plot();
+    t+=timeStepSize;
+    sunPlotter[0](rotateSys(   sunPoint(t),t));
+    sunPlotter[1](rotateSys(planetPoint(t),t));
+    statesAndPlotters:=statesAndPlotters.map(stepAndPlot);
+    display;
+  end);
+end;

@@ -1,0 +1,76 @@
+ xRes:=20;
+yRes:=20;
+xy(i)->[i mod xRes,i div xRes];
+
+//memoized neighborIndexes(i)->begin
+//  local p:=xy(i);
+//  [[-1,0],[1,0],[0,-1],[0,1]]
+//  .map({$delta+p})
+//  .filter({0<=$q[0]<xRes AND
+//           0<=$q[1]<yRes})
+//  .map({$q[0]+$q[1]*xRes});
+//end;
+
+memoized horEdgeSources->[0..xRes-1].map({[0,0,0]});
+hLine(L:List,index)->L[[index*xRes..index*xRes+xRes-1]];
+
+heatOnly(L:List)->L.map({[0,$x[1],0]});
+
+diffusiveFlow(L:List(xRes*yRes))->begin
+  //downward:
+  local FY:=(horEdgeSources-L.head(xRes)).heatOnly|
+            (L.leading(xRes)-L.tail(xRes))|
+            (L.trailing(xRes)-horEdgeSources).heatOnly;
+  FY:=FY.leading(xRes)-FY.tail(xRes);
+  local FX:=[0..yRes-1].each(iy,begin
+               local row:=L.hLine(iy);
+               row:=[[0,0,0]-row.head].heatOnly|
+                     (row.leading-row.tail)|
+                     [row.trailing-[0,0,0]].heatOnly;
+               row.leading-row.tail;
+            end,|)+FY;
+  FX.pMap({$x*[0,0.1,0.5]});
+end;
+
+
+burnDiff(L:List(xRes*yRes))->L.diffusiveFlow
+                            +L.pMap({max(0,$x[1]*$x[2]-0.1)*$x[0]*[-1,1,-1]});
+anyReaction(L:List)->L.each(x,x[1]*x[2]>0.1 AND x[0]>0,OR);
+
+plotBurn(L:List(xRes*yRes))->
+  begin
+    plot();
+    L.each(sample,begin
+      local p:=xy(index);
+      p:=[p,p+1];
+      local rgb:=[sample[1].min(1),(sample[1]-1).min(1).max(0),(sample[0]*sample[2]).min(1)];
+      addPlot(p,'box RGB'&(rgb.join(",")));
+    end);
+    display;
+  end;
+
+
+USE rungeKutta;
+
+
+begin
+  local data:=[0..xRes*yRes-1].each(i,i+i<xRes*yRes ? [1,0,0.1] : [0,0,1]);
+//  data[xRes div 2+
+//   xRes*(yRes div 4),1]:=5;
+  data[xRes*(yRes div 2-1)]:=[5,10,5];
+
+//  ([0..xRes-1]+(xRes div 10*yRes)).each(i,data[i]:=[100,0]);
+  local int:=integrator(HEUN_EULER,::burnDiff,0.1,1E-3);
+  local counter:=0;
+  clearAnimation;
+  while(data.anyReaction,begin
+    data.plotBurn;
+    addAnimationFrame;
+    data:=int(data);
+    data:=int(data);
+    data:=int(data);
+    data:=int(data);
+    data:=int(data);
+    print(counter+=1);
+  end);
+end;

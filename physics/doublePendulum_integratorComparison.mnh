@@ -1,0 +1,131 @@
+USE rungeKutta,GUI;
+//Animation parameters
+private timeStepPerFrame:=0.02;
+private subStepsPerFrame:=25;
+//Physical parameters
+private l1:=1; //Length of upper leg
+private l2:=1; //Length of lower leg
+private m1:=1; //Upper mass
+private m2:=1; //Lower mass
+private g:=9.81;
+//Helper variables
+private F1fak:=-m2/(m1+m2)*l2/l1;
+private F2fak:=-l1/l2;
+//*phi1'', dependent on phi2''
+@SuppressUnusedParameterWarning
+private F1(phi1,phi2,phi1dt,phi2dt,        phi2dtt)->F1fak*(phi2dtt*cos(phi1-phi2)+phi2dt.sqr*sin(phi1-phi2))-g/l1*sin(phi1);
+//*phi2'', dependent on phi1''
+@SuppressUnusedParameterWarning
+private F2(phi1,phi2,phi1dt,phi2dt,phi1dtt        )->F2fak*(phi1dtt*cos(phi1-phi2)-phi1dt.sqr*sin(phi1-phi2))-g/l2*sin(phi2);
+//*Returns an expression F1(F2($x))-$x (for Regula Falsi)
+private F12(phi1,phi2,phi1dt,phi2dt)->F1(phi1,phi2,phi1dt,phi2dt,F2(phi1,phi2,phi1dt,phi2dt,{$x}))-{$x};
+
+//*Overloaded for use in RK4
+private accel(state:NumericList(4))->accel@state;
+
+private quickRoot(F:Expression)->begin -1-(local f1:=F(-1))*2/(F(1)-f1); end;
+
+//*Returns first derivative in time for given state
+@demo_for=numerics, simulation, animation, plain script, future
+private accel(phi1,phi2,phi1dt,phi2dt)->
+  begin
+    [phi1dt,
+     phi2dt,
+     local phi1dtt:=quickRoot(F12(phi1,phi2,phi1dt,phi2dt)),
+     F2(phi1,phi2,phi1dt,phi2dt,phi1dtt)];
+  end;
+
+//*Transforms the state (by angles) to a list of points (Cartesian, 2D)
+private plottable(state:NumericList(2))->begin
+  [[0,0],local d1:=[sin(state[0]),-cos(state[0])]*l1,
+               d1+ [sin(state[1]),-cos(state[1])]*l2];
+end;
+
+INT_MAX:=200;
+
+//Varying integrators
+evolveAngles(rungeKuttaMethod:Expression(3))->
+begin
+  print(rungeKuttaMethod);
+  local state:=[pi/2,-pi/2,0,0];
+  local hist:=[state[[0,1]]];
+  local step:=integrator(rungeKuttaMethod,::accel,timeStepPerFrame/subStepsPerFrame);
+  [2..2000].each(counter,begin
+    [1..subStepsPerFrame].each(substep,state:=state.step);
+    hist|=[state[[0,1]]];
+  end);
+  hist;
+end;
+
+//Varying initial conditions
+evolveAngles(modifier:Numeric)->
+begin
+  print(modifier);
+  local state:=[pi/2+cos(modifier*2*pi)*0.00001,
+               -pi/2+sin(modifier*2*pi)*0.00001,0,0];
+  local hist:=[state[[0,1]]];
+  local step:=integrator(CASH_KARP,::accel,timeStepPerFrame,1E-9);
+  [2..2000].each(counter,begin
+    state:=state.step;
+    hist|=[state[[0,1]]];
+  end);
+  hist;
+end;
+
+traceStyle1   :=format('0.75 HUE%s',[0..INT_MAX]/INT_MAX);
+traceStyle2   :=format('0.5 HUE%s' ,[0..INT_MAX]/INT_MAX);
+traceStyle3   :=format('0.25 HUE%s',[0..INT_MAX]/INT_MAX);
+pendulumStyle:=format('2 . l HUE%s',[0..INT_MAX]/INT_MAX);
+
+animate->begin
+  local A:=([0..INT_MAX]/INT_MAX*0.5+0.5).pMap({evolveAngles(RK2($a))});
+  //local A:=([0..INT_MAX]/(INT_MAX+1)).pMap({evolveAngles($a)});
+  local traces:=A.pMap({$part.map({$state.plottable.trailing})});
+  begin
+    local globalX0:=traces.pEach(trace,trace.getInner(0).min,min);
+    local globalX1:=traces.pEach(trace,trace.getInner(0).max,max);
+    local globalY0:=traces.pEach(trace,trace.getInner(1).min,min);
+    local globalY1:=traces.pEach(trace,trace.getInner(1).max,max);
+    local dx:=(globalX1-globalX0)*0.05; globalX0-=dx; globalX1+=dx;
+    local dy:=(globalY1-globalY0)*0.05; globalY0-=dy; globalY1+=dy;
+    setOptions([['autoscaleX',false],['autoscaleY',false],['preserveAspect',true],['x0',globalX0],['x1',globalX1],['y0',globalY0],['y1',globalY1],['axisStyleX',0],['axisStyleY',0]]);
+  end;
+  clearAnimation;
+  [0..A.head.size-1].each(k,begin
+    local trailLength:=0;//max(200-k div 6,5);
+    print('Plotting frame #',k);
+    plot();
+    trailLength=0 ? void :
+    traces.each(trace,addPlot(trace.head(k+1).trailing(trailLength  )                    ,traceStyle1[index]),
+                      addPlot(trace.head(k+1).trailing(trailLength*2).head(trailLength+1),traceStyle2[index]),
+                      addPlot(trace.head(k+1).trailing(trailLength*3).head(trailLength+1),traceStyle3[index]));
+    A.getInner(k).each(pendulum,addPlot(pendulum.plottable,pendulumStyle[index]));
+    addAnimationFrame;
+  end);
+  display;
+end;
+
+mod2pi(x:Numeric)->x-floor(x/(2*pi))*(2*pi);
+mod2pi(x:NumericList)->(x+pi).map(::mod2pi)-pi;
+phaseDiagram->begin
+  clearAnimation;
+  resetOptions;
+  setOptions(['x0'=>-pi,'x1'=>pi,
+              'y0'=>-pi,'y1'=>pi,
+              'autoscaleX'=>false,
+              'autoscaleY'=>false]);
+  local futures:=([0..INT_MAX]/INT_MAX*0.5+0.5).each(parameter,future(::evolveAngles,[RK2(parameter)]));
+  futures.each(f,begin
+    local A:=f().map(::mod2pi);
+    local prev:=A[0];
+    A.each(a,
+      (abs(a-prev)>1).agg(OR)
+      ? [Nan,Nan]
+      : void,
+      prev:=a).plot;
+    addAnimationFrame;
+    postDisplay;
+  end);
+end;
+
+main->animate;

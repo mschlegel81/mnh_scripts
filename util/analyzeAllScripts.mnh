@@ -1,0 +1,28 @@
+private isError  (message:StringList)->message.head=='Error';
+private isWarning(message:StringList)->message.head=='Warning';
+
+main->begin
+  local allScriptFiles:=allFiles(mnhInfo['configDir'],'*.mnh').union(allFiles('C:\dev\','*.mnh'));
+  local usedScripts       :=[].toSet;
+  local warnings:=[];
+  local errors  :=[];
+  allScriptFiles.pMap({[$f,$f.inspect]})
+  .each(s,begin
+    usedScripts|=s[1,'uses'].getInner(1);
+    warnings|=s[1,'messages'].filter(::isWarning);
+    errors  |=s[1,'messages'].filter(::isError);
+  end);
+  print('Found ',allScriptFiles.size,' scripts');
+  print('Used scripts');
+  printf('  %s',usedScripts.unique);
+  warnings:=warnings.map({[regex.replace($x[1],':\d+,\d+','').copy(1,10000),$x[2]]}).group(0).getInner(0)#map({[$x[0,0],$x.getInner(1)]})#.toMap;
+  errors  :=errors  .map({[regex.replace($x[1],':\d+,\d+','').copy(1,10000),$x[2]]}).group(0).getInner(0)#map({[$x[0,0],$x.getInner(1)]})#;
+  errors.getInner(0).each(file,warnings[file]:=void);
+  warnings:=warnings.sort(0);
+  errors  :=errors  .sort(0);
+  print('Scripts with warnings');
+  printf("  @%s:1,1\t%s",warnings.getInner(0),warnings.getInner(1));
+  print('Scripts with errors');
+  printf("  @%s:1,1\t%s",errors.getInner(0),errors.getInner(1));
+  warnings.unique;
+end;

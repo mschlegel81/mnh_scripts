@@ -1,0 +1,23 @@
+FileInfos:=[['.bmp',['Document','Image']],['.csv',['Document','CSV']],['.dpr',['Delphi','Project']],['.pl',['Perl or Prolog','Source']],['.war',['Java','Compilate']],['.docx',['Document','Word']],['.dpu',['Delphi','Debug Info']],['.png',['Document','Image']],['.xsd',['Document','XML/SOAP']],['.dfm',['Delphi','Form Layout']],['.java',['Java','Source']],['.wsdl',['Document','XML / SOAP']],['.sha1',['Document','Checksum']],['.sql',['Source','SQL']],['.txt',['Document','Text']],['.graphml',['Document','Graph']],['.xsl',['Document','XML']],['.exe',['Executable','Binary']],['.pdf',['Document','Pdf']],['.dcr',['Delphi','Resource']],['.html',['Document','HTML']],['.js',['Java Script','Script']],['.bat',['Executable','Script']],['.ico',['Document','Icon']],['.dcu',['Delphi','Compilate']],['.xml',['Document','XML']],['.doc',['Document','Word']],['.bz2',['Archive','BZ2']],['.jar',['Java','Compilate']],['.inc',['Delphi','Source']],['.md5',['Document','Checksum']],['.xls',['Document','Excel']],['.res',['Delphi','Resource']],['.sh',['Executable','Script']],['.jpg',['Image','JPEG']],['.zip',['Archive','Zip']],['.pas',['Delphi','Source']],['.xlsx',['Document','XML']],['.css',['Document','HTML']],['.cfg',['Document','Configuration']],['.dll',['Library','Windows DLL']],['.gif',['Document','Image']],['.ini',['File','Configuration']]].toMap;
+
+getFileInfo(extension :String)->FileInfos[extension.lower] orElse FileInfos['.'&extension.lower];
+getFileInfo(extensions:StringList)->extensions.pMap(::getFileInfo);
+
+main->allFiles('C:\Users\Martin Schlegel\Downloads\ccx_2.14.src.tar\ccx_2.14.src\CalculiX\ccx_2.14\src')
+.pMap({[[extractFileExt($x).lower|$x.split('/')[2]],$x]})
+.group(0)
+.pEach(g,g[0,0,0]|g.getInner(1).fileStats.agg(+).leading|getFileInfo(g[0,0,0,0]))
+.{[['Extension','Folder','Files','Lines','Bytes','Category 1','Category 2']]|$L}
+.{showTable($L,true) orElse $L}
+.pMap({$x.join("\t")}).join("\n").print orElse
+ask;
+
+//.{printf("%s\t|\t%s\t|\t%s\t|\t%s",
+//         'Extension'|$L.getInner(0),
+//         'Files'    |$L.getInner(1),
+//         'Lines'    |$L.getInner(2),
+//         'Bytes'    |$L.getInner(3)) orElse
+// showTable(['Extension'|$L.getInner(0),
+//            'Files'    |$L.getInner(1),
+//            'Lines'    |$L.getInner(2),
+//            'Bytes'    |$L.getInner(3)].transpose,true)};

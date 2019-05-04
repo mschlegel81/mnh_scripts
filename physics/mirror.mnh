@@ -1,0 +1,70 @@
+hyperbola(x)->sqrt(1+x^2)-1;
+circle(x)->1-sqrt(1-x^2);
+conic(w=0.0)-> ::sqr;
+conic(w<0.0)->(1/circle   (w))*{   circle(w*$t)};
+conic(w>0.0)->(1/hyperbola(w))*{hyperbola(w*$t)};
+
+ducktype ConicParamter(x:Numeric)->-1<=x<Inf;
+ducktype ValidWidth(x:Numeric)->0<x<=1;
+ducktype ValidReal(x:Numeric)->!x.isNan AND !x.isInfinite;
+
+makeReflector(parameter:ConicParamter,
+              depth:ValidReal,
+              width:ValidWidth)->begin
+  local Y:=[-50..50]/50*width;
+  local X:=Y.map(conic(parameter)*depth);
+  [X-X.agg(+)/X.size,
+   Y-Y.agg(+)/Y.size].transpose;
+end;
+
+@SuppressUnusedParameterWarning
+ducktype Vec2(v:NumericList(2))->true;
+
+det(a:Vec2,b:Vec2)->a[0]*b[1]-a[1]*b[0];
+cramerSolve(a:Vec2,b:Vec2,c:Vec2)->[det(c,b),det(a,c)]/det(a,b);
+
+rayHitsLine(rayStart:Vec2,rayDirection:Vec2,
+            lineStart:Vec2,lineEnd:Vec2)->begin
+  //rayStart +rayDirection*t= lineStart+lineLength *u
+  //rayDirection*t- lineLength *u= lineStart-rayStart
+  local sol:=cramerSolve(rayDirection,lineStart-lineEnd,lineStart-rayStart);
+  0<=sol[1]<=1 AND sol[0]>1E-1
+  ? sol[0]
+  : void;
+end;
+
+rayBundle(angle)->begin
+  local direction:=[cos(angle),sin(angle)];
+  local shift:=direction.reverseList*[-0.1,0.1];
+  [-5..5].each(i,[shift*i-5*direction,direction]);
+end;
+
+reflectRay(edgeStart:Vec2,edgeEnd:Vec2,oldDirection:Vec2)->begin
+  local edgeNormal:=reverseList(edgeEnd-edgeStart)*[-1,1];
+  edgeNormal/=sqrt(edgeNormal.sqr.agg(+));
+  local dir:=oldDirection-edgeNormal*((edgeNormal*oldDirection).agg(+)*2);
+  dir/sqrt(dir.sqr.agg(+));
+end;
+
+
+traceRay(mirror:List,ray:List(2))->begin
+  local firstHit:=
+  [0..mirror.size-2].each(i,begin
+    local tHit:=rayHitsLine(ray[0],ray[1],mirror[i],mirror[i+1]);
+    tHit.isVoid
+    ? void
+    : [tHit,mirror[i],mirror[i+1]];
+  end).sort[0];
+  firstHit.isVoid
+  ? [ray[0],ray[0]+5*ray[1]]
+  : begin
+      local hitPoint:=ray[0]+firstHit[0]*ray[1];
+      local outDir  :=reflectRay(firstHit[1],firstHit[2],ray[1]);
+      [ray[0]]|traceRay(mirror,[hitPoint,outDir]);
+    end;
+end;
+
+
+mirror:=makeReflector(-1,1,1);
+mirror.plot('2 l');
+rayBundle(pi+0.1).each(x,addPlot(traceRay(mirror,x),'red'));

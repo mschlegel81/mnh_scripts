@@ -1,0 +1,23 @@
+private listGroup(G:List)->print('Apparently equal file group (',G[1] div 1024,' kB per file):',join("\n  "&G[0]));
+
+//*Lists duplicate files under the given root(s)
+main(rootFolder:String,...)->
+  [rootFolder|...].pMap({allFiles($r,'*')})
+  .flatten
+  .{print('Found ',$L.size,' files - grouping') orElse $L}
+  //group by extension and file size
+  .map({[$file,$file.extractFileExt|fileInfo($file)['size']]})
+  .group(1)
+  .{print('Found ',$L.size,' groups by extension + size - filtering') orElse $L}
+  //filter groups of only one element; add overhead size
+  .each(g,printDirect('.'),
+          g.size>1
+          ? g.getInner(0)
+             .group(g.getInner(0).fileStats)
+             .filter({$L.size>1})
+             .map({[$L,g[1,1,1]]})
+          : void,|)
+  .{print('Sorting result of ',$L.size,' groups') orElse $L}
+  .sort({$x[1]*($x[0].size-1)<=
+         $y[1]*($y[0].size-1)})
+  .map(::listGroup);

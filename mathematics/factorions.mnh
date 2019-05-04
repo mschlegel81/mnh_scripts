@@ -1,0 +1,12 @@
+F:=begin
+  local r:=[1];
+  local n:=0;
+  [1..20].each(k,
+  r|=r.trailing*(n+=1));
+  r;
+end;
+
+rangeGenerator(0,F[9]*6)
+.pEach(k,k==F[k.digits].agg(+)
+         ? print(k)
+         : void);

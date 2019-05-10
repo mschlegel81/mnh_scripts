@@ -21,7 +21,7 @@ async({begin
   addPlot(trace);
   while(alive,begin
     displaySpan:=displaySpan*0.95+0.0505*(inner
-                                          ? max(1,1+(radius-1)*(tracePoint+1))
+                                          ? max(1,max(radius-1,0)+radius*(tracePoint))
                                           : 1+radius*(1+tracePoint));
     setOptions([['x0',-displaySpan],['x1',displaySpan],
                 ['y0',-displaySpan],['y1',displaySpan],

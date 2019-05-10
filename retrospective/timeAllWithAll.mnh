@@ -63,6 +63,7 @@ plotTiming(title:String,L:List)->begin
   drawTextAbsolute(1,1,extractFileName(title),8,'TR');
 end;
 
+//*Run specified test or all tests if none is specified
 main('run',...)->begin
   assertUniqueInstance;
   clearAnimation;
@@ -75,6 +76,7 @@ main('run',...)->begin
   end);
 end;
 
+//*Show graph for last stored test run
 main('replay')->begin
   assertUniqueInstance;
   clearAnimation;

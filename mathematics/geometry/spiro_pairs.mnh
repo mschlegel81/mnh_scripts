@@ -6,13 +6,13 @@ end;
 
 getTrace(radius,range)->([0..150]/150*range).map(tracepoint(radius));
 
-S:=sin([0..50]/50*2*pi);
-C:=cos([0..50]/50*2*pi);
+//S:=sin([0..50]/50*2*pi);
+//C:=cos([0..50]/50*2*pi);
 drawInner(radius,t,color)->begin
   local phi:=(  t*(  1/radius-1))+pi/2;
   local center:=(1-radius)*[cos(t),sin(t)];
   addPlot([center[0],center[0]+sin(phi)*radius],[center[1],center[1]+cos(phi)*radius],'. l '&color);
-  addPlot(center[0]+radius*S,center[1]+radius*C,color);
+  addPlot([center-radius,center+radius],'ellipse '&color);
 end;
 
 main->main('3/7');
@@ -33,7 +33,7 @@ local period:=begin
 end;
 
 getTrace(r0,period).plot;
-addPlot(C,S,'black');
+addPlot([[-1,-1],[1,1]],'black ellipse');
 ([0..299]/300*period).each(t,begin
   drawInner(r0,t,'red');
   drawInner(1-r0,f*t,'blue');

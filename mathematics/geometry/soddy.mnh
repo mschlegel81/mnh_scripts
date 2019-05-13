@@ -180,10 +180,4 @@ end;
 
 main('anim')->renderAnimation;
 
-initialSoddy(pi/6,sqrt(3/4)/(1+sqrt(3/4)),sqrt(3/4)/(1+sqrt(3/4))).soddyIteration(0.0001,true);
-
-// k (pk) = res (px)*size / range
-//
-
-
-
+initialSoddy(pi/6,sqrt(3/4)/(1+sqrt(3/4)),sqrt(3/4)/(1+sqrt(3/4))).soddyIteration(0.001,true);

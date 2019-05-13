@@ -32,7 +32,7 @@ addPlot({0.5-sqrt(1-4*(1-$x)^2)*0.5},0.5,1  ,100,'0.5 black');
       : drawText(part[2],part[3],format('%s/%s',part[1],part[0]),fontSize,'C','Times New Roman');
       [[part[2]-part[3],0],
        [part[2]+part[3],2*part[3]]];
-    end,|).addPlot('ellipse 0.5'));
+    end,|).addPlot('f ellipse 0.5'));
 end;
 
 @SuppressUnusedWarning
@@ -111,3 +111,5 @@ drawZoomin->begin
 end;
 
 main->drawZoomin;
+
+drawRationalCircles(100);

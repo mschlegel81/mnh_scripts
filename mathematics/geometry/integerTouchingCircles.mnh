@@ -1,5 +1,3 @@
-
-
 checkThis(curvatures:NumericList(3))->
   curvatures.agg(+).sqr==sqr(curvatures).agg(+)*2;
 
@@ -22,5 +20,5 @@ save;
   [i,j,k];
 end}.toIteratableExpression;
 
-tripletGenerator().filter(::checkThis).map({print($x,' - ',$x.map(::factorize))});
+tripletGenerator().filter({gcd@$p=1}).filter(::checkThis).map({print($x,' - ',$x.sqrt)});
 

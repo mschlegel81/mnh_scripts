@@ -14,7 +14,7 @@ force(ab:List)->begin
 //  particleInteractionStrength*n*(d-1)/d^3;
 end;
 
-bottomForce(p:NumericList(2))->[0,-absForce(p[1])];
+bottomForce(p:NumericList(2))->[0,-5-absForce(p[1])];
   //[0,-1]*(p[1]-1)/p[1]^2;
 
 //force(ab:List)->begin
@@ -44,8 +44,10 @@ end;
 MAX_RANGE:=2E-3;
 
 timeStep(x0:List(2),dx:List(2),dt,damping)->begin
-  local x:=[ x0[0]+dx[0]*dt+dx[1]*dt^2/2,
-            (x0[1]+dx[1]*dt             )*damping];
+  local x:=[x0[0]+dx[0]*dt+dx[1]*dt^2/2,
+            x0[1]+dx[1]*dt             ];
+  local vAvg:=x[1].agg(+)/size(x[1]);
+  x[1]:=x[1].map({($v-vAvg)*damping+vAvg});
   x[0].getInner(1).each(py,
     py<0 ? begin
              x[0,index,1]:=0;
@@ -55,7 +57,7 @@ timeStep(x0:List(2),dx:List(2),dt,damping)->begin
   x;
 end;
 
-stepForward(sys:List(2),dampingFactor<0.0)->begin
+stepForward(sys:List(2),dampingFactor<=0.0)->begin
   local dSys:=dynamicMovement(sys,1);
   local naiveStep:=timeStep(sys,dSys,TIME_STEP_SIZE,exp(TIME_STEP_SIZE*dampingFactor));
   local err :=dynamicMovement(naiveStep,1)[1]-dSys[1];
@@ -82,6 +84,7 @@ fp(n:Numeric    )->[cos(FIBFAK*n),sin(FIBFAK*n)]*sqrt(n);
 
 plotSystem(points:List)->begin
   plot();
+  setOptions(['y1'=>max(2,points.getInner(1).max)]);
   points.each(p,begin
     local i:=index;
     local r:=points.each(q,i=index ? void : (q-p).euklideanNorm,min).min(p[1])/2;
@@ -113,19 +116,8 @@ begin
   //ask('Press enter to Continue');
 
   p*=scale;
-  local dx:=0.2-p.getInner(1).min;
-  [p.map({$x+[0,dx]}),zeroVectors(p.size)];
-end;
-
-flatInitial(particleCount>1)->
-begin
-  local p:=[[1..particleCount],random(particleCount)*0.01].transpose;
-  local c:=p.agg(+)/p.size;
-  p:=p.map({$s-c});
-  local n:=p.map({$x/euklideanNorm($x)});
-//  p*=regulaFalsi({dynamicMovement([p*$a,zeroVectors(p.size)],0)[1].each(a,(a*n[index]).agg(+),+)},0.1,1,1E-3,1E-3);
-  local dx:=1-p.getInner(1).min;
-  [p.map({$x+[0,dx]}),zeroVectors(p.size)];
+  local dy:=2.2-p.getInner(1).min;
+  [p.map({$x+[0,dy]}),zeroVectors(p.size)];
 end;
 
 main(sysSize)->begin
@@ -135,7 +127,6 @@ main(sysSize)->begin
 
   resetOptions;
   local sys:=initialDroplets(syss);
-//  local sys:=flatInitial(syss);
 
   local counter:=0;
   clearAnimation;
@@ -155,12 +146,11 @@ main(sysSize)->begin
 
 
   plotSystem(sys[0]);
-  while(counter<500,begin
+  while(counter<800,begin
     local t0:=time;
-    sys:=stepForward(sys,-1);
+    sys:=stepForward(sys,-5);
     printf('%3d %7.3fs',counter+=1,time-t0);
     plotSystem(sys[0]);
   end);
 end;
-
 

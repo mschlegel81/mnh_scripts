@@ -3,6 +3,13 @@ checkThis(curvatures:NumericList(3))->
 
 //rangeGenerator(1,100).pEach(i,rangeGenerator(1,i).each(j,rangeGenerator(1,j).each(k,checkThis([i,j,k]) ? [k,j,i] : void),|),|).sort;
 
+printOnceASecond(...)->begin
+  local nextPrint:=-1;
+save;
+  time>=nextPrint
+  ? print@... orElse nextPrint+=1
+  : void;
+end;
 
 tripletGenerator->{begin
   local i:= 0;
@@ -17,8 +24,11 @@ save;
       : void;
     end
   : void;
+  printOnceASecond('Generated: ',[i,j,k]);
   [i,j,k];
 end}.toIteratableExpression;
 
-tripletGenerator().filter({gcd@$p=1}).filter(::checkThis).map({print($x,' - ',$x.sqrt)});
+allSquares(i:IntList)->sqrt(i).isIntList;
+
+tripletGenerator().filter({gcd@$p=1}).filter(!::allSquares).filter(::checkThis).map({print($x,' - ',$x.sqrt)});
 

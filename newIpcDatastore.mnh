@@ -1,0 +1,78 @@
+//ID of the server, used for inter process communication (IPC)
+private IPC_ID:=myPath;
+//ID of the currently running script instance
+private PID:=hash([systime,executor,myPath]);
+
+private PUT:='PUT';
+private DEL:='DEL';
+private GET:='GET';
+private ROLLBACK:='ROLLBACK';
+private COMMIT:='COMMIT';
+
+private datastore store:=[].toMap;
+private datastore stage:=[].toMap;
+private datastore delKeys:=[].toMap;
+
+private queryServer(...)->begin
+  isIpcServerRunning(IPC_ID)
+  ? void
+  : begin
+      executor.execAsync([myPath]);
+      sleep(1);
+    end;
+  sendIpcRequest(IPC_ID,PID|...);
+end;
+
+@SuppressUnusedWarning
+commit->queryServer(COMMIT);
+private serve(pid,cmd=COMMIT)->stage[pid].isVoid ? void : begin
+  store:=store.mergeMaps(stage[pid],::orElse);
+  (delKeys[pid] orElse []).each(key,store[key]:=void);
+  stage[pid]:=void;
+  delKeys[pid]:=void;
+end;
+
+@SuppressUnusedWarning
+rollback->queryServer(ROLLBACK);
+private serve(pid,cmd=ROLLBACK)->begin
+  stage[pid]:=void;
+  delKeys[pid]:=void;
+end;
+
+@SuppressUnusedWarning
+put(key,value)->queryServer(PUT,key,value);
+private serve(pid,cmd=PUT,key,value)->begin
+  stage[pid].isVoid
+  ? stage[pid]:=[key => value].toMap
+  : stage[pid,key]:=value;
+  delKeys[pid].isVoid
+  ? void
+  : delKeys[pid]<<key;
+end;
+
+@SuppressUnusedWarning
+getValue(key)->queryServer(GET,key);
+private serve(pid,cmd=GET,key)->key in (delKeys[pid] orElse [])
+                       ? void
+                       : stage[pid,key] orElse
+                             store[key] orElse void;
+
+@SuppressUnusedWarning
+delete(key)->queryServer(DEL,key);
+private serve(pid,cmd=DEL,key)->begin
+  delKeys[pid].isVoid
+  ? delKeys[pid]:=[[key].toSet]
+  : delKeys[pid]|=key;
+  stage[pid].isVoid
+  ? void
+  : stage[pid,key]:=void;
+  void;
+end;
+
+private serve(...)->void;
+
+main->begin
+  startIpcServer(IPC_ID,{serve@$params});
+  ask("IPC server started: "&myPath&"\nPress enter to shutdown");
+end;
+

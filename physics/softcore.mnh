@@ -14,7 +14,7 @@ force(ab:List)->begin
 //  particleInteractionStrength*n*(d-1)/d^3;
 end;
 
-bottomForce(p:NumericList(2))->[0,-5-absForce(p[1])];
+bottomForce(p:NumericList(2))->[0,-absForce(p[1])];
   //[0,-1]*(p[1]-1)/p[1]^2;
 
 //force(ab:List)->begin

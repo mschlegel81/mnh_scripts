@@ -1,0 +1,86 @@
+fareyPredecessors(p,1)->void;
+//*Returns the farey predecessors of p/q
+fareyPredecessors(p<=q,q>1)->
+gcd(p,q)!=1 ? fail(p,' and ',q,' have a common divider') :
+begin
+  local b:=modularInverse(p,q);
+  local a:=((b*p)-1)/q;
+  [[a,b],[p-a,q-b]];
+end;
+
+memoized fracForm(L:List(2))->L[1]=1 ? L[0].toString : L.join("/");
+
+fareyHierarchy(p,q,createPlot:Boolean)->begin
+  //Find all farey predecessors:
+  local pred:=[[p,q] => fareyPredecessors(p,q)].toMap;
+  local changing:=true;
+  while(changing,begin
+    changing:=false;
+    pred.getInner(1).agg(|).filter({$L[1]>1}).each(leaf,
+      pred[leaf].isVoid
+      ? begin
+          pred[leaf]:=fareyPredecessors@leaf;
+          changing:=true;
+        end
+      : void);
+  end);
+  //Sort found numbers into levels
+  local level:=[[0,1]=>0,
+                [1,1]=>0].toMap;
+  changing:=true;
+  while(changing,begin
+    changing:=false;
+    pred.getInner(0).each(number,
+      level[number].isVoid
+      ? begin
+          local lp0:=level[pred[number,0]];
+          local lp1:=level[pred[number,1]];
+          lp0.isVoid OR lp1.isVoid
+          ? void
+          : begin
+              level[number]:=max(lp0,lp1)+1;
+              changing:=true;
+            end;
+        end
+      : void);
+  end);
+  local sortedNumbers:=
+    level.getInner(0)
+       .sort({$x.agg(/)<=$y.agg(/)});
+
+  createPlot
+  ? begin
+      ['autoscaleFactor'=>0.98,
+       'autoscaleX'=>true,
+       'autoscaleY'=>true,
+       'axisStyleX'=>0,
+       'axisStyleY'=>0,
+       'logscaleX'=>false,
+       'logscaleY'=>false,
+       'preserveAspect'=>true].toMap.setOptions;
+      local numberCoordinates:=sortedNumbers.each(x,x=>[index,-level[x]]).toMap;
+      pred.each(x,numberCoordinates[x[1,0]],
+                  numberCoordinates[x[0]  ],
+                  numberCoordinates[x[1,1]],
+                  [Nan,Nan]).plot;
+      numberCoordinates.each(c,begin
+        drawText(c[1,0],c[1,1],fracForm(c[0]),12,'C','Times New Roman',[0,0,0],[1,1,1]);
+      end);
+    end
+  : begin
+      local levelWidth:=level.each(l,[l[1],fracForm(l[0]).length])
+                             .group(0,aggregator({[$x[0],max($x[1],$y[1])]}))
+                             .sort(0)
+                             .getInner(1)+3;
+      sortedNumbers
+           .map({repeat(' ',levelWidth.head(level[$x]).agg(+) orElse 0)&fracForm($x)&($x==[p,q] ? void : '-+')})
+           .join("\n")
+           .print;
+    end;
+end;
+
+
+
+//fareyHierarchy(777,1324,false);
+fareyHierarchy(77756,1324577,false);
+

@@ -97,7 +97,6 @@ begin
      'y1'=>xy.getInner(1).max].toMap);
    end;
 
-  //TODO: Fix gear rotation offsets
    local rot:=radii.map({0});
    [1..rot.size-1].each(k,begin
      rot[k]:=fixGearPoint(radii[k-1],rot[k-1],gearCenters[k-1],

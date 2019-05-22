@@ -3,15 +3,9 @@ private IPC_ID:=myPath;
 //ID of the currently running script instance
 private PID:=hash([systime,executor,myPath]);
 
-private PUT:='PUT';
-private DEL:='DEL';
-private GET:='GET';
-private ROLLBACK:='ROLLBACK';
-private COMMIT:='COMMIT';
-
 private datastore store:=[].toMap;
-private datastore stage:=[].toMap;
-private datastore delKeys:=[].toMap;
+private mutable stage:=[].toMap;
+private mutable delKeys:=[].toMap;
 
 private queryServer(...)->begin
   isIpcServerRunning(IPC_ID)
@@ -23,6 +17,7 @@ private queryServer(...)->begin
   sendIpcRequest(IPC_ID,PID|...);
 end;
 
+private COMMIT:='COMMIT';
 @SuppressUnusedWarning
 commit->queryServer(COMMIT);
 private serve(pid,cmd=COMMIT)->stage[pid].isVoid ? void : begin
@@ -32,6 +27,7 @@ private serve(pid,cmd=COMMIT)->stage[pid].isVoid ? void : begin
   delKeys[pid]:=void;
 end;
 
+private ROLLBACK:='ROLLBACK';
 @SuppressUnusedWarning
 rollback->queryServer(ROLLBACK);
 private serve(pid,cmd=ROLLBACK)->begin
@@ -39,6 +35,7 @@ private serve(pid,cmd=ROLLBACK)->begin
   delKeys[pid]:=void;
 end;
 
+private PUT:='PUT';
 @SuppressUnusedWarning
 put(key,value)->queryServer(PUT,key,value);
 private serve(pid,cmd=PUT,key,value)->begin
@@ -50,6 +47,7 @@ private serve(pid,cmd=PUT,key,value)->begin
   : delKeys[pid]<<key;
 end;
 
+private GET:='GET';
 @SuppressUnusedWarning
 getValue(key)->queryServer(GET,key);
 private serve(pid,cmd=GET,key)->key in (delKeys[pid] orElse [])
@@ -57,6 +55,7 @@ private serve(pid,cmd=GET,key)->key in (delKeys[pid] orElse [])
                        : stage[pid,key] orElse
                              store[key] orElse void;
 
+private DEL:='DEL';
 @SuppressUnusedWarning
 delete(key)->queryServer(DEL,key);
 private serve(pid,cmd=DEL,key)->begin
@@ -75,4 +74,3 @@ main->begin
   startIpcServer(IPC_ID,{serve@$params});
   ask("IPC server started: "&myPath&"\nPress enter to shutdown");
 end;
-

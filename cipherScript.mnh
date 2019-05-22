@@ -14,17 +14,6 @@ decipher(s:String,pwd:String)->begin
   : fail;
 end;
 
-decipherAndRun3(s:String,pwd:String)->runScript(myPath,s.decipher(pwd).split("\n"),[],3);
-
-//DATA:=//!~
-//plain script;
-//f(x)->print(x);
-//
-//f('Hello world');~
-//;
-//cipher(DATA,'pwd').decipherAndRun3('pwd');
-//
-
 formatCipherScript(plainTextSource:String,passphrase:String)->begin
   local cipherSource:=plainTextSource.compress;
   cipherSource:=chars[isaacRandomGenerator(passphrase.sha256,256).head(cipherSource.byteLength) xor cipherSource.bytes.ord].join.base64encode;

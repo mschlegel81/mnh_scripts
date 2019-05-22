@@ -1,0 +1,78 @@
+type BinaryTree(L:List(2))->L.each(child,child.isScalar OR child.isBinaryTree,AND);
+type HuffmanCode(L:List(2))->L[0].isBinaryTree
+                         AND L[1].isMap
+                         AND L[1].getInner(0).sort==L[0].flatten.sort;
+EOF:='EOF';
+//*Create a Huffman tree from symbol frequencies
+makeTree(T)->begin
+  local tree:=T|[[EOF,0]];
+  while(tree.size>2,begin
+    tree:=tree.sort(1);
+    tree[0]:=[[tree[0,0],tree[1,0]].toBinaryTree,tree[0,1]+tree[1,1]];
+    tree[1]:=void;
+  end);
+  tree:=tree.getInner(0).toBinaryTree;
+end;
+
+//*Create a symbol to code map from Huffman tree
+makeCodeFromTree(T:BinaryTree)->begin
+  local traverse:={$node.isString ? [[$prefix,$node]] : traverse($node[0],$prefix|0)|traverse($node[1],$prefix|1)};
+  local M:=traverse(T,[]).map(::reverseList).toMap;
+  //For proper termination the eof symbol must be at least one byte of size
+  local eofCode:=M[EOF];
+  while(eofCode.size<8,eofCode|=M[EOF]);
+  M[EOF]:=eofCode;
+  M;
+end;
+
+//*Create a Huffman code as [tree,map]
+makeHuffmanCode(sample:String)->begin
+  local tree:=sample.bytes.elementFrequency.makeTree;
+  [tree,tree.makeCodeFromTree].toHuffmanCode;
+end;
+
+encodeString(code:HuffmanCode,toEncode:String)->begin
+  local resultBits:=toEncode.bytes.each(b,code[1,b],|);
+  resultBits.size mod 8=0
+  ? void
+  : begin
+      //Fill up the resulting bits to full bytes using the code for the EOF-symbol
+      resultBits:=resultBits|code[1,EOF];
+      resultBits:=head(resultBits,(resultBits.size div 8)*8);
+    end;
+  //Compose groups of 8 bits to bytes...
+  local resultBytes:=[0..resultBits.size div 8-1].each(k,
+    resultBits[[8*k..8*k+7]].composeDigits(2));
+  //Convert list of bytes to string
+  chars[resultBytes].join;
+end;
+
+decodeString(code:HuffmanCode,toDecode:String)->begin
+  local subtree:=code[0];
+  toDecode
+  .bytes.ord //Split toDecode into bytes
+  .each(byte,
+    begin
+      local bits:=byte.digits(2);       //byte to bits
+      while(bits.size<8,bits:=0|bits);  //fill up leading zeros
+      bits;
+    end,|)
+  .each(bit,begin
+    subtree:=subtree[bit];
+    subtree.isString
+    ? begin
+        local foundChar:=subtree;
+        subtree:=code[0];
+        foundChar==EOF ? void : foundChar;
+      end
+    : void;
+  end,&);
+end;
+
+data:='C:\dev\mnh5\resources\html_template.txt'.fileContents;
+C:=makeHuffmanCode(data);
+a:=C.encodeString(data);
+data.byteLength;
+a.byteLength;
+a.byteLength/data.byteLength;
+C.decodeString(a)==data;

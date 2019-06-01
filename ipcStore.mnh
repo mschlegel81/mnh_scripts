@@ -1,0 +1,111 @@
+private datastore store:=[].toMap;
+private mutable pendingUpdates:=[].toMap;
+private mutable pendingDeletes:=[].toMap;
+
+private IPC_ID:=myPath&'_server';
+private PID:=[inspectAll,systime].hash;
+private clientId(pid)->myPath&'_client'&pid;
+private mutable isClientInstance:=true;
+
+main->begin
+  //Start serving under ID=IPC_ID
+  startIpcServer(IPC_ID,{serve@$p});
+  isClientInstance:=false;
+  sleep(60);
+  while(stageIsNonemptyAndClientsAreAlive,sleep(60));
+end;
+
+private stageIsNonemptyAndClientsAreAlive->
+  pendingUpdates.getInner(0).union(pendingDeletes.getInner(0)).each(pid,
+    pid.clientId.isIpcServerRunning
+    ? true
+    : begin
+        //send IPC request to self to avoid concurrent accesses
+        sendIpcRequest(IPC_ID,pid|ROLLBACK);
+        false;
+      end,OR);
+
+@after
+//*After evaluation, tell the server that you are gone
+//*Do not call the server if it is not running yet
+private logOff->
+  isClientInstance AND isIpcServerRunning(IPC_ID)
+  ? storeRollback
+  : void;
+
+//*Ensure that temporary entries for the given pid are available
+private ensureTemporary(pid)->begin
+  pendingDeletes[pid].isVoid ? pendingDeletes[pid]:=[].toSet : void;
+  pendingUpdates[pid].isVoid ? pendingUpdates[pid]:=[].toMap : void;
+end;
+
+private sendRequest(operation,...)->begin
+  operation==ROLLBACK OR isIpcServerRunning(clientId(PID))
+  ? void
+  : startIpcServer(clientId(PID),::OPERATOR_UNARY_PLUS);
+  isIpcServerRunning(IPC_ID)
+  ? void
+  : begin
+      execAsync(executor,[myPath]);
+      while(!isIpcServerRunning(IPC_ID),sleep(0.01));
+    end;
+  sendIpcRequest(IPC_ID,PID|operation|...);
+end;
+
+private PUT:='PUT';
+private serve(pid,(PUT),key,value)->begin
+  ensureTemporary(pid);
+  pendingDeletes[pid]>>key;
+  pendingUpdates[pid,key]:=value;
+  value;
+end;
+
+@SuppressUnusedWarning
+//*Put an entry to the store
+//*The entry will not be persisted unless storeCommit is called
+storePut(key,value)->sendRequest(PUT,key,value);
+
+private GET:='GET';
+private serve(pid,(GET),key)->begin
+  ensureTemporary(pid);
+  key in pendingDeletes[pid]
+  ? void
+  : pendingUpdates[pid,key] orElse
+    store         [pid,key];
+end;
+@SuppressUnusedWarning
+//*Get an entry with the specified key from the store
+storeGet(key)->sendRequest(GET,key);
+
+private DELETE:='DELETE';
+private serve(pid,(DELETE),key)->begin
+  ensureTemporary(pid);
+  pendingDeletes[pid]|=key;
+  pendingUpdates[pid,key]:=void;
+end;
+@SuppressUnusedWarning
+//*Delete an entry from the store
+//*The changes will not be persisted unless storeCommit is called
+storeDelete(key)->sendRequest(DELETE,key);
+
+private COMMIT:='COMMIT';
+private serve(pid,(COMMIT))->begin
+  (pendingDeletes[pid] orElse []).each(keyToRemove,store[keyToRemove]:=void);
+  (pendingUpdates[pid] orElse []).each(entry      ,store[entry[0]]:=entry[1]);
+  serve(pid,ROLLBACK);
+end;
+@SuppressUnusedWarning
+//*Commits the pending changes and clears the stage
+storeCommit->sendRequest(COMMIT);
+
+private ROLLBACK:='ROLLBACK';
+private serve(pid,(ROLLBACK))->begin
+  pendingDeletes[pid]:=void;
+  pendingUpdates[pid]:=void;
+end;
+@SuppressUnusedWarning
+//*Clears the stage, rolling back the changes
+//*This is done automatically when the script stops
+storeRollback->sendRequest(ROLLBACK);
+
+private serve(...)->warn('Unhandled request: ',...);

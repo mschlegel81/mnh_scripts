@@ -1,0 +1,121 @@
+USE rungeKutta;
+
+//*IMPORTANT: This Function must return an expression that allows vectorization!
+makeForceFunction(range,strength)->[strength*16,'*(1-',range*0.5,'/$x)*(',range*0.5,'/$x-0.5)*ord($x<',range,')'].toExpression;
+generateIntegral(e:Expression(1),maxRange>0.0)->begin
+  local sampleCount:=100;
+  local ySamples:=vanDerCorputGenerator(2).head(1000)*(2*maxRange)-maxRange;
+  local xSamples:=[0..sampleCount]/sampleCount*maxRange;
+  local iSamples:=
+  xSamples.each(x,begin
+    local n:=sqrt(sqr(x)+sqr(ySamples));
+    (x*e(n)/n).agg(+);
+  end)/ySamples.size*2*maxRange;
+  ['$X','.','map','(','{','begin','local',' ','k',':=','floor','(','local',' ','tau',':=','$x','*',sampleCount/maxRange,')',';',' ','tau','-=','k',';',' ','0<k<',sampleCount,'?',iSamples,'[k]*(1-tau)+',
+   iSamples,'[k+1]','*','tau',' ',':',' ','0',';','end','}',')'].toExpression;
+end;
+
+//Physics configuration:---------------------
+BOTTOM_FORCE_RANGE:=1;
+absForce   :=makeForceFunction(1,1);
+bottomForce:=makeForceFunction(BOTTOM_FORCE_RANGE,5)
+             .generateIntegral(BOTTOM_FORCE_RANGE);
+DAMPING:=0.5;
+GRAVITY:=1;
+WIDTH_PARAM:=2;
+//---------------------:Physics configuration
+
+memoized pairIndexes(listSize>1)->[0..listSize-2].each(i,[i+1..listSize-1].each(j,[i,j]),|);
+memoized zeros(listSize>1)->[0..listSize-1]*0;
+memoized gravAccel(listSize>1)->[0..listSize-1].map({[0,-GRAVITY]});
+
+D(system:List(2))->begin
+  local points:=system[0];
+  local sysSize:=points.size;
+  local nn:=pairIndexes(sysSize);
+  local diffs:=points[nn.getInner(0)]-
+               points[nn.getInner(1)];
+  local dists :=diffs.map(::euklideanNorm);
+  local forces:=absForce(dists)/dists*diffs;
+//  local averageVelocity:=system[1].agg(+)/system[1].size;
+  local A:=[sysSize.zeros,
+           -points.getInner(1).bottomForce].transpose
+          +[-bottomForce( WIDTH_PARAM+points.getInner(0))
+            +bottomForce( WIDTH_PARAM-points.getInner(0)),
+             sysSize.zeros].transpose
+           -DAMPING*system[1]
+           +gravAccel(sysSize);
+  nn.each(I,begin
+    A[I[0]]-=forces[index];
+    A[I[1]]+=forces[index];
+    void;
+  end);
+  [system[1],A];
+end;
+
+timeStepForward:=integrator(BOGACKI_SHAMPINE, //The Integrator
+                            ::D,       //The ODE
+                            0.05,      //time step size
+                            1E-5);     //tolerance
+
+plotSystem(points:List)->begin
+  local y1:=void;
+save;
+  local y1_:=3;
+  local balls:=
+  points.each(p,begin
+    local i:=index;
+    local r:=points.each(q,i=index ? void : (q-p).euklideanNorm,min)
+                   .min(2*p[1],2*abs(p[0]-WIDTH_PARAM),2*abs(p[0]+WIDTH_PARAM))/2;
+    y1_:=max(y1_,p[1]+r);
+    [p-r,p+r];
+  end,|);
+  y1.isVoid ? y1:=y1_: y1:=y1*0.9+y1_*0.1;
+  setOptions(['y1'=>y1]);
+  plot();
+  plot   ([[-WIDTH_PARAM                        ,0                      ],[WIDTH_PARAM                        ,max(100,y1)]],'box fs RGB1,0.2,0.2');
+  addPlot([[-WIDTH_PARAM+BOTTOM_FORCE_RANGE*0.05,BOTTOM_FORCE_RANGE*0.05],[WIDTH_PARAM-BOTTOM_FORCE_RANGE*0.05,max(100,y1)]],'box fs RGB1,0.4,0.4');
+  addPlot([[-WIDTH_PARAM+BOTTOM_FORCE_RANGE*0.1 ,BOTTOM_FORCE_RANGE*0.1 ],[WIDTH_PARAM-BOTTOM_FORCE_RANGE*0.1 ,max(100,y1)]],'box fs RGB1,0.6,0.6');
+  addPlot([[-WIDTH_PARAM+BOTTOM_FORCE_RANGE*0.15,BOTTOM_FORCE_RANGE*0.15],[WIDTH_PARAM-BOTTOM_FORCE_RANGE*0.15,max(100,y1)]],'box fs RGB1,0.8,0.8');
+  addPlot([[-WIDTH_PARAM+BOTTOM_FORCE_RANGE*0.2 ,BOTTOM_FORCE_RANGE*0.2 ],[WIDTH_PARAM-BOTTOM_FORCE_RANGE*0.2 ,max(100,y1)]],'box fs RGB1,1,1');
+  balls.addPlot('RGB0.8,0.8,1 e fs 0.5');
+  balls.addPlot('blue e 0.5');
+  addPlot([[-WIDTH_PARAM,y1],[-WIDTH_PARAM,0],[WIDTH_PARAM,0],[WIDTH_PARAM,y1]],'red');
+  addAnimationFrame;
+end;
+
+main(sampleCount)->begin
+  local sys:=[0..toInt(sampleCount)-1].map({[random-0.5,1+0.5*$x]});
+  sys:=[sys,zeros(sys.size)];
+
+
+  setOptions(
+   ['autoscaleFactor'=>1,
+    'autoscaleX'=>false,
+    'autoscaleY'=>false,
+    'axisStyleX'=>3,
+    'axisStyleY'=>3,
+    'x0'=>-WIDTH_PARAM*1.01,
+    'x1'=> WIDTH_PARAM*1.01,
+    'y0'=>-2.0,
+    'y1'=> 2.0,
+    'logscaleX'=>false,
+    'logscaleY'=>false,
+    'preserveAspect'=>true]);
+
+  clearAnimation;
+  plotSystem(sys[0]);
+  display;
+  //while(true,
+  [1..999].each(step,
+  begin
+    local t0:=time;
+    sys:=sys.timeStepForward;
+    print('Time step done in ',time-t0,'s');
+    plotSystem(sys[0]);
+  end);
+  sys[0];
+end;
+
+plot(absForce,0.4,1,1000);
+addPlot(bottomForce,0.4,1,1000);

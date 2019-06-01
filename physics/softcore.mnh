@@ -1,30 +1,17 @@
-particleInteractionStrength:=1;
-TIME_STEP_SIZE:=0.01/sqrt(particleInteractionStrength);
+PARTICLE_INTERACTION_STRENGTH:=1;
+GRAVITY:=1;
+BOTTOM_INTERACTION_STRENGTH:=1;
+TIME_STEP_SIZE:=0.01/sqrt(PARTICLE_INTERACTION_STRENGTH);
 
 absForce(x)->1-x^-3*max(0,0.2-x);
-
-//absForce(x)->x>1 ? 1/x : -cos(x*pi);
-//absForce(x)->-cos(x*pi*5)/x;
-
 
 force(ab:List)->begin
   local n:=ab[1]-ab[0];
   local d:=euklideanNorm(n);
-  n*(particleInteractionStrength/d*absForce(d));
-//  particleInteractionStrength*n*(d-1)/d^3;
+  n*(PARTICLE_INTERACTION_STRENGTH/d*absForce(d));
 end;
 
-bottomForce(p:NumericList(2))->[0,-absForce(p[1])];
-  //[0,-1]*(p[1]-1)/p[1]^2;
-
-//force(ab:List)->begin
-//  local n:=ab[1]-ab[0];
-//  local d:=euklideanNorm(n);
-//  d>1 ? [0,0] : n*(particleInteractionStrength*-cos(d*4.71238898038469)/d);
-//end;
-//
-//bottomForce(p:NumericList(2))->  p[1]>1 ? [0,0] : [0,cos(p[1]*4.71238898038469)];
-
+bottomForce(p:NumericList(2))->[0,-BOTTOM_INTERACTION_STRENGTH*absForce(p[1])-GRAVITY];
 
 memoized pairIndexes(listSize>1)->[1..listSize-1].each(i,[0..i-1].each(j,[j,i]),|);
 memoized zeroVectors(listSize>1)->[0..listSize-1].map({[0.0, 0.0]});
@@ -33,11 +20,19 @@ memoized zeroVectors(listSize>1)->[0..listSize-1].map({[0.0, 0.0]});
 dynamicMovement(sys:List(2),grav)->begin
   local p:=sys[0];
   local a:=p.pMap(::bottomForce)*grav;
-  pairIndexes(p.size).each(k,begin
+  //pairIndexes(p.size).each(k,begin
+  //  local f:=force(p[k]);
+  //  a[k[0]]+=f;
+  //  a[k[1]]-=f;
+  //end);
+  a+=
+  pairIndexes(p.size).pEach(k,begin
     local f:=force(p[k]);
-    a[k[0]]+=f;
-    a[k[1]]-=f;
-  end);
+    [[k[0],f],[k[1],-f]];
+  end,|).group(0)
+        .each(g,[g[0,0],g.getInner(1).agg(+)])
+        .sort(0)
+        .getInner(1);
   [sys[1],a];
 end;
 
@@ -97,7 +92,7 @@ plotSystem(points:List)->begin
 
  // addPlot(points,'. blue');
   addAnimationFrame;
-  postDisplay;
+//  postDisplay;
 end;
 
 USE root;
@@ -146,6 +141,7 @@ main(sysSize)->begin
 
 
   plotSystem(sys[0]);
+  display;
   while(counter<800,begin
     local t0:=time;
     sys:=stepForward(sys,-5);

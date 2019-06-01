@@ -78,8 +78,8 @@ end;
 
 
 discreteTaylor(L:List,dx:Numeric)->
-!L.size.isOddInt ? fail('L must have odd length') :
 begin
+  assert(L.size.isOddInt,'L must have odd length');
   local Y:=L.each(p,[index-L.size div 2,p]).toMap;
   [0..L.size-1].each(k,begin
     abstractDifferentiation(k)
@@ -89,8 +89,8 @@ begin
 end;
 
 discreteTaylor(L:List,dx:Numeric,maxDegree:Int)->
-!L.size.isOddInt ? fail('L must have odd length') :
 begin
+  assert(L.size.isOddInt,'L must have odd length');
   local maxDeg:=min(maxDegree,L.size-2);
   maxDeg:=maxDeg.isOddInt ? maxDeg : maxDeg+1;
   [(L.size-maxDeg) div 2..-(L.size-maxDeg) div 2].each(k,begin

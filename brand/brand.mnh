@@ -85,10 +85,8 @@ end;
 //*  -posY=#       relative y-position in range -0.999 - 0.999; 0 (default) for centered
 //*  -logosize=#   relative logo size in range 0.0 - 0.99999; default: 0.3
 main(inputFileName,outputFileName,...)->begin
-  local outputSize:=
-  fileExists(inputFileName)
-  ? [-1,-1]
-  : fail(inputFileName,' does not exist');
+  assert(fileExists(inputFileName),inputFileName,' does not exist');
+  local outputSize:=[-1,-1];
   local logoColor:=COLORED_LOGO;
   local logoSize :=0.3;
   local logoPos  :=[0,0];

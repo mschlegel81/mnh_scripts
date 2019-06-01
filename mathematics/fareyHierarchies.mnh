@@ -1,7 +1,7 @@
 fareyPredecessors(p,1)->void;
 //*Returns the farey predecessors of p/q
 fareyPredecessors(p<=q,q>1)->
-gcd(p,q)!=1 ? fail(p,' and ',q,' have a common divider') :
+assert(gcd(p,q)=1,fail(p,' and ',q,' have a common divider'));
 begin
   local b:=modularInverse(p,q);
   local a:=((b*p)-1)/q;

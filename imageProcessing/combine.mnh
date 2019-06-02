@@ -74,10 +74,27 @@ combineImages3x1(filename1:String,
   : void;
 end;
 
+combineImages2x1(filename1:String,
+                 filename2:String,
+                 output   :String)->begin
+  fileExistsVerbose(filename1) AND
+  fileExistsVerbose(filename2) AND
+  fileNExistsVerbose(output)
+  ? executeWorkflow(['crop:0,2x0,1' ,            'stash:0',
+   'load:'&filename2,'crop:-1,1x0,1', '+stash:0','stash:0'],
+   filename1,output,::print)
+  : void;
+end;
+
 
 combineImages(index)->
-  combineImages3x1(format('C:\dev\mnh_scripts\physics\d_hrd__%3.3d.png',index),
-                   format('C:\dev\mnh_scripts\physics\d_med__%3.3d.png',index),
-                   format('C:\dev\mnh_scripts\physics\d_sft__%3.3d.png',index),
-                   format('C:\dev\mnh_scripts\physics\droplet_%3.3d.png',index));
-[0..500].pMap(::combineImages);
+  combineImages2x1(format('C:\dev\mnh_scripts\physics\2r_%3.3d.png',index),
+                   format('C:\dev\mnh_scripts\physics\2a_%3.3d.png',index),
+                   format('C:\dev\mnh_scripts\physics\softcore2_%3.3d.png',index));
+[0..1000].pMap(::combineImages);
+
+combineImages4(index)->
+  combineImages2x1(format('C:\dev\mnh_scripts\physics\4r_%3.3d.png',index),
+                   format('C:\dev\mnh_scripts\physics\4a_%3.3d.png',index),
+                   format('C:\dev\mnh_scripts\physics\softcore4_%3.3d.png',index));
+[0..1000].pMap(::combineImages4);

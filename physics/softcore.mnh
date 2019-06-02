@@ -1,152 +1,154 @@
-PARTICLE_INTERACTION_STRENGTH:=1;
+#!/usr/bin/mnh -GUI
+plain script;
+USE rungeKutta;
+
+//$0 is the script name
+$params.size<2 ? fail(
+//!~Expected parameters:
+  1) number of particles (mandatory)
+  2) wall height (optional, default to 4)
+  3) marker 'phobic' for alternative wall interaction~) : void;
+phobic:=('phobic' in $params);
+SAMPLE_COUNT:=$1.toInt;
+
+//*IMPORTANT: This Function must return an expression that allows vectorization!
+makeForceFunction(range,strength)->[strength*16,'*(1-',range*0.5,'/$x)*(',range*0.5,'/$x-0.5)*ord($x<',range,')'].toExpression;
+makeForceFunctionRepulsiveOnly(range,strength)->[strength*10,'*(1-',range,'/$x)*ord($x<',range,')'].toExpression;
+
+//Physics configuration:---------------------
+WALL_POINT_SPACING:=0.2;
+
+
+WALL_FORCE_RANGE:=phobic ? 0.5 : 1;
+wallForce:=phobic
+           ? makeForceFunctionRepulsiveOnly(WALL_FORCE_RANGE,5*WALL_POINT_SPACING)
+           : makeForceFunction(WALL_FORCE_RANGE,5*WALL_POINT_SPACING);
+
+WALL_HEIGHT:=($2 orElse 4).toReal;
+absForce   :=makeForceFunction(1,1);
+DAMPING:=0.5;
 GRAVITY:=1;
-BOTTOM_INTERACTION_STRENGTH:=1;
-TIME_STEP_SIZE:=0.01/sqrt(PARTICLE_INTERACTION_STRENGTH);
+WIDTH_PARAM:=2;
+//---------------------:Physics configuration
 
-absForce(x)->1-x^-3*max(0,0.2-x);
-
-force(ab:List)->begin
-  local n:=ab[1]-ab[0];
-  local d:=euklideanNorm(n);
-  n*(PARTICLE_INTERACTION_STRENGTH/d*absForce(d));
+WALL_POINTS:=begin
+  cross([-WIDTH_PARAM,WIDTH_PARAM],([1..ceil(WALL_HEIGHT/WALL_POINT_SPACING)])*WALL_POINT_SPACING).union(
+  ([floor(-WIDTH_PARAM/WALL_POINT_SPACING)..ceil(WIDTH_PARAM/WALL_POINT_SPACING)]*WALL_POINT_SPACING).map({[$x,0]})).toList;
 end;
 
-bottomForce(p:NumericList(2))->[0,-BOTTOM_INTERACTION_STRENGTH*absForce(p[1])-GRAVITY];
+memoized pairIndexes(listSize>1)->[0..listSize-2].each(i,[i+1..listSize-1].each(j,[i,j]),|);
+         pairIndexes(0)->[];
+memoized zeros(listSize>1)->[0..listSize-1]*0;
+memoized gravAccel(listSize>1)->[0..listSize-1].map({[0,-GRAVITY]});
 
-memoized pairIndexes(listSize>1)->[1..listSize-1].each(i,[0..i-1].each(j,[j,i]),|);
-memoized zeroVectors(listSize>1)->[0..listSize-1].map({[0.0, 0.0]});
-//memoized downfall   (listSize>1)->[0..listSize-1].map({[0.0,-1E-1]});
+allWallForces(pointList:List)->pointList.pEach(p,begin
+  local dirDist:=
+  WALL_POINTS.each(q,begin
+    (local n:=euklideanNorm(local d:=q-p))>WALL_FORCE_RANGE
+    ? void
+    : [d/n,n];
+  end);
+  dirDist.size=0
+  ? [0,0]
+  : (wallForce(dirDist.getInner(1))*dirDist.getInner(0)).agg(+);
+end);
 
-dynamicMovement(sys:List(2),grav)->begin
-  local p:=sys[0];
-  local a:=p.pMap(::bottomForce)*grav;
-  //pairIndexes(p.size).each(k,begin
-  //  local f:=force(p[k]);
-  //  a[k[0]]+=f;
-  //  a[k[1]]-=f;
-  //end);
-  a+=
-  pairIndexes(p.size).pEach(k,begin
-    local f:=force(p[k]);
-    [[k[0],f],[k[1],-f]];
-  end,|).group(0)
-        .each(g,[g[0,0],g.getInner(1).agg(+)])
-        .sort(0)
-        .getInner(1);
-  [sys[1],a];
+D(system:List(2))->begin
+  local points:=system[0];
+  local sysSize:=points.size;
+  local nn:=pairIndexes(sysSize);
+  local diffs:=points[nn.getInner(0)]-
+               points[nn.getInner(1)];
+  local dists :=diffs.map(::euklideanNorm);
+  local forces:=absForce(dists)/dists*diffs;
+  local A:=allWallForces(points)
+           -DAMPING*system[1]
+           +gravAccel(sysSize);
+  nn.each(I,begin
+    A[I[0]]-=forces[index];
+    A[I[1]]+=forces[index];
+    void;
+  end);
+  [system[1],A];
 end;
 
-MAX_RANGE:=2E-3;
-
-timeStep(x0:List(2),dx:List(2),dt,damping)->begin
-  local x:=[x0[0]+dx[0]*dt+dx[1]*dt^2/2,
-            x0[1]+dx[1]*dt             ];
-  local vAvg:=x[1].agg(+)/size(x[1]);
-  x[1]:=x[1].map({($v-vAvg)*damping+vAvg});
-  x[0].getInner(1).each(py,
-    py<0 ? begin
-             x[0,index,1]:=0;
-             x[1,index,1]:=-0.5*x[1,index,1];
-           end
-         : void);
-  x;
-end;
-
-stepForward(sys:List(2),dampingFactor<=0.0)->begin
-  local dSys:=dynamicMovement(sys,1);
-  local naiveStep:=timeStep(sys,dSys,TIME_STEP_SIZE,exp(TIME_STEP_SIZE*dampingFactor));
-  local err :=dynamicMovement(naiveStep,1)[1]-dSys[1];
-  local maxStep:=err.map(::euklideanNorm).max;
-  local dt:=MAX_RANGE/maxStep;
-  local subStepCount:=dt.isNan ? 1 : ceil(TIME_STEP_SIZE/dt).max(1).min(500);
-  subStepCount<=1
-  ? naiveStep
-  : begin
-      dt:=TIME_STEP_SIZE/subStepCount;
-      local dampingPerTimeStep:=exp(dt*dampingFactor);
-      local s:=sys.timeStep(dSys,dt,dampingPerTimeStep);
-      [2..subStepCount].each(step,begin
-        s:=s.timeStep(dynamicMovement(s,1),dt,dampingPerTimeStep);
-        void;
-      end);
-      s;
-    end;
-end;
-
-FIBFAK:=2*pi/sqr((sqrt(5)-1)/2);
-fp(P:NumericList)->[cos(FIBFAK*P),sin(FIBFAK*P)].transpose*sqrt(P);
-fp(n:Numeric    )->[cos(FIBFAK*n),sin(FIBFAK*n)]*sqrt(n);
+timeStepForward:=integrator(CASH_KARP, //The Integrator
+                            ::D,       //The ODE
+                            0.05,      //time step size
+                            1E-4);     //tolerance
 
 plotSystem(points:List)->begin
-  plot();
-  setOptions(['y1'=>max(2,points.getInner(1).max)]);
+  local y1:=void;
+  local x0:=void;
+  local x1:=void;
+save;
+  local y1_:= (WALL_HEIGHT+WALL_POINT_SPACING/2)*1.01;
+  local x0_:=-(WIDTH_PARAM+WALL_POINT_SPACING/2)*1.01;
+  local x1_:=-x0_;
+  local balls:=
   points.each(p,begin
     local i:=index;
-    local r:=points.each(q,i=index ? void : (q-p).euklideanNorm,min).min(p[1])/2;
+    local r:=points.each(q,i=index ? void : (q-p).euklideanNorm,min).min(
+        WALL_POINTS.each(q,                 (q-p).euklideanNorm,min))/2;
+    y1_:=max(y1_,p[1]+r);
+    x0_:=min(x0_,p[0]-r);
+    x1_:=max(x1_,p[0]+r);
     [p-r,p+r];
-  end,|).{$L.addPlot('RGB0.8,0.8,1 e fs 0.5') orElse
-          $L.addPlot('blue e 0.5')};
-  local lowY:=points.getInner(1).min/2;
-  addPlot([[-5,lowY],[5,lowY]],'RGB1,0.8,0.8 fs 0.5');
-  addPlot([[-5,lowY],[5,lowY]],'red 0.5');
+  end,|);
+  plot();
+  balls.addPlot('RGB0.8,0.8,1 e fs 0.5');
+  balls.addPlot('blue e 0.5');
+  balls:=WALL_POINTS.each(p,begin
+    local r:=min(WALL_POINT_SPACING,points.each(q,(q-p).euklideanNorm,min))/2;
+    [p-r,p+r];
+  end,|);
+  balls.addPlot('RGB1,0.8,0.8 e fs 0.5');
+  balls.addPlot('red e 0.5');
 
- // addPlot(points,'. blue');
+  y1.isVoid ? y1:=y1_: y1:=y1*0.95+y1_*0.05;
+  x0.isVoid ? x0:=x0_: x0:=x0*0.95+x0_*0.05;
+  x1.isVoid ? x1:=x1_: x1:=x1*0.95+x1_*0.05;
+  setOptions(['y1'=>y1,
+              'x0'=>x0,
+              'x1'=>x1]);
   addAnimationFrame;
-//  postDisplay;
 end;
 
-USE root;
-
-initialDroplets(particleCount>1)->
 begin
-  local p:=fp([1..particleCount]);
-  local c:=p.agg(+)/p.size;
-  p:=p.map({$s-c});
-  local n:=p.map({$x/euklideanNorm($x)});
-  local scale:=regulaFalsi({dynamicMovement([p*$a,zeroVectors(p.size)],0)[1].each(a,(a*n[index]).agg(+),+)},0.09,0.08,1E-3,1E-3);
-  print('Scaling initial system by ',scale);
-  //plot({dynamicMovement([p*$a,zeroVectors(p.size)],0)[1].each(a,(a*n[index]).agg(+),+)},0.01,1,100);
-  //addPlot({dynamicMovement([p*$a,zeroVectors(p.size)],0)[1].each(a,(a*n[index]).agg(+),+)},0.2,0.3,100);
-  //display;
-  //ask('Press enter to Continue');
+  local sys:=[0..toInt(SAMPLE_COUNT)-1].map({[random-0.5,1+0.5*$x]});
+  sys:=[sys,zeros(sys.size)];
 
-  p*=scale;
-  local dy:=2.2-p.getInner(1).min;
-  [p.map({$x+[0,dy]}),zeroVectors(p.size)];
-end;
 
-main(sysSize)->begin
-  local syss:=sysSize.toInt;
-
-  print('Initializing system with ',sysSize,' entries');
-
-  resetOptions;
-  local sys:=initialDroplets(syss);
-
-  local counter:=0;
-  clearAnimation;
   setOptions(
    ['autoscaleFactor'=>1,
     'autoscaleX'=>false,
     'autoscaleY'=>false,
     'axisStyleX'=>3,
     'axisStyleY'=>3,
-    'x0'=>-1,
-    'x1'=> 1,
-    'y0'=> 0.0,
+    'y0'=>-1.0,
     'y1'=> 2.0,
     'logscaleX'=>false,
     'logscaleY'=>false,
     'preserveAspect'=>true]);
 
-
+  clearAnimation;
   plotSystem(sys[0]);
   display;
-  while(counter<800,begin
+  //while(true,
+  [1..999].each(step,
+  begin
     local t0:=time;
-    sys:=stepForward(sys,-5);
-    printf('%3d %7.3fs',counter+=1,time-t0);
+    sys:=sys.timeStepForward;
+    //handle dropout
+    local keepMask:=(sys[0].getInner(1)>-1);
+    keepMask.agg(AND) ? void : begin
+      sys[0]:=sys[0][keepMask];
+      sys[1]:=sys[1][keepMask];
+    end;
+
+    printf('Time step done in %{time-t0}7.3fs');
     plotSystem(sys[0]);
   end);
+  print('Done for ',SAMPLE_COUNT,' ',WALL_HEIGHT,' ',phobic ? 'phobic' : void);
+  sys[0];
 end;
-

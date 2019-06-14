@@ -43,12 +43,6 @@ rootOfQuadraticPoly(squareFactor:Numeric,
   (-linearFactor+sqrt(discriminant)*[-1,1])/(2*squareFactor);
 end;
 
-//*Returns the complex root of x[0]+i*x[1]
-private complexSqrt(x:NumericList(2))->begin
-  local z:=[0.25*(x.toBuiltin.sqr.agg(+)).ln,0.5*arctan2(x[1],x[0])];
-  exp(z[0])*[cos(z[1]),sin(z[1])];
-end;
-
 soddyCircleRadii(radii:NumericList(3))->begin
   local k:=1/radii;
   local r:=
@@ -130,22 +124,33 @@ soddyIteration(initialState:CircleTriplet,radiusLimit>0.0,verbose:Boolean)->begi
           updates.getInner(1).addPlot('red f');
         end
         : void;
-        display;
-          addAnimationFrame;
+        addAnimationFrame;
       end
     : void;
   end);
-  verbose
-  ? void
-  : begin
-      plot();
-      circles.tail.each(c,begin
-        addPlot([c[0]-c[1],c[0]+c[1]],circleStyleByRadius(round(c[1],2)));
-      end);
-      addPlot([[-1,-1],[1,1]],'black ellipse 0.5');
-    end;
   circles;
 end;
+
+private addPlotCircleList(circles:CircleList)->
+  circles.size=0
+  ? void
+  : begin
+      circles.map({[$c,circleStyleByRadius(round($c[1],2))]})
+      .group(1)
+      .each(g,[g[0,0,1],g.getInner(0),g[0,1]])
+      .sort(0)
+      .reverseList
+      .each(set,set[1].each(c,c[0]-c[1],c[0]+c[1]).addPlot(set[2]));
+    end;
+
+private plotCircleList(circles:CircleList)->
+  begin
+    plot();
+    circles.tail.each(c,begin
+      addPlot([c[0]-c[1],c[0]+c[1]],circleStyleByRadius(round(c[1],2)));
+    end);
+    addPlot([[-1,-1],[1,1]],'black ellipse 0.5');
+  end;
 
 memoized circleStyleByRadius(r)->
   r<0 ? 'black ellipse 0.5' : 'HUE'&((1-r.sqrt)/6)&' ellipse fs 0';
@@ -178,12 +183,13 @@ renderAnimation->begin
     ? copyFile(fname(i-50),dest)
     : begin
         setOptions(['axisStyleX'=>0,'axisStyleY'=>0]);
-        soddyFrameParameter(i).soddyIteration(0.001,false);
+        soddyFrameParameter(i).soddyIteration(0.001,false).plotCircleList;
         renderToFile(dest,1920,1080,1);
       end;
   end);
 end;
 
+//*Renders animation to files
 main('anim')->renderAnimation;
 
 //*Returns an unary function f with
@@ -220,3 +226,27 @@ private memoized param1Sym(steps>=2)->begin
   local P1:=[pi/2,0.1,0.06003534551132157];
   ([0..steps-1]/steps).map(interpolant(0.06029149200725836)).each(w,P0*(1-w)+P1*w);
 end;
+
+memoized filteredCircles(circles:CircleList,scaleLimit)->circles.filter({$circle[1]>scaleLimit}).toCircleList;
+
+plottableNestedGasket(relativeTo:Circle, [], radiusLimit>0.0)->void;
+plottableNestedGasket(relativeTo:Circle, circles:CircleList, radiusLimit>0.0)->begin
+  local scaled:=circles.each(c,begin
+    [relativeTo[0]+c[0]*relativeTo[1],
+                   c[1]*relativeTo[1]].toCircle;
+  end);
+  scaled|(
+  scaled.each(c,c.plottableNestedGasket(circles.filteredCircles(radiusLimit/c[1]),radiusLimit),|));
+end;
+
+nestedGasket(initialState:CircleTriplet, radiusLimit>0.0)->begin
+  setOptions(['axisStyleX'=>0,'axisStyleY'=>0]);
+  plot([[-1,-1],[1,1]],'RGB0.8,0,0 fs e');
+  local circles:=soddyIteration(initialState,radiusLimit,false).tail;
+  print('Creating nested Appolonian Gasked based on ',circles.size,' circles');
+  plottableNestedGasket([[0,0],1].toCircle,circles,radiusLimit).addPlotCircleList;
+end;
+
+defaultInitialState->initialSoddy @(param3Sym(2).head);
+
+nestedGasket(defaultInitialState,0.001);

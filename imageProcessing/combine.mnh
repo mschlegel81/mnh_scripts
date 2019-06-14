@@ -88,13 +88,13 @@ end;
 
 
 combineImages(index)->
-  combineImages2x1(format('C:\dev\mnh_scripts\physics\2r_%3.3d.png',index),
-                   format('C:\dev\mnh_scripts\physics\2a_%3.3d.png',index),
-                   format('C:\dev\mnh_scripts\physics\softcore2_%3.3d.png',index));
+  combineImages2x1(format('C:\dev\data\2r_%3.3d.png',index),
+                   format('C:\dev\data\2a_%3.3d.png',index),
+                   format('C:\dev\data\softcore2_%3.3d.png',index));
 [0..1000].pMap(::combineImages);
 
-combineImages4(index)->
-  combineImages2x1(format('C:\dev\mnh_scripts\physics\4r_%3.3d.png',index),
-                   format('C:\dev\mnh_scripts\physics\4a_%3.3d.png',index),
-                   format('C:\dev\mnh_scripts\physics\softcore4_%3.3d.png',index));
-[0..1000].pMap(::combineImages4);
+//combineImages4(index)->
+//  combineImages2x1(format('C:\dev\data\4r_%3.3d.png',index),
+//                   format('C:\dev\data\4a_%3.3d.png',index),
+//                   format('C:\dev\data\softcore4_%3.3d.png',index));
+//[0..1000].pMap(::combineImages4);

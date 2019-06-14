@@ -1,0 +1,298 @@
+#!/usr/bin/mnh -out ?.log(1)
+USE rungeKutta;
+
+PERSISTENT:=true;
+
+SCENARIO_SIMPLE :='simple';
+SCENARIO_POLYMER:='polymer';
+SCENARIO_NACL   :='NaCl';
+SCENARIO_DIPOLES:='dipoles';
+SCENARIO_PHOBIC :='phobic';
+SCENARIO_DUST   :='dust';
+SCENARIO_HEX    :='hex';
+SCENARIOS:=inspect['declares'].filter({$x[0].matches('^SCENARIO_')}).map({$x[1,'function']}).map({$x()}).sort;
+
+//Particle class config:---------------------
+mutable PARTICLE_COUNT:=void;
+mutable PARTICLE_CLASS:=void;
+mutable PAIRS_00:=void;
+mutable PAIRS_11:=void;
+mutable PAIRS_01:=void;
+setParticleCount(count>1)->begin
+  PARTICLE_COUNT:=count;
+  PARTICLE_CLASS:=[0..PARTICLE_COUNT-1] mod 2;
+  PAIRS_00:=cross([0..PARTICLE_COUNT-1],[0..PARTICLE_COUNT-1]).filter({$k[0]<$k[1] AND PARTICLE_CLASS[$k[0]]=0 AND PARTICLE_CLASS[$k[1]]=0});
+  PAIRS_11:=cross([0..PARTICLE_COUNT-1],[0..PARTICLE_COUNT-1]).filter({$k[0]<$k[1] AND PARTICLE_CLASS[$k[0]]=1 AND PARTICLE_CLASS[$k[1]]=1});
+  PAIRS_01:=cross([0..PARTICLE_COUNT-1],[0..PARTICLE_COUNT-1]).filter({                PARTICLE_CLASS[$k[0]]=0 AND PARTICLE_CLASS[$k[1]]=1});
+end;
+setDustParticles->begin
+  PARTICLE_CLASS:=ord([0..PARTICLE_COUNT-1] mod 3=0);
+  PAIRS_00:=cross([0..PARTICLE_COUNT-1],[0..PARTICLE_COUNT-1]).filter({$k[0]<$k[1] AND PARTICLE_CLASS[$k[0]]=0 AND PARTICLE_CLASS[$k[1]]=0});
+  PAIRS_11:=cross([0..PARTICLE_COUNT-1],[0..PARTICLE_COUNT-1]).filter({$k[0]<$k[1] AND PARTICLE_CLASS[$k[0]]=1 AND PARTICLE_CLASS[$k[1]]=1});
+  PAIRS_01:=cross([0..PARTICLE_COUNT-1],[0..PARTICLE_COUNT-1]).filter({                PARTICLE_CLASS[$k[0]]=0 AND PARTICLE_CLASS[$k[1]]=1});
+end;
+
+//---------------------:Particle class config
+//Force config:------------------------------
+DAMPING:=0.3;
+GRAVITY:=0.05; //small gravity force towards origin
+makeForceFunction(range,strength)->[strength*16,'*(1-',range*0.5,'/$x)*(',range*0.5,'/$x-0.5)*ord($x<',range,')'].toExpression;
+makeForceFunctionRepulsiveOnly(range,strength)->[strength*10,'*(1-',range,'/$x)*ord($x<',range,')'].toExpression;
+
+mutable absForce00:=makeForceFunction(1,1);
+mutable absForce11:=absForce00;
+mutable absForce01:=absForce00;
+
+setupForces(scenario)->begin
+  scenario==SCENARIO_SIMPLE
+  ? begin
+      absForce00:=makeForceFunction(1,1);
+      absForce11:=absForce00;
+      absForce01:=absForce00;
+    end
+  : scenario==SCENARIO_NACL
+  ? begin
+      absForce00:=makeForceFunction(1,1);
+      absForce11:=absForce00;
+      absForce01:=makeForceFunction(sqrt(0.5),1);
+    end
+  : scenario==SCENARIO_POLYMER
+  ? begin
+      absForce00:=makeForceFunctionRepulsiveOnly(0.7,0.2);
+      absForce11:=absForce00;
+      absForce01:=makeForceFunction(0.5,1);
+    end
+  : scenario==SCENARIO_DIPOLES
+  ? begin
+      absForce00:=makeForceFunction(1.1,0.5);
+      absForce11:=makeForceFunction(1,0.5);
+      absForce01:=makeForceFunction(0.25,1);
+    end
+  : scenario==SCENARIO_PHOBIC
+  ? begin
+      absForce00:=makeForceFunction(1,1);
+      absForce11:=makeForceFunction(1,1);
+      absForce01:=makeForceFunctionRepulsiveOnly(0.5,1);
+    end
+  : scenario==SCENARIO_DUST
+  ? begin
+      absForce00:=makeForceFunctionRepulsiveOnly(0.2,1);
+      absForce11:=makeForceFunction(1,1);
+      absForce01:=makeForceFunction(0.5,2);
+      setDustParticles;
+    end
+  : scenario==SCENARIO_HEX
+  ? begin
+      absForce00:=makeForceFunction(1,1);
+      absForce11:=makeForceFunction(1,1);
+      absForce01:=makeForceFunction(0.42,1.5);
+    end
+  : fail('Unknown scenario: ',escape(scenario));
+end;
+//------------------------------:Force config
+
+fp(P:NumericList)->begin
+  local FIBFAK:=2*pi/sqr((sqrt(5)-1)/2);
+  [cos(FIBFAK*P),sin(FIBFAK*P)].transpose*sqrt(P);
+end;
+
+memoized zeros(listSize>1)->[0..listSize-1]*0;
+
+forcesOf(points:List,pairs:List,absForce:Expression(1))->begin
+  local diffs:=points[pairs.getInner(0)]-
+               points[pairs.getInner(1)];
+  local dists :=diffs.map(::euklideanNorm);
+  local forces:=absForce(dists)/dists*diffs;
+
+  [pairs.getInner(0),-forces].transpose|
+  [pairs.getInner(1), forces].transpose;
+end;
+
+@SuppressUnusedParameterWarning
+attractToOrigin(points:List)->-GRAVITY*points.pEach(p,p/p.euklideanNorm);
+
+D(system:List(2))->begin
+  local points:=system[0];
+  [system[1],points.attractToOrigin
+            -DAMPING*system[1]
+            +(forcesOf(points,PAIRS_00,absForce00)
+             |forcesOf(points,PAIRS_11,absForce11)
+             |forcesOf(points,PAIRS_01,absForce01)
+             ).group(0).getInner(1)
+            .map({[$g.head.head,$g.getInner(1).agg(+)]})
+            .sort(0)
+            .getInner(1)];
+end;
+
+prepareForPlot(points:List)->
+  points.each(p,begin
+    local i:=index;
+    local r:=points.each(q,i=index ? void : (q-p).euklideanNorm,min)/2;
+    [p-r,p+r];
+  end)
+  .group(PARTICLE_CLASS)
+  .each(groupByClass,[groupByClass[0],groupByClass[1].agg(|)])
+  .toMap;
+
+plotPreparedSystem(balls:Map(2))->begin
+  local y0:=void;
+  local y1:=void;
+  local x0:=void;
+  local x1:=void;
+save;
+  local y0_:=0;
+  local y1_:=0;
+  local x0_:=0;
+  local x1_:=0;
+  balls.getInner(1).each(groupByClass,begin
+     y0_:=min(y0_,groupByClass.getInner(1).agg(min));
+     y1_:=max(y1_,groupByClass.getInner(1).agg(max));
+     x0_:=min(x0_,groupByClass.getInner(0).agg(min));
+     x1_:=max(x1_,groupByClass.getInner(0).agg(max));
+  end);
+
+  plot();
+  balls[0].size=0 ? void : balls[0].addPlot('RGB0.8,0.8,1 e fs 0.5')
+                    orElse balls[0].addPlot('blue e 0.5');
+  balls[1].size=0 ? void : balls[1].addPlot('RGB1,0.9,0.8 e fs 0.5')
+                    orElse balls[1].addPlot('RGB1,0.5,0 e 0.5');
+
+  y0.isVoid ? begin
+    clearAnimation;
+    y0:=y0_;
+    y1:=y1_;
+    x0:=x0_;
+    x1:=x1_;
+    setOptions(
+     ['autoscaleFactor'=>1,
+      'autoscaleX'=>false,
+      'autoscaleY'=>false,
+      'axisStyleX'=>3,
+      'axisStyleY'=>3,
+      'y0'=>y0,
+      'y1'=>y1,
+      'x0'=>x0,
+      'x1'=>x1,
+      'logscaleX'=>false,
+      'logscaleY'=>false,
+      'preserveAspect'=>true]);
+    postDisplay;
+  end : begin
+    y0:=y0*0.95+y0_*0.05;
+    y1:=y1*0.95+y1_*0.05;
+    x0:=x0*0.95+x0_*0.05;
+    x1:=x1*0.95+x1_*0.05;
+    setOptions(['y0'=>y0,
+                'y1'=>y1,
+                'x0'=>x0,
+                'x1'=>x1]);
+  end;
+  addAnimationFrame;
+end;
+
+plotSystem(points:List)->points.prepareForPlot.plotPreparedSystem;
+
+maxVelocity(sys:List(2))->sys[1].pEach(v,v.isScalar ? v : v.euklideanNorm,max);
+
+private datastore replays:=[].toMap;
+
+replay(particleCount:Int,scenario in SCENARIOS)->
+  replays[[particleCount,scenario]].isVoid
+  ? void
+  : begin
+      print('Replaying scenario ',particleCount,' ',scenario);
+      setParticleCount(particleCount);
+      setupForces(scenario);
+      local frameCount:=replays[[particleCount,scenario]].size;
+      replays[[particleCount,scenario]].each(frame,
+        future({printDirect($0) orElse prepareForPlot($1)},["\r"&(index+1)&'/'&frameCount,frame]))
+      .each(ballFuture,ballFuture().plotPreparedSystem);
+      true;
+    end;
+
+calculate(particleCount:Int,scenario in SCENARIOS,headless:Boolean)->begin
+  PERSISTENT
+  ? begin
+      warn('Only one instance of this script may calculate a scenario at any time to prevent write conflicts');
+      assertUniqueInstance;
+    end
+  : void;
+  setParticleCount(particleCount);
+  setupForces(scenario);
+  local sys:=fp([1..PARTICLE_COUNT])*0.25;
+  sys:=[sys,zeros(sys.size)];
+
+  local timeSteppers:=[1,1E-3,1E-6].each(tolerance,
+                         integrator(CASH_KARP, //The Integrator
+                                    ::D,       //The ODE
+                                    0.05,      //time step size
+                                    tolerance));     //tolerance
+  local plotFuture:=future({0});
+  local postPlot:=headless ? {0} : {begin
+    plotFuture();
+    plotFuture:=future(::plotSystem,[sys[0]]);
+    void;
+  end};
+  postPlot();
+  local replay:=[sys[0]];
+  local stepCounter:=0;
+  local stillStepCounter:=0;
+  while(stepCounter<100 OR stillStepCounter<20,
+  begin
+    local t0:=time;
+    local velocity:=sys.maxVelocity;
+    sys:=velocity>0.05 ? timeSteppers[1](sys)
+                       : timeSteppers[2](sys);
+    printf('Time step %{$0}s done in %{time-$1}7.3fs%{velocity>0.05?" ":"*"}s'&
+           ' vMax=%{velocity}7.5f [%{$2}s %{$3}s]',stepCounter+=1,t0,particleCount,scenario);
+    postPlot();
+    velocity>0.02
+    ? stillStepCounter:=0
+    : stillStepCounter+=1;
+    replay|=[sys[0]];
+  end);
+  PERSISTENT
+  ? replays[[particleCount.toInt,scenario]]:=replay
+  : void;
+end;
+
+//*Replay or calculate and display scenario
+main(particleCount,scenario in SCENARIOS)->begin
+  assertGuiStarted;
+  local count:=particleCount.toInt;
+  assert(count>1,'particleCount must be larger than one');
+  replay(count,scenario) orElse calculate(count,scenario,false);
+end;
+
+//*Calculate scenario without displaying it
+//*You can chain multiple calculations
+main('headless',particleCount,scenario in SCENARIOS,...)->begin
+  local count:=particleCount.toInt;
+  assert(count>1,'particleCount must be larger than one');
+  replays[[count,scenario]].isVoid ? calculate(count,scenario,true) : print('Already calculated ',count,' ',scenario);
+  size(...)>1 ? begin
+    writeDataStores;
+    'headless'.main@...;
+  end : void;
+end;
+
+//*List stored scenarios
+main('list')->begin
+  print('Available replays:');
+  replays.size=0 ? print('  -none-')
+                 : printf('  %s',replays.getInner(0).sort(0).sort(1).map({join(myPath.extractFileName|$x,' ')}));
+end;
+
+main('delete',particleCount,scenario in SCENARIOS)->begin
+  assert(PERSISTENT,'Not in persistent mode');
+  warn('Only one instance of this script may calculate a scenario at any time to prevent write conflicts');
+  assertUniqueInstance;
+  local count:=particleCount.toInt;
+  replays[[count,scenario]].isVoid
+  ? print('Replay ',count,' ',scenario,' does not exist')
+  : begin
+      replays[[count,scenario]]:=void;
+      print('Replay ',count,' ',scenario,' deleted');
+    end;
+end;
+//headless 200 simple 200 polymer 200 NaCl 200 dipoles 200 phobic 200 dust 200 hex

@@ -1,7 +1,7 @@
 fareyPredecessors(p,1)->void;
 //*Returns the farey predecessors of p/q
 fareyPredecessors(p<=q,q>1)->
-assert(gcd(p,q)=1,fail(p,' and ',q,' have a common divider'));
+assert(gcd(p,q)=1,p,' and ',q,' have a common divider') orElse
 begin
   local b:=modularInverse(p,q);
   local a:=((b*p)-1)/q;
@@ -81,6 +81,6 @@ end;
 
 
 
-//fareyHierarchy(777,1324,false);
-fareyHierarchy(77756,1324577,false);
+fareyHierarchy(777,1324,true);
+//fareyHierarchy(77756,1324577,true);
 

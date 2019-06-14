@@ -32,7 +32,10 @@ WIDTH_PARAM:=2;
 //---------------------:Physics configuration
 
 WALL_POINTS:=begin
-  cross([-WIDTH_PARAM,WIDTH_PARAM],([1..ceil(WALL_HEIGHT/WALL_POINT_SPACING)])*WALL_POINT_SPACING).union(
+  union(
+    WALL_HEIGHT>0.5*WALL_POINT_SPACING
+    ? cross([-WIDTH_PARAM,WIDTH_PARAM],([1..ceil(WALL_HEIGHT/WALL_POINT_SPACING)])*WALL_POINT_SPACING)
+    : [],
   ([floor(-WIDTH_PARAM/WALL_POINT_SPACING)..ceil(WIDTH_PARAM/WALL_POINT_SPACING)]*WALL_POINT_SPACING).map({[$x,0]})).toList;
 end;
 
@@ -63,12 +66,15 @@ D(system:List(2))->begin
   local forces:=absForce(dists)/dists*diffs;
   local A:=allWallForces(points)
            -DAMPING*system[1]
-           +gravAccel(sysSize);
-  nn.each(I,begin
-    A[I[0]]-=forces[index];
-    A[I[1]]+=forces[index];
-    void;
-  end);
+           +gravAccel(sysSize)
+           +
+  [nn.getInner(0),-forces].transpose.|(
+  [nn.getInner(1), forces].transpose)
+  .group(0)
+  .getInner(1)
+  .map({[$g.head.head,$g.getInner(1).agg(+)]})
+  .sort(0)
+  .getInner(1);
   [system[1],A];
 end;
 
@@ -115,6 +121,7 @@ save;
 end;
 
 begin
+  resetRandom(1);
   local sys:=[0..toInt(SAMPLE_COUNT)-1].map({[random-0.5,1+0.5*$x]});
   sys:=[sys,zeros(sys.size)];
 
@@ -140,7 +147,7 @@ begin
     local t0:=time;
     sys:=sys.timeStepForward;
     //handle dropout
-    local keepMask:=(sys[0].getInner(1)>-1);
+    local keepMask:=(sys[0].getInner(1)>-3);
     keepMask.agg(AND) ? void : begin
       sys[0]:=sys[0][keepMask];
       sys[1]:=sys[1][keepMask];
@@ -150,5 +157,4 @@ begin
     plotSystem(sys[0]);
   end);
   print('Done for ',SAMPLE_COUNT,' ',WALL_HEIGHT,' ',phobic ? 'phobic' : void);
-  sys[0];
 end;

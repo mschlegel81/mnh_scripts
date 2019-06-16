@@ -12,26 +12,29 @@ SCENARIO_DUST   :='dust';
 SCENARIO_HEX    :='hex';
 SCENARIOS:=inspect['declares'].filter({$x[0].matches('^SCENARIO_')}).map({$x[1,'function']}).map({$x()}).sort;
 
+type SimSetup(L:List(3))->L[0].isInt AND L[0]>0 AND
+                          L[1].isInt AND L[1]>0 AND
+                          L[2] in SCENARIOS;
+@Override
+@SuppressUnusedWarning
+//Actually used implicitly in format statements
+toString(s:SimSetup)->s.join(" ");
+simSetupOf(count0,count1,scenario)->[count0.toInt,count1.toInt,scenario].toSimSetup;
+
+
 //Particle class config:---------------------
 mutable PARTICLE_COUNT:=void;
 mutable PARTICLE_CLASS:=void;
 mutable PAIRS_00:=void;
 mutable PAIRS_11:=void;
 mutable PAIRS_01:=void;
-setParticleCount(count>1)->begin
-  PARTICLE_COUNT:=count;
-  PARTICLE_CLASS:=[0..PARTICLE_COUNT-1] mod 2;
+setParticleCount(simSetup:SimSetup)->begin
+  PARTICLE_COUNT:=simSetup[0]+simSetup[1];
+  PARTICLE_CLASS:=ord(vanDerCorputGenerator(2).head(PARTICLE_COUNT).sortPerm<simSetup[1]);
   PAIRS_00:=cross([0..PARTICLE_COUNT-1],[0..PARTICLE_COUNT-1]).filter({$k[0]<$k[1] AND PARTICLE_CLASS[$k[0]]=0 AND PARTICLE_CLASS[$k[1]]=0});
   PAIRS_11:=cross([0..PARTICLE_COUNT-1],[0..PARTICLE_COUNT-1]).filter({$k[0]<$k[1] AND PARTICLE_CLASS[$k[0]]=1 AND PARTICLE_CLASS[$k[1]]=1});
   PAIRS_01:=cross([0..PARTICLE_COUNT-1],[0..PARTICLE_COUNT-1]).filter({                PARTICLE_CLASS[$k[0]]=0 AND PARTICLE_CLASS[$k[1]]=1});
 end;
-setDustParticles->begin
-  PARTICLE_CLASS:=ord([0..PARTICLE_COUNT-1] mod 3=0);
-  PAIRS_00:=cross([0..PARTICLE_COUNT-1],[0..PARTICLE_COUNT-1]).filter({$k[0]<$k[1] AND PARTICLE_CLASS[$k[0]]=0 AND PARTICLE_CLASS[$k[1]]=0});
-  PAIRS_11:=cross([0..PARTICLE_COUNT-1],[0..PARTICLE_COUNT-1]).filter({$k[0]<$k[1] AND PARTICLE_CLASS[$k[0]]=1 AND PARTICLE_CLASS[$k[1]]=1});
-  PAIRS_01:=cross([0..PARTICLE_COUNT-1],[0..PARTICLE_COUNT-1]).filter({                PARTICLE_CLASS[$k[0]]=0 AND PARTICLE_CLASS[$k[1]]=1});
-end;
-
 //---------------------:Particle class config
 //Force config:------------------------------
 DAMPING:=0.3;
@@ -43,8 +46,8 @@ mutable absForce00:=makeForceFunction(1,1);
 mutable absForce11:=absForce00;
 mutable absForce01:=absForce00;
 
-setupForces(scenario)->begin
-  scenario==SCENARIO_SIMPLE
+setupForces(simSetup:SimSetup)->begin
+  (local scenario:=simSetup[2])==SCENARIO_SIMPLE
   ? begin
       absForce00:=makeForceFunction(1,1);
       absForce11:=absForce00;
@@ -79,13 +82,12 @@ setupForces(scenario)->begin
       absForce00:=makeForceFunctionRepulsiveOnly(0.2,1);
       absForce11:=makeForceFunction(1,1);
       absForce01:=makeForceFunction(0.5,2);
-      setDustParticles;
     end
   : scenario==SCENARIO_HEX
   ? begin
-      absForce00:=makeForceFunction(1,1);
-      absForce11:=makeForceFunction(1,1);
-      absForce01:=makeForceFunction(0.42,1.5);
+      absForce00:=makeForceFunction(1,1.2);
+      absForce11:=makeForceFunction(1,1.2);
+      absForce01:=makeForceFunction(0.42,2);
     end
   : fail('Unknown scenario: ',escape(scenario));
 end;
@@ -196,37 +198,36 @@ maxVelocity(sys:List(2))->sys[1].pEach(v,v.isScalar ? v : v.euklideanNorm,max);
 
 private datastore replays:=[].toMap;
 
-replay(particleCount:Int,scenario in SCENARIOS)->
-  replays[[particleCount,scenario]].isVoid
+replay(setup:SimSetup)->
+  replays[setup].isVoid
   ? void
   : begin
-      print('Replaying scenario ',particleCount,' ',scenario);
-      setParticleCount(particleCount);
-      setupForces(scenario);
-      local frameCount:=replays[[particleCount,scenario]].size;
-      replays[[particleCount,scenario]].each(frame,
+      printf('Replaying scenario %s',setup);
+      setParticleCount(setup);
+      setupForces(setup);
+      local frameCount:=replays[setup].size;
+      replays[setup].each(frame,
         future({printDirect($0) orElse prepareForPlot($1)},["\r"&(index+1)&'/'&frameCount,frame]))
       .each(ballFuture,ballFuture().plotPreparedSystem);
       true;
     end;
 
-calculate(particleCount:Int,scenario in SCENARIOS,headless:Boolean)->begin
+calculate(setup:SimSetup,headless:Boolean)->begin
   PERSISTENT
   ? begin
       warn('Only one instance of this script may calculate a scenario at any time to prevent write conflicts');
       assertUniqueInstance;
     end
   : void;
-  setParticleCount(particleCount);
-  setupForces(scenario);
+  setParticleCount(setup);
+  setupForces(setup);
   local sys:=fp([1..PARTICLE_COUNT])*0.25;
   sys:=[sys,zeros(sys.size)];
 
-  local timeSteppers:=[1,1E-3,1E-6].each(tolerance,
-                         integrator(CASH_KARP, //The Integrator
-                                    ::D,       //The ODE
-                                    0.05,      //time step size
-                                    tolerance));     //tolerance
+  local step:=integrator(CASH_KARP, //The Integrator
+                         ::D,       //The ODE
+                         0.05,      //time step size
+                         local tolerance:=10); //tolerance
   local plotFuture:=future({0});
   local postPlot:=headless ? {0} : {begin
     plotFuture();
@@ -240,11 +241,17 @@ calculate(particleCount:Int,scenario in SCENARIOS,headless:Boolean)->begin
   while(stepCounter<100 OR stillStepCounter<20,
   begin
     local t0:=time;
+    stepCounter mod 100=0
+    ? print('Reducing integrator tolerance');
+      step:=integrator(CASH_KARP, //The Integrator
+                       ::D,       //The ODE
+                       0.05,      //time step size
+                       max(1E-6,tolerance/=10)) //tolerance
+    : void;
     local velocity:=sys.maxVelocity;
-    sys:=velocity>0.05 ? timeSteppers[1](sys)
-                       : timeSteppers[2](sys);
+    sys:=sys.step;
     printf('Time step %{$0}s done in %{time-$1}7.3fs%{velocity>0.05?" ":"*"}s'&
-           ' vMax=%{velocity}7.5f [%{$2}s %{$3}s]',stepCounter+=1,t0,particleCount,scenario);
+           ' vMax=%{velocity}7.5f [%{$2}s]',stepCounter+=1,t0,setup);
     postPlot();
     velocity>0.02
     ? stillStepCounter:=0
@@ -252,25 +259,24 @@ calculate(particleCount:Int,scenario in SCENARIOS,headless:Boolean)->begin
     replay|=[sys[0]];
   end);
   PERSISTENT
-  ? replays[[particleCount.toInt,scenario]]:=replay
+  ? replays[setup]:=replay
   : void;
 end;
 
 //*Replay or calculate and display scenario
-main(particleCount,scenario in SCENARIOS)->begin
+main(particleCount0,particleCount1,scenario in SCENARIOS)->begin
   assertGuiStarted;
-  local count:=particleCount.toInt;
-  assert(count>1,'particleCount must be larger than one');
-  replay(count,scenario) orElse calculate(count,scenario,false);
+  local setup:=simSetupOf@$params;
+  replay(setup) orElse calculate(setup,false);
 end;
 
 //*Calculate scenario without displaying it
 //*You can chain multiple calculations
-main('headless',particleCount,scenario in SCENARIOS,...)->begin
-  local count:=particleCount.toInt;
-  assert(count>1,'particleCount must be larger than one');
-  replays[[count,scenario]].isVoid ? calculate(count,scenario,true) : print('Already calculated ',count,' ',scenario);
-  size(...)>1 ? begin
+main('headless',particleCount0,particleCount1,scenario in SCENARIOS,...)->begin
+  assert(PERSISTENT,'Must be persistent');
+  local setup:=simSetupOf(particleCount0,particleCount1,scenario);
+  replays[setup].isVoid ? calculate(setup,true) : printf('Already calculated {setup}');
+  size(...)>=3 ? begin
     writeDataStores;
     'headless'.main@...;
   end : void;
@@ -283,16 +289,21 @@ main('list')->begin
                  : printf('  %s',replays.getInner(0).sort(0).sort(1).map({join(myPath.extractFileName|$x,' ')}));
 end;
 
-main('delete',particleCount,scenario in SCENARIOS)->begin
+main('delete',particleCount0,particleCount1,scenario in SCENARIOS)->begin
   assert(PERSISTENT,'Not in persistent mode');
   warn('Only one instance of this script may calculate a scenario at any time to prevent write conflicts');
   assertUniqueInstance;
-  local count:=particleCount.toInt;
-  replays[[count,scenario]].isVoid
-  ? print('Replay ',count,' ',scenario,' does not exist')
+  local setup:=simSetupOf(particleCount0,particleCount1,scenario);
+  replays[setup].isVoid
+  ? printf('Replay {setup} does not exist')
   : begin
-      replays[[count,scenario]]:=void;
-      print('Replay ',count,' ',scenario,' deleted');
+      replays[setup]:=void;
+      printf('Replay {setup} deleted');
     end;
 end;
-//headless 200 simple 200 polymer 200 NaCl 200 dipoles 200 phobic 200 dust 200 hex
+
+//headless 100 100 NaCl 100 100 dipoles 100 100 dust 100 100 hex 100 100 phobic 100 100 polymer 100 100 simple
+
+//tocall:
+//  delete 100 100 hex
+//  160 40 dust

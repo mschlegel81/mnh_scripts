@@ -1,2 +1,0 @@
-plain script;
-[0..65536].pMap(::sin).agg(+).print;

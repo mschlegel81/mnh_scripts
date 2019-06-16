@@ -1,2 +1,0 @@
-plain script;
-[0..65536].pEach(x,sin(x),+).print;

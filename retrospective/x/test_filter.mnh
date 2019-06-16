@@ -1,3 +1,0 @@
-plain script;
-f(i:Int)->i mod 11==i mod 7;
-[0..65536].filter(::f).agg(+).print;

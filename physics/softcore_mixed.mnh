@@ -72,6 +72,7 @@ setupForces(simSetup:SimSetup)->begin
       absForce01:=makeForceFunction(0.25,1);
     end
   : scenario==SCENARIO_PHOBIC
+
   ? begin
       absForce00:=makeForceFunction(1,1);
       absForce11:=makeForceFunction(1,1);
@@ -286,7 +287,7 @@ end;
 main('list')->begin
   print('Available replays:');
   replays.size=0 ? print('  -none-')
-                 : printf('  %s',replays.getInner(0).sort(0).sort(1).map({join(myPath.extractFileName|$x,' ')}));
+                 : printf('  %s',replays.getInner(0).sort.sort(2).map({join(myPath.extractFileName|$x,"\t")}));
 end;
 
 main('delete',particleCount0,particleCount1,scenario in SCENARIOS)->begin

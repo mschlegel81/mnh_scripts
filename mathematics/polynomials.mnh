@@ -1,7 +1,7 @@
 type Polynomial(L:NumericList)->L.size>=1;
 
 @SuppressUnusedWarning
-factorial(n:Int)->n<1 ? 1 : [2..n].agg(*);
+factorial(n:Int)->n<=1 ? 1 : [2..n].agg(*);
 
 ducktype OddInt(i:Int)->(i and 1)=1;
 memoized
@@ -23,12 +23,21 @@ private polyAgg(a:List(2),b:List(2))->[a.head,a.trailing+b.trailing];
 private polyAgg(a:List(3),b:List(3))->[a.head,a[1]+b[1],a.trailing];
 private groupToPolynomial(L:List)->begin
   local Q:=L.group(0,::polyAgg).toMap;
-  [0..Q.getInner(0).max].each(k,Q[k] orElse 0);
+  [0..Q.getInner(0).max].each(k,Q[k,1] orElse 0);
 end.toPolynomial;
 
 @SuppressUnusedWarning
-toExpression(P:Polynomial)->P.each(factor,factor=0 ? void : factor*xPow(index),+);
+@Override
+toExpression(P:Polynomial)->begin
+  local f:=P.each(factor,factor=0 ? void : factor=1 ? xPow(index) : factor*xPow(index),+);
+  f.isNumeric
+  ? f+{0*$x}
+  : f;
+end;
 toExpression(l)->typecast.toExpression;
+
+D(P:Polynomial)->
+  P.size<=1 ? [0].toPolynomial : P.each(x,x*factorial(index)).tail.toPolynomial;
 
 @Override
 OPERATOR_PLUS(A:Polynomial,B:Polynomial)->[0..max(A.size,B.size)-1].each(i,A[i]+B[i]).toPolynomial;
@@ -104,15 +113,15 @@ begin
 end;
 
 
-h:=0.1;
-X:=[-50..50]*h;
-Y:=sin(X);
-
-T0:=Y.discreteTaylor(h).toExpression;
-T1:=discreteTaylor(Y,h,12).toExpression;
-
-plot   (abs(T0-::sin),-1,1,1000);
-addPlot(abs(T1-::sin),-1,1,1000);
+//h:=0.1;
+//X:=[-50..50]*h;
+//Y:=sin(X);
+//
+//T0:=Y.discreteTaylor(h).toExpression;
+//T1:=discreteTaylor(Y,h,12).toExpression;
+//
+//plot   (abs(T0-::sin),-1,1,1000);
+//addPlot(abs(T1-::sin),-1,1,1000);
 
 //weights
 //     1
@@ -121,3 +130,27 @@ addPlot(abs(T1-::sin),-1,1,1000);
 
 
 //cos(0.1)/0.1^2-2*cos(0)/0.1^2+cos(-0.1)/0.1^2;
+
+begin
+ local c:=[0,1].toPolynomial;
+ local x:=c;
+ print(x.toExpression);
+ print(x.D.toExpression);
+ x:=x*x+c;
+ print(x.toExpression);
+ print(x.D.toExpression);
+ x:=x*x+c;
+ print(x.toExpression);
+ print(x.D.toExpression);
+ x:=x*x+c;
+ print(x);
+ x:=x*x+c;
+ print(x);
+ x:=x*x+c;
+ print(x);
+ x:=x*x+c;
+ print(x);
+end;
+
+[0..10].map(::factorial);
+

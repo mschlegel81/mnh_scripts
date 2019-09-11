@@ -1,0 +1,33 @@
+USE customFormUtil,soddy;
+main->begin
+  local c:=[[0,0],[1,1],[0,1]];
+  local selIdx:=-1;
+  local replot:={begin
+    local T:=c.toCircleTriplet;
+    plot();
+    T.each(circle,addPlot([circle[0]-circle[1],circle[0]+circle[1]],index=selIdx ? 'e f red' : 'e red'));
+    c.addPlot('red +');
+    local S:=T.findSoddyCircles;
+    S.each(circle,circle[0]-circle[1],circle[0]+circle[1]).addPlot('blue e');
+    S.getInner(0).addPlot('blue +');
+    postDisplay;
+  end};
+  setOptions(['x0'=>-5,'x1'=>5,'y0'=>-5,'y1'=>5,'autoscaleX'=>false,'autoscaleY'=>false]);
+  replot();
+  showDialog('Soddy circles',
+             [newPlotDock,
+             newPlotLink.withMouseClicked({
+               begin
+                 selIdx:=selIdx<0 ? c.each(p,euklideanNorm(p-[$0,$1])).argMin : -1;
+                 replot();
+               end}).withMouseMoved({
+               selIdx in [0..2] ? begin
+                 c[selIdx]:=[$0,$1];
+                 replot();
+               end : void})
+             ]);
+end;
+
+
+
+

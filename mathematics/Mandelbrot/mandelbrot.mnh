@@ -1,0 +1,140 @@
+private datastore cachedMandelbrotBoundaries:=[].toMap;
+
+mandelbrotIntegerBoundary(precision:Int,steps>=1)->
+  cachedMandelbrotBoundaries[[precision,steps]] orElse
+  cachedMandelbrotBoundaries[[precision,steps]]:=
+begin
+  local P:=cross([0..precision-1],
+                 [0..precision-1]);
+  local zRe:=(local cRe:=P.getInner(0)*2/precision-1.5);
+  local zIm:=(local cIm:=P.getInner(1)*2/precision-  1);
+  [1..steps].each(step,begin
+    print('Step #',step,'; checking ',zRe.size,' pixels');
+    local zRe_:=zRe.sqr-zIm.sqr+cRe;
+    zIm       :=zRe*zIm*2+cIm;
+    zRe:=zRe_[local mask:=!(zRe_.isNan or zRe_.isInfinite or abs(zRe)>1E6)];
+    zIm:=zIm[mask];
+    cRe:=cRe[mask];
+    cIm:=cIm[mask];
+    P  :=  P[mask];
+    void;
+  end);
+  zRe:=zIm:=cRe:=cIm:=void;
+  print('Extracting line segments');
+  local lineSegments:=P
+    .pEach(p,[p      ,p+[1,0]],
+             [p+[1,0],p+[1,1]],
+             [p+[0,1],p+[1,1]],
+             [p      ,p+[0,1]])
+    .elementFrequency
+    .pMap({$x[1]=1 ? $x[0] : void});
+  P:=void;
+  print('Joining ',lineSegments.size,' line segments');
+  local boundaries:=[];
+  local boundary:=lineSegments.head;
+  lineSegments:=lineSegments.tail;
+  while(lineSegments.size>0,begin
+    local lastPoint:=boundary.trailing;
+    local matchIndex:=lineSegments.pEach(s,s[0]==lastPoint ? [s[1],index] :
+                                           s[1]==lastPoint ? [s[0],index] : void,head);
+    matchIndex.isVoid ? begin
+      boundaries|=[boundary];
+      boundary:=lineSegments.head;
+      lineSegments:=lineSegments.tail;
+      print('Joining ',lineSegments.size,' remaining line segments');
+    end : begin
+      printDirect('.');
+      boundary|=[matchIndex[0]];
+      lineSegments[matchIndex[1]]:=void;
+    end;
+  end);
+  print('Done');
+  boundaries|=[boundary];
+  boundaries.each(B,B,[[Nan,Nan]],|);
+end;
+
+mandelbrotRealBoundary(precision:Int,steps>=1)->
+  mandelbrotIntegerBoundary(precision,steps).pMap({$x*2/precision-(1/precision+[1.5,1])});
+
+@SuppressUnusedWarning
+animateIterationDepth->begin
+  clearAnimation;
+  [1..100].each(steps,
+    mandelbrotRealBoundary(200,steps).plot;
+    addAnimationFrame;
+    postDisplay);
+end;
+
+circle  (t)->[cos(t),sin(t)];
+circle_d(t)->[-sin(t),cos(t)];
+f  (t)->circle  (t)*0.5-circle  (2*t)*0.25;
+f_d(t)->circle_d(t)*0.5-circle_d(2*t)*0.5;
+
+
+@SuppressUnusedWarning
+approximateMandelbrot(maxStep>=2)->begin
+ // addPlot(::f,0,2*pi,500,'black polygon fs 0 TI1');
+  [2..maxStep].each(i,begin
+    [1..i].filter({gcd(i,$j)=1}).each(j,begin
+      local phi  :=2*pi*j/i;
+      local radius:=f_d(phi).euklideanNorm / sqr(i);
+
+      local touchAt:=f(phi);
+      local center :=touchAt+radius*(f_d(phi)/(f_d(phi).euklideanNorm)).reverseList*[1,-1];
+      addPlot([center-radius,center+radius],'RGB1,1,0 fs e 0 TI2');
+      i<=7 ?
+      drawText(center[0],center[1],j&'/'&i,6,'C',[0,0,0])
+      : void;
+    end);
+  end,|);
+end;
+
+@SuppressUnusedWarning
+SYM_POINTS:=
+[[-0.101096363178828, 0.956286510077253],  //1/3:
+ [-0.101096363178828,-0.956286510077253],  //2/3:
+ [ 0.366362983422524, 0.591533773261253],  //1/4:
+ [ 0.366362983422524,-0.591533773261253],  //3/4:
+ [ 0.437924241691321,0.341892083815193 ],  //1/5:
+ [-0.562202621522548,0.64281714907176  ],  //2/5:
+ [-0.562202621522548,-0.64281714907176 ],  //3/5:
+ [ 0.437924241691321,-0.341892083815193]]; //4/5:
+//addPlot(SYM_POINTS,'.');
+
+mandelbrotRealBoundary(2000,500).plot('polygon fs 0.5 orange');
+approximateMandelbrot(10);
+
+replaceFixPointPlot(x,y)->begin
+  local z:=[0,0];
+  local c:=[x,y];
+  local row:=[0..100].each(step,z:=[z.sqr.agg(-),2*z.agg(*)]+c);
+  removePlot;
+  addPlot(row,'black . l 0.7');
+  postDisplay;
+end;
+
+USE customFormUtil;
+begin
+['autoscaleFactor'=>1.0,
+ 'autoscaleX'=>false,
+ 'autoscaleY'=>false,
+ 'axisStyleX'=>7,
+ 'axisStyleY'=>7,
+ 'fontsize'=>10.0,
+ 'logscaleX'=>false,
+ 'logscaleY'=>false,
+ 'preserveAspect'=>true,
+ 'x0'=>-1.5,
+ 'x1'=>0.5,
+ 'y0'=>-1.0,
+ 'y1'=>1.0].toMap.setOptions;
+
+  addPlot([[0,0],[0,0]]);
+
+  showDialog('Mandelbrot',
+    [newPlotDock,
+    newPlotLink.withMouseMoved(::replaceFixPointPlot)
+               .withMouseClicked(::print)]
+  );
+end;
+

@@ -47,7 +47,7 @@ fareyHierarchy(p,q,createPlot:Boolean)->begin
   local sortedNumbers:=
     level.getInner(0)
        .sort({$x.agg(/)<=$y.agg(/)});
-
+  showVariable(sortedNumbers);
   createPlot
   ? begin
       ['autoscaleFactor'=>0.98,
@@ -71,7 +71,7 @@ fareyHierarchy(p,q,createPlot:Boolean)->begin
       local levelWidth:=level.each(l,[l[1],fracForm(l[0]).length])
                              .group(0,aggregator({[$x[0],max($x[1],$y[1])]}))
                              .sort(0)
-                             .getInner(1)+3;
+                             .getInner(1,1)+3;
       sortedNumbers
            .map({repeat(' ',levelWidth.head(level[$x]).agg(+) orElse 0)&fracForm($x)&($x==[p,q] ? void : '-+')})
            .join("\n")
@@ -81,6 +81,6 @@ end;
 
 
 
-fareyHierarchy(777,1324,true);
+fareyHierarchy(777,1324,false);
 //fareyHierarchy(77756,1324577,true);
 

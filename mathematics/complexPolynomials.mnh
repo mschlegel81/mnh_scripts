@@ -1,0 +1,83 @@
+//Package for symbolic operations on complex polynomials
+USE complex;
+
+type Polynomial(P:Map)->P.each(entry,entry[0].isStringList AND (entry[1].isNumeric OR entry[1].isComplex),AND);
+
+@Override
+polynomial(id:String)->[[id]=>1].toMap.toPolynomial;
+@Override
+polynomial(value:Numeric)->[[]=>value].toMap.toPolynomial;
+@Override
+polynomial(value:Complex)->[[]=>value].toMap.toPolynomial;
+
+canonicalForm(P)->
+  P.each(entry,[entry[0].sort,entry[1]])
+   .group(0)
+   .getInner(1)
+   .each(g,[g.head.head,g.getInner(1).agg(+)])
+   .filter({$x[1]!=0})
+   .toMap
+   .toPolynomial;
+
+private powerForm(L:List(2))->
+  L[1]==0
+  ? ''
+  : L[1]==1
+    ? L[0]
+    : L[0]&'^'&L[1];
+
+@Override
+toString(P:Polynomial)->P.canonicalForm.each(entry,begin
+  local part:=entry[0].elementFrequency.map(::powerForm).join('*');
+  part==''
+  ? entry[1]
+  : part&(entry[1]=1 ? '' : '*'&complex.toString(entry[1]));
+end).join('+');
+
+@Override
+OPERATOR_PLUS(P:Polynomial,Q:Polynomial)->mergeMaps(P,Q,::+).canonicalForm;
+OPERATOR_PLUS(P:Polynomial,x:Numeric)->P+polynomial(x);
+OPERATOR_PLUS(P:Polynomial,x:Complex)->P+polynomial(x);
+@Override
+OPERATOR_MULT(P:Polynomial,Q:Polynomial)->P.cross(Q).map({[$x[0,0]|$x[1,0],$x[0,1]*$x[1,1]]}).canonicalForm;
+OPERATOR_MULT(P:Polynomial,x:Numeric)->P.map({[$p[0],$p[1]*x]}).canonicalForm;
+OPERATOR_MULT(P:Polynomial,x:Complex)->P.map({[$p[0],$p[1]*x]}).canonicalForm;
+@Override
+sqr(P:Polynomial)->P*P;
+@Override
+OPERATOR_POT(P:Polynomial,i=0)->polynomial(1);
+OPERATOR_POT(P:Polynomial,i=1)->P;
+OPERATOR_POT(P:Polynomial,i>1)->(i and 1)=1 ? P*P^(i-1) : sqr(P^(i div 2));
+
+
+// d( x^0 * q )/dx = 0
+// d( x^a * q )/dx = x^(a-1)*q*a!
+
+ycneuqerFtnemele(f:Map)->f.each(entry,entry[1]=0 ? void : [1..entry[1]].each(counter,entry[0]),|).sort;
+
+D(P:Polynomial,parameter:String)->
+  P.filter({parameter in $p[0]})
+   .map({begin
+      local powers:=$p[0].elementFrequency;
+      local factor:=$p[1];
+      factor*=powers[parameter];
+      powers[parameter]-=1;
+      [ycneuqerFtnemele(powers),factor];
+    end})
+   .canonicalForm;
+
+replaceParameterByValue(P:Polynomial,parameter:String,value)->
+  P.map({begin
+      local powers:=$p[0].elementFrequency;
+      local factor:=$p[1];
+      powers[parameter]=0 ? $p : begin
+        factor*=value^powers[parameter];
+        powers[parameter]:=0;
+        [ycneuqerFtnemele(powers),factor];
+      end;
+    end})
+   .canonicalForm;
+
+
+
+

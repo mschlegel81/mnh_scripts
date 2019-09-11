@@ -1,0 +1,181 @@
+USE root,inspectionUtil;
+
+ducktype FractionOfC(v:Numeric)->0<=v<=1;
+
+@SuppressUnusedWarning
+@Scenario=circling
+@Frames=[0..99]/100*2*pi/$v
+private SCENARIO_CIRCLING(speed:FractionOfC,pointInTime:Numeric)->
+  [[{[ cos(($t+pointInTime)*speed), sin(($t+pointInTime)*speed)]}, 1],
+   [{[-cos(($t+pointInTime)*speed),-sin(($t+pointInTime)*speed)]},-1]];
+
+@SuppressUnusedWarning
+@Scenario=double_circling
+@Frames=[0..99]/100*2*pi/$v
+private SCENARIO_DOUBLE_CIRCLING(speed:FractionOfC,pointInTime:Numeric)->
+  [[{[ 2+cos(($t+pointInTime)*speed), sin(($t+pointInTime)*speed)]}, 1],
+   [{[ 2-cos(($t+pointInTime)*speed),-sin(($t+pointInTime)*speed)]},-1],
+   [{[-2-cos(($t+pointInTime)*speed), sin(($t+pointInTime)*speed)]},-1],
+   [{[-2+cos(($t+pointInTime)*speed),-sin(($t+pointInTime)*speed)]}, 1]];
+
+@SuppressUnusedWarning
+@Scenario=atom
+@Frames=[0..99]/100*2*pi/$v
+private SCENARIO_ATOM(speed:FractionOfC,pointInTime:Numeric)->
+  [[{[   0*$t,                                                0]}, 1],
+   [{[-cos(($t+pointInTime)*speed),-sin(($t+pointInTime)*speed)]},-1]];
+
+@SuppressUnusedWarning
+@Scenario=encounter
+@Frames=[-100..100]/100*(8/$speed)
+private SCENARIO_ENCOUNTER(speed:FractionOfC,pointInTime:Numeric)->
+  [[{[0, ($t+pointInTime)*speed]}, 1],
+   [{[0,-($t+pointInTime)*speed]},-1]];
+
+@SuppressUnusedWarning
+@Scenario=diverge
+@Frames=[-100..100]/100*(8/$speed)
+private SCENARIO_DIVERGE(speed:FractionOfC,pointInTime:Numeric)->
+  [[{[0, 2+($t+pointInTime)*speed]}, 1],
+   [{[0,-2-($t+pointInTime)*speed]},-1]];
+
+@SuppressUnusedWarning
+@Scenario=flyby
+@Frames=[-100..100]/100*(8/$speed)
+private SCENARIO_FLYBY(speed:FractionOfC,pointInTime:Numeric)->
+  [[{[ 1,0*$t                  ]}, 1],
+   [{[-1,($t+pointInTime)*speed]},-1]];
+
+@SuppressUnusedWarning
+@Scenario=single
+@Frames=[-100..100]/100*(8/$speed)
+private SCENARIO_SINGLE(speed:FractionOfC,pointInTime:Numeric)->
+  [[{[0,($t+pointInTime)*speed]},1]];
+
+SCENARIOS:=
+inspect['declares'].filter({!isVoid($rule.ruleAttributes['Scenario'])})
+                   .map({$rule.ruleAttributes['Scenario']=>[$rule.getFunction,$rule.ruleAttributes['Frames']]})
+                   .toMap;
+
+WEATHER_FLAG_POSITIONS:=[-20..20].each(x,[-23..23].each(y,[x+(y and 1)*0.5,0.5*sqrt(3)*y]*0.4),|);
+WEATHER_FLAG_HEXAGONS:=WEATHER_FLAG_POSITIONS.each(p,
+  ([[ 0          ,-1  ],
+    [ 0.5*sqrt(3),-0.5],
+    [ 0.5*sqrt(3), 0.5],
+    [ 0          , 1  ],
+    [-0.5*sqrt(3), 0.5],
+    [-0.5*sqrt(3),-0.5],
+    [ 0          ,-1  ]]*0.231).map({$h+p}));
+
+datastore storedScenarios:=[].toMap;
+
+apparentPosition(positionFunction:Expression(1),observerPosition:NumericList(2))->begin
+  local t:=sqr(positionFunction(0)-observerPosition).agg(+).sqrt;
+  positionFunction(-1*regulaFalsi({euklideanNorm(observerPosition-positionFunction(-$dt))-$dt},
+                                     t-1,t+1,1E-3,1E-3));
+end;
+
+apparentPositions(scenario,observerPosition:NumericList(2))->
+  scenario.each(charge,[apparentPosition(charge[0],observerPosition)-observerPosition,charge[1]]);
+
+getCalculatedScenario(scenarioName in (SCENARIOS.getInner(0)),speed:FractionOfC)->begin
+  local key:=[scenarioName,speed];
+  print('Restoring scenario ',key.join(" "));
+  (storedScenarios[key] orElse
+  storedScenarios[key]:=begin
+    assertUniqueInstance;
+    local startOfCalculation:=time;
+    local pointsInTime:=SCENARIOS[scenarioName,1].toExpression()(speed);
+    print('Calculating scenario ',key.join(" "),'; ',pointsInTime.size,' frames must be calculated');
+    local scenarioData:=
+    pointsInTime.pEach(t,begin
+      local scenarioAtPointInTime:=SCENARIOS[scenarioName,0](speed,t);
+      local potentialsAndForces:=
+      WEATHER_FLAG_POSITIONS.each(weatherFlagPosition,begin
+        local apPos:=apparentPositions(scenarioAtPointInTime,weatherFlagPosition);
+        [apPos.each(p,p[1]*p[0]/(p[0].euklideanNorm^3),+),
+         apPos.each(p,p[1]     / p[0].euklideanNorm   ,+)];
+      end)
+      .transpose;
+      printDirect("\rCalculating frame ",index,"/",pointsInTime.size,'   ');
+      [potentialsAndForces[0].map({round($f*18/max(0.02,$f.euklideanNorm))}),potentialsAndForces[1]];
+    end);
+    //local globalMaxPotential:=scenarioData.map({$x[1].abs.max}).max;
+    local globalMaxPotential:=scenarioData.getInner(1).flatten.abs.sort;
+    globalMaxPotential:=globalMaxPotential[round(0.98)*globalMaxPotential.size];
+    [0..scenarioData.size-1].each(frameIndex,begin
+      scenarioData[frameIndex,1]:=round(sign(scenarioData[frameIndex,1])*abs(scenarioData[frameIndex,1]/globalMaxPotential)*100).map({max(-100,$x).min(100)});
+      void;
+    end);
+    print("\nCalculation done in ",time-startOfCalculation,' seconds');
+    scenarioData.serialize.compress;
+  end).decompress.deserialize;
+end;
+
+dist  (p:NumericList(2),q:NumericList(2))->euklideanNorm(p-q);
+normed(x:NumericList)->x/x.euklideanNorm;
+
+maxTipSize:=0.15;
+arrow(x0:NumericList(2),x1:NumericList(2))->begin
+  local tipSize:=min(maxTipSize,dist(x1,x0)/2);
+  local fwd:=x1-x0; fwd:=fwd.normed*tipSize;
+  local lft:=[-fwd[1],fwd[0]];
+  [x0,x1,x1-fwd-0.3*lft,x1,x1-fwd+0.3*lft,[Nan,Nan]];
+end;
+
+memoized
+int_styleOfRelativePotential(i:Int)->
+  'polygon fs RGB'& join((i>0 ? [1,0,0] : [0,0,1])*abs(i/150)+[1,1,1]*(1-abs(i/150)),',');
+
+showAnimation(scenarioName in (SCENARIOS.getInner(0)),speed:FractionOfC)->begin
+  [['logscaleY',false],
+   ['logscaleX',false],
+   ['autoscaleX',false],
+   ['autoscaleY',false],
+   ['axisStyleX',0],
+   ['axisStyleY',0],
+   ['x0',-8],['x1',8],
+   ['y0',-8],['y1',8]].toMap.setOptions;
+  clearAnimation;
+  local calculatedScenario:=getCalculatedScenario(scenarioName,speed);
+  local pointsInTime:=SCENARIOS[scenarioName,1].toExpression()(speed);
+  calculatedScenario.each(frameData,begin
+    printDirect("\rRendering frame ",index,'/',size(calculatedScenario),'  ');
+    plot();
+    WEATHER_FLAG_HEXAGONS.group(frameData[1])
+    .each(g,addPlot(g[1].each(hexagon,hexagon,[Nan,Nan],|),int_styleOfRelativePotential(g[0])));
+
+
+//    frameData[1].each(potential,
+//      addPlot(WEATHER_FLAG_HEXAGON(index),int_styleOfRelativePotential(potential)));
+    frameData[0].each(f,begin
+      local p:=WEATHER_FLAG_POSITIONS[index];
+       arrow(p-f/100,p+f/100);
+    end,|).addPlot('0.5 black');
+    SCENARIOS[scenarioName,0](speed,pointsInTime[index])
+      .each(c,(c[0](0)).map({[$x]})|((c[1]>0 ? 'red' : 'blue')&' . 2'))
+      .map({addPlot@$x});
+    addAnimationFrame;
+    index=0 ? postDisplay : void;
+  end);
+  print;
+end;
+
+
+//*Show animation for the given scenario and movement speed
+//*Speed is fraction of c; 0.0<=speed<=1.0
+main(scenario in (SCENARIOS.getInner(0)),speed)->showAnimation(scenario,toReal(speed));
+//*Prepare animation for the given scenario and movement speed without displaying it
+main('prepare',scenario in (SCENARIOS.getInner(0)),speed)->getCalculatedScenario(scenario,speed);
+//*List script parameters for cached scenarios
+main('list')->
+  storedScenarios.getInner(0).sort.map({join(myPath.extractFileName|$x,' ').print});
+
+main('defaults')->
+  begin
+    print('INITIALIZING DEFAULT SCENARIOS');
+    SCENARIOS.getInner(0).cross([0.5,0.9]).each(param,begin
+      getCalculatedScenario@param;
+      writeDataStores;
+    end);
+  end;

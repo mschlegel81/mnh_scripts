@@ -1,3 +1,4 @@
+#!/usr/bin/mnh -GUI
 USE collide_types,collide_initialState,collide_store;
 
 private HAS_WRITE_ACCESS:=begin

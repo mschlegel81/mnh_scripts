@@ -34,8 +34,6 @@ filterWords->begin
      end);
 end;
 
-USE inputs;
-
 @SuppressUnusedWarning
 initialize->begin
   local allWords:='C:\dev\data\german.lower.utf8'.fileLines;

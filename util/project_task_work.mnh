@@ -6,7 +6,7 @@ files('C:\Users\Martin Schlegel\Downloads\project.task.work*.csv')
 .unique
 .pMap({[copy($x[0],0,7),$x]})
 .group(0)
-.pMap({[$x[0,0],$x.getInner(1).sort]})
+.pMap({[$x[0],$x[1].getInner(1).sort]})
 .sort
 .each(entry,begin
   print;

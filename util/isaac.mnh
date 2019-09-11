@@ -1,0 +1,32 @@
+USE customFormUtil;
+
+xorIsaacBytes(toXor:String,password:String)->begin
+  local b:=toXor.bytes.ord;
+  local i:=password.sha256.isaacRandomGenerator(256).head(b.size);
+  chars[i xor b].join;
+end;
+
+base64LineLength:=64;
+chunkLines(s:String)->begin
+  s.copy([0..s.length div base64LineLength]*base64LineLength,
+         base64LineLength).&("\n").join;
+end;
+
+cipher  (password:String,plainText:String)->plainText.compress.xorIsaacBytes(password).base92encode.chunkLines;
+decipher(password:String,cipherText:String)->try({cipherText.base92decode.xorIsaacBytes(password).decompress},'[CANNOT DECIPHER]');
+
+main->begin
+  local inputText:='';
+  local password:='';
+  local encrypt:=true;
+
+  showDialog('ISAAC',
+    [newGrid(2,[newEdit    .withCaption('Password').bind(nameOf password),
+                newCheckbox.withCaption('encrypt' ).bind(nameOf encrypt)]),
+     newLabel.withCaption({encrypt ? 'Plain text:' : 'Cipher text:'}),
+     newInputEditor('txt')
+            .bind(::inputText),
+     newLabel.withCaption({encrypt ? 'Cipher text:' : 'Plain text:'}),
+     newOutputEditor('txt')
+       .withCaption({encrypt ? password.cipher(inputText) : password.decipher(inputText)})]);
+end;

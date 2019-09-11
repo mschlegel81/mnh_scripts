@@ -6,11 +6,15 @@ main->begin
   local usedScripts       :=[].toSet;
   local warnings:=[];
   local errors  :=[];
-  allScriptFiles.map({[$f,print('Inspecting ',$f) orElse $f.inspect]})
-  .each(s,begin
-    usedScripts|=s[1,'uses'].getInner(1);
-    warnings|=s[1,'messages'].filter(::isWarning);
-    errors  |=s[1,'messages'].filter(::isError);
+  local usedBuiltin:=[].toSet;
+  allScriptFiles
+  .each(file,begin
+    print('Inspecting ',file);
+    local s:=file.inspect;
+    usedScripts|=s['uses'].getInner(1);
+    warnings|=s['messages'].filter(::isWarning);
+    errors  |=s['messages'].filter(::isError);
+    usedBuiltin|=s['called builtin'];
   end);
   print('Found ',allScriptFiles.size,' scripts');
   print('Used scripts');
@@ -25,4 +29,9 @@ main->begin
   print('Scripts with errors');
   printf("  @%s:1,1\t%s",errors.getInner(0),errors.getInner(1));
   warnings.unique;
+
+  //print('The following builtin functions are not used anywhere:');
+  //printf('  %s',listBuiltin.minus(usedBuiltin.flatten).sort);
 end;
+
+

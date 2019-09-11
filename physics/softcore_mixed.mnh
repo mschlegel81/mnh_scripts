@@ -1,4 +1,4 @@
-#!/usr/bin/mnh -out ?.log(1)
+#!/usr/bin/mnh
 USE rungeKutta;
 
 PERSISTENT:=true;
@@ -10,17 +10,17 @@ SCENARIO_DIPOLES:='dipoles';
 SCENARIO_PHOBIC :='phobic';
 SCENARIO_DUST   :='dust';
 SCENARIO_HEX    :='hex';
+SCENARIO_LAYERS :='layers';
 SCENARIOS:=inspect['declares'].filter({$x[0].matches('^SCENARIO_')}).map({$x[1,'function']}).map({$x()}).sort;
 
-type SimSetup(L:List(3))->L[0].isInt AND L[0]>0 AND
-                          L[1].isInt AND L[1]>0 AND
+type SimSetup(L:List(3))->L[0].isInt AND L[0]>=0 AND
+                          L[1].isInt AND L[1]>=0 AND
                           L[2] in SCENARIOS;
 @Override
 @SuppressUnusedWarning
 //Actually used implicitly in format statements
 toString(s:SimSetup)->s.join(" ");
 simSetupOf(count0,count1,scenario)->[count0.toInt,count1.toInt,scenario].toSimSetup;
-
 
 //Particle class config:---------------------
 mutable PARTICLE_COUNT:=void;
@@ -37,7 +37,7 @@ setParticleCount(simSetup:SimSetup)->begin
 end;
 //---------------------:Particle class config
 //Force config:------------------------------
-DAMPING:=0.3;
+DAMPING:=0.5;
 GRAVITY:=0.05; //small gravity force towards origin
 makeForceFunction(range,strength)->[strength*16,'*(1-',range*0.5,'/$x)*(',range*0.5,'/$x-0.5)*ord($x<',range,')'].toExpression;
 makeForceFunctionRepulsiveOnly(range,strength)->[strength*10,'*(1-',range,'/$x)*ord($x<',range,')'].toExpression;
@@ -49,9 +49,9 @@ mutable absForce01:=absForce00;
 setupForces(simSetup:SimSetup)->begin
   (local scenario:=simSetup[2])==SCENARIO_SIMPLE
   ? begin
-      absForce00:=makeForceFunction(1,1);
+      absForce00:=makeForceFunction(1  ,1);
       absForce11:=absForce00;
-      absForce01:=absForce00;
+      absForce01:=makeForceFunction(1.05,1);
     end
   : scenario==SCENARIO_NACL
   ? begin
@@ -61,7 +61,7 @@ setupForces(simSetup:SimSetup)->begin
     end
   : scenario==SCENARIO_POLYMER
   ? begin
-      absForce00:=makeForceFunctionRepulsiveOnly(0.7,0.2);
+      absForce00:=makeForceFunctionRepulsiveOnly(0.6,0.5);
       absForce11:=absForce00;
       absForce01:=makeForceFunction(0.5,1);
     end
@@ -90,13 +90,34 @@ setupForces(simSetup:SimSetup)->begin
       absForce11:=makeForceFunction(1,1.2);
       absForce01:=makeForceFunction(0.42,2);
     end
+  : scenario==SCENARIO_LAYERS
+  ? begin
+      absForce00:=makeForceFunction(1,0.5);
+      absForce11:=makeForceFunction(1,0.5);
+      absForce01:=makeForceFunction(1.2,1);
+    end
   : fail('Unknown scenario: ',escape(scenario));
 end;
 //------------------------------:Force config
 
+@SuppressUnusedWarning
 fp(P:NumericList)->begin
   local FIBFAK:=2*pi/sqr((sqrt(5)-1)/2);
   [cos(FIBFAK*P),sin(FIBFAK*P)].transpose*sqrt(P);
+end;
+
+centralDartThrowing(count:Int)->begin
+  local result:=[[1E-6,0.0]];
+  local radius:=0.3;
+  while(result.size<count,begin
+    local p:=2*pi*random;
+    p:=radius*[cos(p),sin(p)];
+    result.each(q,euklideanNorm(q-p)>0.5,AND)
+    ? result|=[p]
+    : void;
+    radius+=0.001;
+  end);
+  result;
 end;
 
 memoized zeros(listSize>1)->[0..listSize-1]*0;
@@ -111,7 +132,6 @@ forcesOf(points:List,pairs:List,absForce:Expression(1))->begin
   [pairs.getInner(1), forces].transpose;
 end;
 
-@SuppressUnusedParameterWarning
 attractToOrigin(points:List)->-GRAVITY*points.pEach(p,p/p.euklideanNorm);
 
 D(system:List(2))->begin
@@ -135,9 +155,10 @@ prepareForPlot(points:List)->
   end)
   .group(PARTICLE_CLASS)
   .each(groupByClass,[groupByClass[0],groupByClass[1].agg(|)])
-  .toMap;
+  .toMap
+  .mergeMaps([0=>[],1=>[]].toMap,::orElse);
 
-plotPreparedSystem(balls:Map(2))->begin
+plotPreparedSystem(balls:Map(2),addFrame:Boolean)->begin
   local y0:=void;
   local y1:=void;
   local x0:=void;
@@ -190,10 +211,10 @@ save;
                 'x0'=>x0,
                 'x1'=>x1]);
   end;
-  addAnimationFrame;
+  addFrame ? addAnimationFrame : void;
 end;
 
-plotSystem(points:List)->points.prepareForPlot.plotPreparedSystem;
+plotSystem(points:List)->points.prepareForPlot.plotPreparedSystem(true);
 
 maxVelocity(sys:List(2))->sys[1].pEach(v,v.isScalar ? v : v.euklideanNorm,max);
 
@@ -206,10 +227,11 @@ replay(setup:SimSetup)->
       printf('Replaying scenario %s',setup);
       setParticleCount(setup);
       setupForces(setup);
-      local frameCount:=replays[setup].size;
-      replays[setup].each(frame,
+      local frames:=replays[setup].decompress.deserialize*1E-3;
+      local frameCount:=frames.size;
+      frames.each(frame,
         future({printDirect($0) orElse prepareForPlot($1)},["\r"&(index+1)&'/'&frameCount,frame]))
-      .each(ballFuture,ballFuture().plotPreparedSystem);
+      .each(ballFuture,ballFuture().plotPreparedSystem(true));
       true;
     end;
 
@@ -222,9 +244,8 @@ calculate(setup:SimSetup,headless:Boolean)->begin
   : void;
   setParticleCount(setup);
   setupForces(setup);
-  local sys:=fp([1..PARTICLE_COUNT])*0.25;
+  local sys:=centralDartThrowing(PARTICLE_COUNT); //fp([1..PARTICLE_COUNT])*0.25;
   sys:=[sys,zeros(sys.size)];
-
   local step:=integrator(CASH_KARP, //The Integrator
                          ::D,       //The ODE
                          0.05,      //time step size
@@ -243,16 +264,18 @@ calculate(setup:SimSetup,headless:Boolean)->begin
   begin
     local t0:=time;
     stepCounter mod 100=0
-    ? print('Reducing integrator tolerance');
-      step:=integrator(CASH_KARP, //The Integrator
-                       ::D,       //The ODE
-                       0.05,      //time step size
-                       max(1E-6,tolerance/=10)) //tolerance
+    ? begin
+        print('Reducing integrator tolerance to ',tolerance:=max(1E-7,tolerance/=10));
+        step:=integrator(CASH_KARP, //The Integrator
+                         ::D,       //The ODE
+                         0.05,      //time step size
+                         tolerance); //tolerance
+      end
     : void;
     local velocity:=sys.maxVelocity;
     sys:=sys.step;
-    printf('Time step %{$0}s done in %{time-$1}7.3fs%{velocity>0.05?" ":"*"}s'&
-           ' vMax=%{velocity}7.5f [%{$2}s]',stepCounter+=1,t0,setup);
+    printf('%{$2}s step %{$0}s done in %{time-$1}7.3fs%{velocity>0.02?" ":"*"}s'&
+           ' vMax=%{velocity}7.5f',stepCounter+=1,t0,setup);
     postPlot();
     velocity>0.02
     ? stillStepCounter:=0
@@ -260,8 +283,8 @@ calculate(setup:SimSetup,headless:Boolean)->begin
     replay|=[sys[0]];
   end);
   PERSISTENT
-  ? replays[setup]:=replay
-  : void;
+  ? replays[setup]:=replay.*(1000).round.serialize.compress
+  : print("//You can import this replay later:\n//begin replays[",setup,']:=',replay.*(1000).round.serialize.compress.escape,'; end;');
 end;
 
 //*Replay or calculate and display scenario
@@ -287,9 +310,10 @@ end;
 main('list')->begin
   print('Available replays:');
   replays.size=0 ? print('  -none-')
-                 : printf('  %s',replays.getInner(0).sort.sort(2).map({join(myPath.extractFileName|$x,"\t")}));
+                 : printf('  %s',replays.getInner(0).sort.sort(2).map({join($x,"\t")}));
 end;
 
+//*Delete a specific replay
 main('delete',particleCount0,particleCount1,scenario in SCENARIOS)->begin
   assert(PERSISTENT,'Not in persistent mode');
   warn('Only one instance of this script may calculate a scenario at any time to prevent write conflicts');
@@ -303,8 +327,18 @@ main('delete',particleCount0,particleCount1,scenario in SCENARIOS)->begin
     end;
 end;
 
-//headless 100 100 NaCl 100 100 dipoles 100 100 dust 100 100 hex 100 100 phobic 100 100 polymer 100 100 simple
+//*Initialize default replays
+main('defaults')->main('headless',
+  '100','100','NaCl',
+  '100','100','dipoles',
+  '100','100','dust',
+  '100','100','phobic',
+  '150','50','dust',
+  '170','30','dust',
+  '100','100','hex',
+  '100','100','layers',
+  '132','66','layers',
+  '100','100','polymer',
+  '132','66','polymer',
+  '20','0','simple');
 
-//tocall:
-//  delete 100 100 hex
-//  160 40 dust

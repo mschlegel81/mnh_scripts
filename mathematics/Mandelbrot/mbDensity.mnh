@@ -1,0 +1,54 @@
+SAMPLE_X_MIN:=-1.5;
+SAMPLE_X_MAX:= 0.5;
+SAMPLE_Y_MIN:=  -1;
+SAMPLE_Y_MAX:=   1;
+
+memoized styleOf(samples:Int,maxSamples>=samples)->format('box fs 0 GREY%s',1-samples/maxSamples);
+
+calculateSamples(count>1,depth>=0,boxSize>0.0)->begin
+  local cr:=vanDerCorputGenerator(2).head(count)*(SAMPLE_X_MAX-SAMPLE_X_MIN)+SAMPLE_X_MIN;
+  local ci:=vanDerCorputGenerator(3).head(count)*(SAMPLE_Y_MAX-SAMPLE_Y_MIN)+SAMPLE_Y_MIN;
+  local xr:=cr;
+  local xi:=ci;
+  local step:=0;
+  while((step+=1)<depth,begin
+    print('Calculating step ',step,'/',depth,'; ',size(cr),' samples');
+    local tmp:=sqr(xr)-sqr(xi)+cr;
+    xi:=xr*xi*2+ci;
+    xr:=tmp;
+    tmp:=!(xr.isNan or xi.isNan or xr.isInfinite or xi.isInfinite) and (-1000<xr<1000) and (-1000<xi<1000);
+    xr:=xr[tmp];
+    xi:=xi[tmp];
+    cr:=cr[tmp];
+    ci:=ci[tmp];
+  end);
+  local resultList:=[xr,xi].transpose;
+  [1..11].each(postStep,begin
+    print('Calculating post-step ',postStep);
+    local tmp:=sqr(xr)-sqr(xi)+cr;
+    xi:=xr*xi*2+ci;
+    xr:=tmp;
+    resultList|=[xr,xi].transpose;
+    void;
+  end);
+  print('Processing list of ',resultList.size,' samples');
+
+  plot();
+  resultList:=
+  resultList.filter({SAMPLE_X_MIN<=$x[0]<=SAMPLE_X_MAX AND
+                     SAMPLE_Y_MIN<=$x[1]<=SAMPLE_Y_MAX})
+            .map({round($x/boxSize)})
+            .elementFrequency
+            .map({[$x[0]*boxSize,$x[1]]})
+            .group(1)
+            .map({[$g[0],$g[1].getInner(0).each(x,x-boxSize/2,x+boxSize/2)]});
+  local maxEntry:=resultList.getInner(0).max;
+  resultList.each(e,addPlot(e[1],styleOf(e[0],maxEntry)));
+
+end;
+
+calculateSamples(1000000,200,0.005);
+
+
+
+

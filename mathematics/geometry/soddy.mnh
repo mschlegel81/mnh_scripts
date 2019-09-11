@@ -17,14 +17,7 @@ toCircleTriplet(triangle:Triangle)->begin
   [[ 0.5, 0.5,-0.5],
    [-0.5, 0.5, 0.5],
    [ 0.5,-0.5, 0.5]].each(x,d[index]*x,+);
-  local result:=triangle.each(center,[center,radius[index]].toCircle);
-  begin
-    local a:=triangle[1]-triangle[0];
-    local b:=triangle[2]-triangle[0];
-    a[0]*b[1]-a[1]*b[0]>0
-    ? result.reverseList
-    : result;
-  end.toCircleTriplet;
+  triangle.each(center,[center,radius[index]].toCircle).toCircleTriplet;
 end;
 
 @Override
@@ -33,15 +26,6 @@ plot(t:CircleList   ,style)->plot.plot(t.each(c,c[0]-c[1],c[0]+c[1]),style & ' e
 @Override
 addPlot(c:Circle    ,style)->plot.addPlot([c[0]-c[1],c[0]+c[1]],style & ' ellipse');
 addPlot(t:CircleList,style)->plot.addPlot(t.each(c,c[0]-c[1],c[0]+c[1]),style & ' ellipse');
-
- //*Returns the real roots of {a*x^2+b*x+c} or void if there is none
-rootOfQuadraticPoly(squareFactor:Numeric,
-                    linearFactor:Numeric,
-                    constantPart:Numeric)->begin
-  local discriminant:=linearFactor^2-4*squareFactor*constantPart;
-  discriminant<0 ? return [] : void;
-  (-linearFactor+sqrt(discriminant)*[-1,1])/(2*squareFactor);
-end;
 
 soddyCircleRadii(radii:NumericList(3))->begin
   local k:=1/radii;
@@ -55,24 +39,13 @@ end;
 circlesTouch(a:Circle,b:Circle)->abs(euklideanNorm(a[0]-b[0])-abs(a[1]+b[1]))<1E-6;
 circlesTouch(a:Circle,T:CircleTriplet)->T.each(b,circlesTouch(a,b),AND);
 
+USE mathUtils;
 findSoddyCircles(c:CircleTriplet)->begin
   local rs:=soddyCircleRadii(c.getInner(1));
   rs.each(r,begin
- //   local candidates:=soddyCircleCenters(c,r).map({[$center,r].toCircle});
     local candidates:=circleIntersection(c[0,0],c[0,1]+r,c[1,0],c[1,1]+r).map({[$center,r].toCircle});
     candidates.filter({$newCircle.circlesTouch(c[2])});
   end,|);
-end;
-
-circleIntersection(c0:Vector,r0,
-                   c1:Vector,r1)->begin
-  local d:=euklideanNorm(c1-c0);
-  local a:=(r0^2-r1^2+d^2)/(2*d);
-  local h:=r0^2-a^2;
-  h<0 ? return void : h:=sqrt(h);
-  local X:=c0+a*(c1-c0)/d;
-  local Y:=[c1[1]-c0[1],c0[0]-c1[0]]*h/d;
-  [X+Y,X-Y];
 end;
 
 exRound(x)->round(x,6);
@@ -137,6 +110,7 @@ private addPlotCircleList(circles:CircleList)->
   : begin
       circles.map({[$c,circleStyleByRadius(round($c[1],2))]})
       .group(1)
+      .getInner(1)
       .each(g,[g[0,0,1],g.getInner(0),g[0,1]])
       .sort(0)
       .reverseList
@@ -238,7 +212,7 @@ plottableNestedGasket(relativeTo:Circle, circles:CircleList, radiusLimit>0.0)->b
   scaled|(
   scaled.each(c,c.plottableNestedGasket(circles.filteredCircles(radiusLimit/c[1]),radiusLimit),|));
 end;
-
+@SuppressUnusedWarning
 nestedGasket(initialState:CircleTriplet, radiusLimit>0.0)->begin
   setOptions(['axisStyleX'=>0,'axisStyleY'=>0]);
   plot([[-1,-1],[1,1]],'RGB0.8,0,0 fs e');
@@ -247,6 +221,26 @@ nestedGasket(initialState:CircleTriplet, radiusLimit>0.0)->begin
   plottableNestedGasket([[0,0],1].toCircle,circles,radiusLimit).addPlotCircleList;
 end;
 
+@SuppressUnusedWarning
 defaultInitialState->initialSoddy @(param3Sym(2).head);
 
-nestedGasket(defaultInitialState,0.001);
+
+begin
+  local radiusLimit:=0.01;
+  clearAnimation;
+  param3Sym(50).pEach(param,begin
+    local t0:=time;
+    local circles:=soddyIteration(initialSoddy@param,radiusLimit,false).tail;
+    print('Frame #',index,' prepared in ',time-t0,'seconds');
+    circles;
+  end)
+  .{print('Done preparing at ',time) orElse $0}
+  .each(circles,begin
+    print('Rendering frame #',index);
+    setOptions(['axisStyleX'=>0,'axisStyleY'=>0]);
+    plot([[-1,-1],[1,1]],'RGB0.8,0,0 fs e');
+    plottableNestedGasket([[0,0],1].toCircle,circles,radiusLimit).addPlotCircleList;
+    addAnimationFrame;
+  end);
+end;
+

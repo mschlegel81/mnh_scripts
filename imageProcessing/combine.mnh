@@ -16,6 +16,7 @@
 fileExistsVerbose(filename:String)->fileExists(filename) ? true : print(filename,' does not exist') orElse false;
 fileNExistsVerbose(filename:String)->fileExists(filename) ? print(filename,' already exists') orElse false : true;
 
+@SuppressUnusedWarning=all
 combineImages1x4(filename1:String,
                  filename2:String,
                  filename3:String,

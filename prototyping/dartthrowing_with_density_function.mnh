@@ -1,0 +1,54 @@
+densityFunc(coord:NumericList(2))->
+//  ord((coord-0.5).euklideanNorm>0.5);
+(1+sin(10*coord.euklideanNorm));
+
+printChar(c:String,...)->begin
+  local curr:='';
+save;
+  length(curr&=c)>100
+  ? begin
+      print@(curr|' '|...);
+      curr:='';
+    end
+  : void;
+end;
+
+randomByDensity(density:Expression)->begin
+  local c:=transpose([random(100),random(100)]);
+  local d:=c.pMap(density);
+  d/=d.agg(+);
+  local r:=random;
+  d.each(p,(r-=p)<0 ? return c[index] : void);
+  c.trailing;
+end;
+
+throwDarts(density:Expression,count>0)->begin
+  local D:=[randomByDensity(density)];
+  local acceptAt:=sqrt(1/2);
+  while(D.size<count,begin
+    local p:=randomByDensity(density);
+    D.each(q,euklideanNorm(p-q)>acceptAt,AND)
+    ? begin
+        D|=[p];
+        printChar('#',D.size,' ',acceptAt);
+      end
+    : printChar('.',D.size,' ',acceptAt*=0.9999);
+  end);
+  D;
+end;
+
+//throwDarts(::densityFunc,2000).plot('. 0.5');
+
+begin
+  local points:=[vanDerCorputGenerator(2).head(5000),
+                 vanDerCorputGenerator(3).head(5000)].transpose;
+  local densities:=points.pEach(p,max(0,densityFunc(p)));
+  densities/=densities.max;
+
+  points[densities>0.5];
+end.plot('. 0.5');
+
+//randomByDensity(::densityFunc);
+
+
+

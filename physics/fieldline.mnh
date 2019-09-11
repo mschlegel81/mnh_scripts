@@ -1,4 +1,4 @@
-USE GUI,root,inspectionUtil;
+USE root,inspectionUtil;
 
 ducktype FractionOfC(v:Numeric)->0<=v<=1;
 
@@ -59,6 +59,7 @@ inspect['declares'].filter({!isVoid($rule.ruleAttributes['Scenario'])})
 
 WEATHER_FLAG_POSITIONS:=[-20..20].each(x,[-23..23].each(y,[x+(y and 1)*0.5,0.5*sqrt(3)*y]*0.4),|);
 
+
 datastore storedWeatherFlags:=[].toMap;
 
 apparentPosition(positionFunction:Expression(1),observerPosition:NumericList(2))->begin
@@ -107,6 +108,7 @@ drawSystem(scenarioName in (SCENARIOS.getInner(0)),speed:FractionOfC,pointInTime
 end;
 
 createAnimation(scenarioName in (SCENARIOS.getInner(0)),speed:FractionOfC)->begin
+  assertGuiStarted;
   clearAnimation;
   SCENARIOS[scenarioName,1].toExpression()(speed)
   .each(pointInTime,begin

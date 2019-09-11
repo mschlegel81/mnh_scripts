@@ -1,0 +1,2 @@
+writeFile('C:\dev\mnh5\demos\inputs\unixdict.txt','C:\dev\web\page\data\dict.dat'.fileContents.decompress);
+writeFile('C:\dev\mnh5\demos\inputs\kjv.txt','C:\dev\web\page\data\kjv.dat'.fileContents.decompress);

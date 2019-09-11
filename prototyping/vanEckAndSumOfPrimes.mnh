@@ -1,0 +1,18 @@
+asSumOfPrimes(i:Int)->begin
+  local summations:=primes(i).map({$p=>$p.toSet}).toMap;
+  local sumCount:={summations.getInner(1).each(s,s.size,+)};
+  local lastSumCount:=0;
+  local currentSumCount:=sumCount();
+  while(currentSumCount!=lastSumCount,begin
+    print(lastSumCount:=currentSumCount);
+    summations.cross(summations)
+              .each(pair,pair[0,0]<=pair[1,0] ? [pair.getInner(0).agg(+),pair[0,1],pair[1,1]] : void)
+              .each(x,x[0]<=i ? summations[x[0]]|=(cross(x[1],x[2]).map({$x.flatten.sort})).toSet : void);
+    currentSumCount:=sumCount();
+  end);
+  summations[i].sort.map({$x.join("+")});
+end;
+
+printf('%s = %s',50,asSumOfPrimes(50));
+
+

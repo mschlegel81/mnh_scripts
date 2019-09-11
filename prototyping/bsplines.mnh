@@ -1,0 +1,156 @@
+#f (x) = a + b*x +   c*x^2 +   d*x^3
+#f'(x) =     b   + 2*c*x   + 3*d*x^2
+#
+#
+#f (0) = y0                = a
+#f (1) = y1                = a+b+c+d
+#f'(0) = (y1-y[-1])/2 = d0 = b
+#f'(1) = (y2-   y0)/2 = d1 = b+2*c+3*d
+#
+#a = y0
+#b = d0
+#c = y1 - y0 - b - d
+
+#d = d1/3 - b/3 - 2/3*c
+#c = 3*y1 - 3*y0 - 2*b - d1
+
+
+
+interpolate(y_1:Numeric,
+            y0 :Numeric,
+            y1 :Numeric,
+            y2 :Numeric)->begin
+  local a :=y0;
+  local b :=(y1-y_1)/2;
+  local c :=3*y1 - 3*y0 - 2* b - (local d1:=(y2-y0)/2);
+  local d :=(d1-b-2*c)/3;
+  local t:=[0..10]/10;
+  a+b*t+c*t^2+d*t^3;
+end;
+
+interpolate(Y:List)->begin
+  [0..Y.size-2].each(i,begin
+    local I:=interpolate(
+
+   // Y[i-1] orElse 2*Y[0]-Y[1],
+    Y[i-1] orElse Y.head,
+    Y[i  ],
+    Y[i+1],
+    Y[i+2] orElse 2*Y[Y.size-1]-Y[Y.size-2]);
+//    Y[i+2] orElse Y.trailing);
+    index=0 ? I : I.tail;
+  end,|);
+end;
+
+interpolate(X:NumericList,Y:NumericList)->begin
+  assert(X.size==Y.size,'X and Y must have the same size');
+  [interpolate(X),
+   interpolate(Y)].transpose;
+end;
+
+//f(x  )=a+bx+cx^2
+//f(x+1)=a+b*(x+1)+c*(x+1)^2
+//      =a+bx+b+cx^2+2*c*x+c
+//      =(a+b+c)+(b+2*c)+x+c*x^2
+//f(x-1)=a+b*(x-1)+c*(x-1)^2
+//      =a+bx-b+c*x^2-2*c*x+c
+//      =(a-b+c)+(b-2*c)x+c*x^2
+@SuppressUnusedWarning
+ip2(Y:List)->Y.size<=2 ? Y: begin
+  local p:=[Y[1],(Y[2]-Y[0])/2,(Y[2]+Y[0])/2-Y[1]];
+  local q:=[Y[1],(Y[2]-Y[0])/2,(Y[2]+Y[0])/2-Y[1]];
+  local tau:=[0..49]/50;
+  local w0 :=1-tau; // 0.5+0.5*cos(tau*pi);
+  local w1 :=1-w0; //1-w0;
+  local result:=(q[0]+q[1]*(tau-1)  +q[2]*(tau-1)   ^2);
+  local i:=0;
+  while((i+=1)<Y.size-2,begin
+    p:=[q[0]+q[1]+q[2],q[1]+2*q[2],q[2]];
+    q:=p;//[Y[i+1],(Y[i+2]-Y[i])/2,(Y[i+2]+Y[i])/2-Y[i+1]];
+    result|=w0*(p[0]+p[1]*(tau-1)+p[2]*(tau-1)^2)+
+            w1*(q[0]+q[1]*(tau  )+q[2]*(tau  )^2);
+  end);
+
+  result;
+end;
+
+
+ip3(Y:List)->Y.size<=2 ? Y: begin
+  local p:=[Y[1],(Y[2]-Y[0])/2,(Y[2]+Y[0])/2-Y[1]];
+  local q:=p;
+  local tau:=[0..SPLINE_DETAIL-1]/SPLINE_DETAIL;
+  local w0 :=0.5+0.5*cos(tau*pi);
+  local w1 :=1-w0;
+  local result:=(q[0]+q[1]*(tau-1)+q[2]*(tau-1)   ^2);
+  local i:=0;
+  while((i+=1)<Y.size-2,begin
+    p:=[q[0]+q[1]+q[2],q[1]+2*q[2],q[2]];
+    q:=[Y[i+1],(Y[i+2]-Y[i])/2,(Y[i+2]+Y[i])/2-Y[i+1]];
+    result|=w0*(p[0]+p[1]*(tau-1)+p[2]*(tau-1)^2)+
+            w1*(q[0]+q[1]*(tau-1)+q[2]*(tau-1)^2);
+  end);
+  result|=(q[0]+q[1]*(tau|1)+q[2]*(tau|1)^2);
+  result;
+end;
+
+ip3(X,Y)->[ip3(X),ip3(Y)].transpose;
+
+SPLINE_DETAIL:=16;
+@SuppressUnusedWarning
+bSpline(X:NumericList,Y:NumericList)->
+  begin
+    local coeff:=
+    [0..SPLINE_DETAIL-1].each(i,
+      begin
+        local iT   := i / (SPLINE_DETAIL-1);
+        local i1_T := 1 - iT;
+        [( i1_T * i1_T * i1_T ) / 6,
+         ( ( 3 * iT * iT * iT ) - ( 6 * iT * iT ) + 4 ) / 6,
+         ( ( -3 * iT * iT * iT ) + ( 3 * iT * iT ) + ( 3 * iT ) + 1 ) / 6,
+         ( iT * iT * iT ) / 6];
+      end);
+  save;
+    assert(X.size==Y.size);
+    [-2..X.size-2].each(k,
+      coeff.each(c,
+        c[0]*[X[k  ] orElse X[0],
+              Y[k  ] orElse Y[0]]+
+        c[1]*[X[k+1] orElse X[0],
+              Y[k+1] orElse Y[0]]+
+        c[2]*[X[k+2] orElse X[X.size-1],
+              Y[k+2] orElse Y[X.size-1]]+
+        c[3]*[X[k+3] orElse X[X.size-1],
+              Y[k+3] orElse Y[X.size-1]]),|);
+end;
+
+//ip3([0,1,2,0]).plot('l 2');
+
+begin
+  plot([[-1,-1],[1,1]],'e');
+  local X:=cos([0..4]/4*pi)|
+          (cos([1..4]/4*pi)-2);
+  local Y:=1.1*sin([0..8]/4*pi);
+//  local X:=[0,1,2,3];
+//  local Y:=[0,1,0,1];
+
+  plot(X,Y,'b .');
+
+//  X:=cos([0..80]/80*pi)|
+//    (cos([1..80]/80*pi)-2);
+//  Y:=sin([0..160]/80*pi);
+//  addPlot(X,Y);
+
+end;
+//
+//
+
+//[0..SPLINE_DETAIL-1].each(i,
+//  begin
+//    local iT   := i / (SPLINE_DETAIL-1);
+//    local i1_T := 1 - iT;
+//    [( i1_T * i1_T * i1_T ) / 6,
+//     ( ( 3 * iT * iT * iT ) - ( 6 * iT * iT ) + 4 ) / 6,
+//     ( ( -3 * iT * iT * iT ) + ( 3 * iT * iT ) + ( 3 * iT ) + 1 ) / 6,
+//     ( iT * iT * iT ) / 6];
+//  end).toString.replace('[','(').replace(']',')').replace('),(',"),\n(").print;
+

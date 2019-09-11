@@ -1,0 +1,88 @@
+ducktype Point(P:NumericList(2))->true;
+ducktype PointList(L:List)->L.each(p,p.isPoint,AND);
+
+@SuppressUnusedWarning
+vdcPointList(count>0)->[vanDerCorputGenerator(2).head(count),vanDerCorputGenerator(3).head(count)].transpose;
+@SuppressUnusedWarning
+randomPointList(count>0)->[random(count),random(count)].transpose;
+
+nearestNeighborDistances_bruteForce(points:PointList)->
+  points.pEach(p,points.each(q,q==p ? void : euklideanNorm(p-q),min));
+
+//nearestNeighborDistances(points:PointList)->
+//  points.size<10
+//  ? points.each(p,points.each(q,q==p ? void : euklideanNorm(p-q),min))
+//  : begin
+//      local xyMin:=[points.getInner(0).min,
+//                    points.getInner(1).min];
+//      local xyMax:=[points.getInner(0).max,
+//                    points.getInner(1).max];
+//      local boxesPerAxis:=(xyMax-xyMin).agg(/);
+//      boxesPerAxis:=sqrt([boxesPerAxis,1/boxesPerAxis]*points.size).floor;
+//      local boxInvSize  :=boxesPerAxis/(xyMax-xyMin);
+//
+//      local pointBoxIndex:=points.pMap({floor(($p-xyMin)*boxInvSize)});
+//      local radius:=1;
+//      local b2p:=[1=>[]].toMap;
+//      while(b2p.each(i,i[1].size<=1,OR),begin
+//        radius+=1;
+//        note('Scanning with radius ',radius);
+//        local around:=cross([-radius..radius],[-radius..radius]).filter({euklideanNorm($x)<=radius});
+//        b2p:=pointBoxIndex.pEach(k,begin
+//               local p:=points[index];
+//               around.each(d,d+k => p).filter({(0<=$k[0]<=boxesPerAxis).agg(and)});
+//             end,|);
+//        b2p:=group(b2p.getInner(1),b2p.getInner(0));
+//      end);
+//      points.each(p,b2p[pointBoxIndex[index]].each(q,p==q ? void : euklideanNorm(p-q),min));
+//    end;
+
+nearestNeighborDistances_recursive(points:PointList,splitIndex)->
+  points.size<50
+  ? points.each(p,points.each(q,q==p ? void : euklideanNorm(p-q),min))
+  : begin
+      local oneDim    :=points.getInner(splitIndex and 1);
+      local splitValue:=oneDim.sort[points.size div 2];
+      local mask      :=oneDim<splitValue;
+      local part0     :=points.size>200
+                        ? future(::nearestNeighborDistances_recursive,[points[ mask],splitIndex+1])
+                        :          nearestNeighborDistances_recursive (points[ mask],splitIndex+1);
+      local part1     :=nearestNeighborDistances_recursive(points[!mask],splitIndex+1);
+      points.size>200 ? part0:=part0() : void;
+      local bMask     :=abs(oneDim-splitValue)<max(part0.max,part1.max);
+      local partB     :=nearestNeighborDistances_recursive(points[bMask],splitIndex+1);
+      [indexOf( mask),part0].transpose.toMap.mergeMaps(
+      [indexOf(!mask),part1].transpose.toMap,::min).mergeMaps(
+      [indexOf(bMask),partB].transpose.toMap,::min)
+      .sort(0).getInner(1);
+    end;
+
+@SuppressUnusedWarning
+testPairing->begin
+  local P:=vdcPointList(2000);
+  local sizes:=round(P.size^([0..30]/30)).unique.filter({$k>10});
+  local T:=
+  sizes.each(s,begin
+    print('Testing size ',s);
+    local A:=time(::nearestNeighborDistances_bruteForce,[P.head(s)]);
+    local B:=time(::nearestNeighborDistances_recursive ,[P.head(s),0]);
+    A['result']==B['result']
+    ? void
+    : fail('Wrong result for ',P.head(s),"\nshould be ",A['result'],
+                                         "\n  but was ",B['result']);
+    [s,A['time'],B['time']];
+  end);
+  plot(T.getInner(0),T.getInner(1),'. l');
+  addPlot(T.getInner(0),T.getInner(2),'. l');
+end;
+
+@SuppressUnusedWarning
+drawWithRadii(P:PointList)->begin
+  local r:=P.nearestNeighborDistances_recursive(1)/2;
+  P.each(p,p-r[index],p+r[index]).addPlot('RGB1,0.8,0.8 ellipse fs');
+  P.addPlot('black . 0.5');
+end;
+
+//drawWithRadii(randomPointList(1000));
+
+testPairing;

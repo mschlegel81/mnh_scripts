@@ -176,10 +176,8 @@ save;
   end);
 
   plot();
-  balls[0].size=0 ? void : balls[0].addPlot('RGB0.8,0.8,1 e fs 0.5')
-                    orElse balls[0].addPlot('blue e 0.5');
-  balls[1].size=0 ? void : balls[1].addPlot('RGB1,0.9,0.8 e fs 0.5')
-                    orElse balls[1].addPlot('RGB1,0.5,0 e 0.5');
+  balls[0].size=0 ? void : balls[0].addPlot('blue e f 0.5');
+  balls[1].size=0 ? void : balls[1].addPlot('RGB1,0.5,0 e f 0.5');
 
   y0.isVoid ? begin
     clearAnimation;

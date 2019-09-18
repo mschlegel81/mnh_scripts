@@ -1,0 +1,54 @@
+D:='This is a töst text. This is a test.';
+symbols:=chars.head(127)
+              .minus(['~',"'",'"'])
+              .map({[$x.escape.replace(["'",'"'],'').length ,$x]})
+              .sort(1)
+              .sort(0)
+              .getInner(1);
+
+mostFrequentPair(T:String)->begin
+  local c:=T.chars;
+  [0..c.size-2].each(i,join(c[[i,i+1]]))
+  .elementFrequency
+  .sort(0)
+  .sort(1)
+  .trailing[0];
+end;
+
+pairCompress(text:String)->'~' in text.charSet ? return text : begin
+  local T:=text;
+  local subsTable:='~';
+  local cs:=T.charSet;
+  local remainingSymbols:=symbols.filter({!($x in cs)});
+  local shrinking:=true;
+  while(shrinking,begin
+    local nextPair:=mostFrequentPair(T);
+    local nextReplacement:=remainingSymbols.head;
+    local tabEntry:=nextReplacement&nextPair;
+    remainingSymbols:=remainingSymbols.tail;
+    local newT:=replace(T,nextPair,nextReplacement);
+    (shrinking:=length((subsTable&tabEntry&newT).escape)<
+                length((subsTable&            T).escape))
+    ? begin
+        T:=newT;
+        subsTable&=tabEntry;
+      end
+    : void;
+  end);
+  subsTable&'~'&T;
+end;
+
+pairDecopress(text:String)->text.copy(0,1)='~' ? begin
+  local T:=text.split("~");
+  local subs:=T[1];
+  T:=T[2];
+  assert(subs.byteLength mod 3=0);
+  ([subs.byteLength div 3-1..0]*3).each(k,
+  T:=T.replace(subs.copy(k,1),subs.copy(k+1,2)),trailing);
+end : text;
+
+pairCompress(D).pairDecopress;
+D.escape.length;
+D.pairCompress.escape.length;
+D.pairCompress;
+D.compress.base92encode.escape;

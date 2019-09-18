@@ -1,0 +1,22 @@
+ZERO:=0;
+successor  (i:Int)->i+1;
+predecessor(i:Int)->i-1;
+
+plus((ZERO),j)->j;
+plus(i,(ZERO))->i;
+plus(i,j)->plus(i,predecessor(j)).successor;
+
+mult((ZERO),i)->ZERO;
+mult(i,(ZERO))->ZERO;
+mult(i,j)->mult(i,predecessor(j)).plus(i);
+
+pot((ZERO),i)->ZERO;
+pot(i,(ZERO))->ZERO.successor;
+pot(i,j     )->pot(i,j.predecessor).mult(i);
+
+
+
+plus(8,3);
+mult(8,3);
+pot (8,3);
+

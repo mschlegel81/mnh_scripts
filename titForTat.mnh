@@ -1,0 +1,118 @@
+ducktype Probability(p:Numeric)->0<=p<=1;
+
+memoized
+modifiedTitForTat(pTitForTat:Probability, pNice:Probability)->{
+    random<=pTitForTat
+    ? $params[0] orElse true
+    : random<=pNice};
+
+modelToString(p:NumericList(2))->p[0]=1 ? "p[tft]=\t1\t\t\t" :
+                                 p[0]=0 ? format("\t\tp[nice]=\t%0.3f\t",p[1]) :
+                                 format("p[tft]=\t%0.3f\tp[nice]=\t%0.3f\t",p[0],p[1]);
+
+SCORE:=[[true , true]=>[-1,-1]+2/3,
+        [false,false]=>[-2,-2]+2/3,
+        [true ,false]=>[-3, 0]+2/3,
+        [false, true]=>[ 0,-3]+2/3].toMap;
+
+score(model0,model1,rounds>=1)->begin
+  local alg0:=modifiedTitForTat@model0;
+  local alg1:=modifiedTitForTat@model1;
+  local res0:=void;
+  local res1:=void;
+  [0..rounds-1].each(r,SCORE[
+    [res0:=alg0(res1),
+     res1:=alg1(res0)]],+)/rounds;
+end;
+
+roundRobin(models:List,rounds>=1,doPrintout:Boolean)->begin
+  local pairs:=cross([0..models.size-1],[0..models.size-1]).filter({$x[0]<=$x[1]});
+  local progressDot:=doPrintout
+                     ? print(repeat("------------------------|",4)) orElse round([1..100]*pairs.size/100)-1
+                     : [];
+  pairs
+    .pEach(pair,begin
+       index in progressDot ? printDirect('.') : void;
+       local s :=score@(models[pair]|rounds);
+       [[pair[0],s[0]],
+        [pair[1],s[1]]];
+     end,|)
+    .group(0,::+)
+    .map({[models[ $g[0]],$g[1,1]]})
+    .sort(1)
+    .{doPrintout
+      ? $L.map({format("score: \t%5.3f\t  ",$x[1])&$x[0].modelToString}).join("\n").{print("\n",$x)}
+      : $L};
+end;
+
+DEFAULT_POOL:=([0..10].cross([0..10])/10).filter({$x[0]<1 or $x[1]=1});
+
+roundRobin(rounds>=1,doPrintout:Boolean)->DEFAULT_POOL.roundRobin(rounds,doPrintout);
+
+randomPlay(pool:List)->begin
+  [0..pool.size-1]
+    .each(i,intRandom(pool.size,3).each(j,[i,j]),|)
+    .pEach(pair, begin
+      local s :=score@(pool[pair]|100);
+      [[pair[0],s[0]],
+       [pair[1],s[1]]];
+     end,|)
+    .group(0)
+    .each(g,[pool[g[0]],g[1].getInner(1).agg(+)/g[1].size])
+    .sort(1);
+end;
+
+average(x:List)->x.agg(+)/x.size;
+variance(x:List)->sqr(x.map({$x}-average(x))).average;
+
+evolutionGame(poolSize,generations,poolDisplay:Expression(1))->begin
+  local pool:=[random(poolSize),random(poolSize)].transpose;
+  local K:=pool.size-1;
+  print('Starting evolution game');
+  local toCross:=sqrt(K/3).ceil;
+  print('  The best ',toCross+1,' individuals will procreate each round, ');
+  toCross:=[K..K-toCross].cross([K..K-toCross]).filter({$x[0]<$x[1]});
+  print('  replacing the ',toCross.size,' worst individuals');
+  pool[toCross.size]:=[1,random]; //Force pure Tit-For-Tat once
+  [1..generations].each(generation,begin
+    poolDisplay(pool);
+    pool:=pool.randomPlay.getInner(0);
+    assert(pool.size=K+1);
+    toCross
+    .each(parent,(pool[parent[0]]+pool[parent[1]])*0.5+0.05*(random(2)*2-1))
+    .each(offspring,pool[index]:=[max(0,min(1,offspring[0])),
+                                  max(0,min(1,offspring[1]))]);
+//    pool[toCross.size]:=[1,random]; //Force pure Tit-For-Tat
+  end);
+  pool;
+end;
+
+plotSingleRun->begin
+  resetOptions;
+  local counter:=-1;
+  plot();
+  local pool:=evolutionGame(20,local steps:=200,{begin
+    local a:=average($x);
+    local s:=variance($x).sqrt/2;
+    addPlot([a+s,a-s],'ellipse f HUE'&(counter+=1)/steps*2/3);
+    postDisplay;
+  end});
+end;
+
+plotOutcomes->begin
+  resetOptions;
+  local steps:=100;
+  plot();
+  [0..steps-1].pEach(counter,begin
+    print('Run #',counter);
+    local pool:=evolutionGame(20,100,{$x});
+    local a:=average(pool);
+    local s:=variance(pool).sqrt/2;
+    addPlot([a+s,a-s],'ellipse f HUE'&counter/steps*2/3);
+    //pool.addPlot('. 0.7 HUE'&counter/steps*2/3);
+    postDisplay;
+  end);
+end;
+
+main->plotSingleRun;
+

@@ -91,22 +91,20 @@ private SCENARIO_PAIR(speed:FractionOfC)->
   [[{[ 0.5,$t*speed]}, 1],
    [{[-0.5,$t*speed]},-1]];
 
-
-
 SCENARIOS:=
 inspect['declares'].filter({!isVoid($rule.ruleAttributes['Scenario'])})
                    .map({$rule.ruleAttributes['Scenario']=>[$rule.getFunction,$rule.ruleAttributes['Frames']]})
                    .toMap;
 
 WEATHER_FLAG_POSITIONS:=[-20..20].each(x,[-23..23].each(y,[x+(y and 1)*0.5,0.5*sqrt(3)*y]*0.4),|);
-WEATHER_FLAG_HEXAGONS:=WEATHER_FLAG_POSITIONS.each(p,
-  ([[ 0          ,-1  ],
-    [ 0.5*sqrt(3),-0.5],
-    [ 0.5*sqrt(3), 0.5],
-    [ 0          , 1  ],
-    [-0.5*sqrt(3), 0.5],
-    [-0.5*sqrt(3),-0.5],
-    [ 0          ,-1  ]]*0.24).map({$h+p}));
+GRID_SIZE:=0.1;
+GRID_POINTS:=
+begin
+  local X:=[0..ceil(16/GRID_SIZE)-1]*GRID_SIZE;
+  X-=X.agg(+)/X.size;
+  X.cross(X);
+end;
+GRID_BOXES:=GRID_POINTS.map({[$p-GRID_SIZE/2,$p+GRID_SIZE/2]});
 
 datastore storedScenarios:=[].toMap;
 
@@ -114,7 +112,7 @@ apparentPosition(positionFunction:Expression(1),observerPosition:NumericList(2),
   local t:=sqr(positionFunction(atTime)-observerPosition).agg(+).sqrt;
   local tObserved:=atTime-regulaFalsi({euklideanNorm(observerPosition-positionFunction(atTime-$dt))-$dt},t-1,t+1,1E-3,1E-3);
   [positionFunction(tObserved     )-observerPosition,
-   positionFunction(tObserved-1E-3)-observerPosition];
+   positionFunction(tObserved+1E-3)-observerPosition];
 end;
 
 apparentPositions(scenario,observerPosition:NumericList(2),atTime:Real)->
@@ -124,41 +122,46 @@ apparentPositions(scenario,observerPosition:NumericList(2),atTime:Real)->
 getCalculatedScenario(scenarioName in (SCENARIOS.getInner(0)),speed:FractionOfC)->begin
   local key:=[scenarioName,speed];
   print('Restoring scenario ',key.join(" "));
-  (storedScenarios[key] orElse storedScenarios[key]:=
+  (storedScenarios[key] orElse
+   storedScenarios[key]:=
    begin
     assertUniqueInstance;
     local startOfCalculation:=time;
     local scenarioAtSpeed:=SCENARIOS[scenarioName,0](speed);
     local pointsInTime:=SCENARIOS[scenarioName,1].toExpression()(speed);
     print('Calculating scenario ',key.join(" "),'; ',pointsInTime.size,' frames must be calculated');
+    print(repeat("------------------------|",4));
+    local progressDot:=round([1..100]*pointsInTime.size/100)-1;
     local scenarioData:=
     pointsInTime.pEach(t,begin
-      local potentialsAndForces:=
-      WEATHER_FLAG_POSITIONS.each(weatherFlagPosition,begin
-        local apPos:=apparentPositions(scenarioAtSpeed,weatherFlagPosition,t);
-        [local E:=apPos.each(p,p[2]*p[0]/(p[0].euklideanNorm^3),+),  // = E
-                  apPos.each(p,p[2]     / p[0].euklideanNorm   ,+),
-               (E-apPos.each(p,p[2]*p[1]/(p[1].euklideanNorm^3),+)).euklideanNorm.*(1E3).sqrt];
-      end)
-      .transpose;
-      printDirect("\rCalculating frame ",index,"/",pointsInTime.size,'   ');
-      [potentialsAndForces[0].pMap({$f.isNan.agg(or) OR $f.isInfinite.agg(or)
-                                    ? [0,0]
-                                    : round($f*18/max(0.02,$f.euklideanNorm))}),potentialsAndForces[1],potentialsAndForces[2]];
+      index in progressDot ? printDirect('.') : void;
+      local forces:=WEATHER_FLAG_POSITIONS
+         .each(obsPos,apparentPositions(scenarioAtSpeed,obsPos,t)
+                      .each(p,p[2]*p[0]/(p[0].euklideanNorm^3),+));
+      local potentials:=GRID_POINTS
+          .each(obsPos,begin
+            local apPos:=apparentPositions(scenarioAtSpeed,obsPos,t);
+            [apPos.each(p,p[2]     / p[0].euklideanNorm   ,+),
+            (apPos.each(p,p[2]*p[0]/(p[0].euklideanNorm^3),+)-
+             apPos.each(p,p[2]*p[1]/(p[1].euklideanNorm^3),+)).euklideanNorm.*(1E3).sqrt];
+           end).transpose;
+      [forces       .map({$f.isNan.agg(or) OR $f.isInfinite.agg(or) ? [0,0] : $f}),
+       potentials[0].map({$p.isNan         OR $p.isInfinite         ?  0    : $p}),
+       potentials[1].map({$p.isNan         OR $p.isInfinite         ?  0    : $p})];
     end);
-
-    local globalMaxPotential:=scenarioData.getInner(1).flatten.filter(!::isInfinite).abs.sort;
-          globalMaxPotential:=globalMaxPotential[round(0.98*globalMaxPotential.size)];
-    local globalMaxMagnetFld:=scenarioData.getInner(2).flatten.filter({!isNan($x) AND !isInfinite($x)}).abs.sort;
-          globalMaxMagnetFld:=globalMaxMagnetFld[round(0.99*globalMaxMagnetFld.size)];
-    [0..scenarioData.size-1].each(frameIndex,begin
-      scenarioData[frameIndex,1]:=scenarioData[frameIndex,1]
-        .pMap({max(-globalMaxPotential,$x).min(globalMaxPotential)/globalMaxPotential*178})
-        .round;
-      scenarioData[frameIndex,2]:=scenarioData[frameIndex,2]
-        .pMap({min($x.isNan ? 0 : $x,globalMaxMagnetFld)/globalMaxMagnetFld*255})
-        .round;
-      void;
+    scenarioData.showVariable;
+    print;
+    local globalMaxForce    :=scenarioData.getInner(0).pMap({$x.map(::euklideanNorm)}).flatten    .sort;
+    local globalMaxPotential:=scenarioData.getInner(1)                                .flatten.abs.sort;
+    local globalMaxMagnetFld:=scenarioData.getInner(2)                                .flatten.abs.sort;
+          globalMaxForce    :=globalMaxForce    [round(0.95*globalMaxForce    .size)];
+          globalMaxPotential:=globalMaxPotential[round(0.95*globalMaxPotential.size)];
+          globalMaxMagnetFld:=globalMaxMagnetFld[round(0.95*globalMaxMagnetFld.size)];
+    scenarioData:=scenarioData.pEach(frameData,begin
+      index in progressDot ? printDirect('.') : void;
+      [frameData[0]./(globalMaxForce).map({round($f*18/max(1,$f.euklideanNorm))}),
+       frameData[1].map({max(-globalMaxPotential,$x).min(globalMaxPotential)/globalMaxPotential*178}).round,
+       frameData[2].map({min($x.isNan ? 0 : $x,globalMaxMagnetFld)/globalMaxMagnetFld*255}).round];
     end);
     print("\nCalculation done in ",time-startOfCalculation,' seconds');
     scenarioData.serialize.compress;
@@ -168,20 +171,6 @@ end;
 normed(x:NumericList)->x/x.euklideanNorm;
 
 maxTipSize:=0.15;
-
-//memoized dArrow(dx:IntList(2))->begin
-//  local tipSize:=min(maxTipSize,euklideanNorm(dx)/100);
-//  local fwd:=dx; fwd:=fwd.normed*tipSize;
-//  local lft:=[-fwd[1],fwd[0]];
-//  [-dx/100,
-//   +dx/100,
-//   +dx/100-fwd-0.3*lft,
-//   +dx/100,
-//   +dx/100-fwd+0.3*lft,
-//   [Nan,Nan]];
-//end;
-//
-//arrow(xc:NumericList(2),dx:IntList(2))->dArrow(dx).map({xc+$d});
 
 memoized dArrow(dx:IntList(2))->begin
   local tipSize:=min(maxTipSize,euklideanNorm(dx)/100);
@@ -197,8 +186,8 @@ end;
 
 arrow(xc:NumericList(2),dx:IntList(2))->(dArrow(dx)+xc).transpose;
 
-memoized int_styleOfRelativePotential(i:Int)->'polygon fs 0 RGB'& join((i>0 ? [1,0,0] : [0,0,1])*abs(i/178)*0.7+[1,1,1]*(1-0.7*abs(i/178)),',');
-memoized int_styleOfRelativeMagnetic (i:Int)->'polygon fs 0 RGB'& join([1,0.5,0]*i/255+[1,1,1]*(1-i/255),',');
+memoized int_styleOfRelativePotential(i:Int)->'box fs 0 RGB'& join((i>0 ? [1,0,0] : [0,0,1])*abs(i/178)*0.7+[1,1,1]*(1-0.7*abs(i/178)),',');
+memoized int_styleOfRelativeMagnetic (i:Int)->'box fs 0 RGB'& join([1,0.5,0]*i/255+[1,1,1]*(1-i/255),',');
 
 showAnimation(scenarioName in (SCENARIOS.getInner(0)),speed:FractionOfC,magnetic:Boolean)->begin
   [['logscaleY',false],
@@ -228,9 +217,9 @@ showAnimation(scenarioName in (SCENARIOS.getInner(0)),speed:FractionOfC,magnetic
     printDirect("\rRendering frame ",index,'/',size(calculatedScenario),'  ');
     plot();
     magnetic
-    ?  WEATHER_FLAG_HEXAGONS.group(frameData[2])
+    ?  GRID_BOXES.group(frameData[2])
       .each(g,g[0]=0 ? void : addPlot(g[1].each(hexagon,hexagon,[Nan,Nan],|),int_styleOfRelativeMagnetic (g[0])))
-    :  WEATHER_FLAG_HEXAGONS.group(frameData[1])
+    :  GRID_BOXES.group(frameData[1])
       .each(g,g[0]=0 ? void : addPlot(g[1].each(hexagon,hexagon,[Nan,Nan],|),int_styleOfRelativePotential(g[0])));
     [WEATHER_FLAG_POSITIONS,frameData[0]].transpose.each(p,arrow@p,|)
     .addPlot('0.9 black');
@@ -269,12 +258,4 @@ main('defaults')->
 //*Delete a specific scenario
 main('delete',scenario,speed)->begin storedScenarios[[scenario,speed.toReal]]:=void; end;
 
-begin
-  local scenarioAtSpeed:=SCENARIOS['circling',0](0.5);
-  local apPos:=apparentPositions(scenarioAtSpeed,[0,0],0.0);
-  apPos.print;
-  [local E:=apPos.each(p,p[2]*p[0]/(p[0].euklideanNorm^3),+),  // = E
-            apPos.each(p,p[2]     / p[0].euklideanNorm   ,+),
-         (E-apPos.each(p,p[2]*p[1]/(p[1].euklideanNorm^3),+)).*(1E3)];
-end;
 

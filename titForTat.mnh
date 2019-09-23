@@ -10,20 +10,36 @@ modelToString(p:NumericList(2))->p[0]=1 ? "p[tft]=\t1\t\t\t" :
                                  p[0]=0 ? format("\t\tp[nice]=\t%0.3f\t",p[1]) :
                                  format("p[tft]=\t%0.3f\tp[nice]=\t%0.3f\t",p[0],p[1]);
 
-SCORE:=[[true , true]=>[-1,-1]+2/3,
-        [false,false]=>[-2,-2]+2/3,
-        [true ,false]=>[-3, 0]+2/3,
-        [false, true]=>[ 0,-3]+2/3].toMap;
+SCORE:=[[true , true]=>[-1,-1]+3/2,
+        [false,false]=>[-2,-2]+3/2,
+        [true ,false]=>[-3, 0]+3/2,
+        [false, true]=>[ 0,-3]+3/2].toMap;
+//titForTat->true;
+//titForTat(previous)->previous;
+//
+//antiTitForTat->true;
+//antiTitForTat(prev)->begin
+//  local res:=true;
+//save;
+//  res:=!res;
+//end;
 
-score(model0,model1,rounds>=1)->begin
-  local alg0:=modifiedTitForTat@model0;
-  local alg1:=modifiedTitForTat@model1;
+score(alg0:Expression,alg1:Expression,rounds>=1)->begin
   local res0:=void;
   local res1:=void;
   [0..rounds-1].each(r,SCORE[
     [res0:=alg0(res1),
      res1:=alg1(res0)]],+)/rounds;
 end;
+
+score(model0:NumericList(2),model1:NumericList(2),rounds>=1)->begin
+  local res0:=void;
+  local res1:=void;
+  [0..rounds-1].each(r,SCORE[
+    [res0:=random<=model0[0] ? res1 orElse true : random<=model0[1],
+     res1:=random<=model1[0] ? res0 orElse true : random<=model1[1]]],+)/rounds;
+end;
+
 
 roundRobin(models:List,rounds>=1,doPrintout:Boolean)->begin
   local pairs:=cross([0..models.size-1],[0..models.size-1]).filter({$x[0]<=$x[1]});
@@ -65,8 +81,11 @@ end;
 average(x:List)->x.agg(+)/x.size;
 variance(x:List)->sqr(x.map({$x}-average(x))).average;
 
-evolutionGame(poolSize,generations,poolDisplay:Expression(1))->begin
-  local pool:=[random(poolSize),random(poolSize)].transpose;
+evolutionGame(poolSize>=10                                 ,generations,poolDisplay:Expression(1))->
+evolutionGame([random(poolSize),random(poolSize)].transpose,generations,poolDisplay);
+
+evolutionGame(initialPool:List,generations,poolDisplay:Expression(1))->begin
+  local pool:=initialPool;
   local K:=pool.size-1;
   print('Starting evolution game');
   local toCross:=sqrt(K/3).ceil;
@@ -82,21 +101,23 @@ evolutionGame(poolSize,generations,poolDisplay:Expression(1))->begin
     .each(parent,(pool[parent[0]]+pool[parent[1]])*0.5+0.05*(random(2)*2-1))
     .each(offspring,pool[index]:=[max(0,min(1,offspring[0])),
                                   max(0,min(1,offspring[1]))]);
-//    pool[toCross.size]:=[1,random]; //Force pure Tit-For-Tat
   end);
   pool;
 end;
 
 plotSingleRun->begin
   resetOptions;
-  local counter:=-1;
+  local initialPool:=DEFAULT_POOL;// [random(20),random(20)].transpose;
   plot();
-  local pool:=evolutionGame(20,local steps:=200,{begin
-    local a:=average($x);
-    local s:=variance($x).sqrt/2;
-    addPlot([a+s,a-s],'ellipse f HUE'&(counter+=1)/steps*2/3);
-    postDisplay;
-  end});
+  [0..2].each(run,begin
+    local counter:=-1;
+    evolutionGame(initialPool,local steps:=200,{begin
+      local a:=average($x);
+      local s:=variance($x).sqrt/2;
+      addPlot([a+s,a-s],'ellipse f 0 HUE'&(counter+=1)/steps*2/3);
+      postDisplay;
+    end});
+  end);
 end;
 
 plotOutcomes->begin
@@ -108,7 +129,7 @@ plotOutcomes->begin
     local pool:=evolutionGame(20,100,{$x});
     local a:=average(pool);
     local s:=variance(pool).sqrt/2;
-    addPlot([a+s,a-s],'ellipse f HUE'&counter/steps*2/3);
+    addPlot([a+s,a-s],'ellipse f 0 HUE'&counter/steps*2/3);
     //pool.addPlot('. 0.7 HUE'&counter/steps*2/3);
     postDisplay;
   end);

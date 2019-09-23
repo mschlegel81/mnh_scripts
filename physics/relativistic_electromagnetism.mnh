@@ -1,4 +1,4 @@
-USE root,inspectionUtil;
+USE inspectionUtil;
 
 ducktype FractionOfC(v:Numeric)->0<=v<=1;
 
@@ -79,6 +79,13 @@ private SCENARIO_FLYBY(speed:FractionOfC)->
    [{[-1,$t*speed]},-1]];
 
 @SuppressUnusedWarning
+@Scenario=moving_pair
+@Frames=[-100..100]/100*(8/$speed)
+private SCENARIO_MOVING_PAIR(speed:FractionOfC)->
+  [[{[ 0.25*sin($t*speed*2),$t*speed*0.866]}, 1],
+   [{[-0.25*sin($t*speed*2),$t*speed*0.866]},-1]];
+
+@SuppressUnusedWarning
 @Scenario=single
 @Frames=[-100..100]/100*(8/$speed)
 private SCENARIO_SINGLE(speed:FractionOfC)->
@@ -108,16 +115,54 @@ GRID_BOXES:=GRID_POINTS.map({[$p-GRID_SIZE/2,$p+GRID_SIZE/2]});
 
 datastore storedScenarios:=[].toMap;
 
-apparentPosition(positionFunction:Expression(1),observerPosition:NumericList(2),atTime:Real)->begin
-  local t:=sqr(positionFunction(atTime)-observerPosition).agg(+).sqrt;
-  local tObserved:=atTime-regulaFalsi({euklideanNorm(observerPosition-positionFunction(atTime-$dt))-$dt},t-1,t+1,1E-3,1E-3);
-  [positionFunction(tObserved     )-observerPosition,
-   positionFunction(tObserved+1E-3)-observerPosition];
+USE root;
+
+//*Find apparent positions by Regula Falsi
+//*Solve: |p(t-dt)-p_obs| - dt = 0 for dt
+apparentPosition(positionFunction:Expression(1),observerPosition:NumericList(2),atTime:Real,speed:Real)->begin
+  //Solve: |p(t-dt)-p_obs| = dt
+  //       |p(t-dt)-p_obs| - dt = 0
+  //Corner case 1: Moving directly towards observer
+  //|p(t-dt)-p_obs| - dt = dx(0)-v*dt-dt
+  //                     = dx(0)+(-v-1)*dt = 0
+  //               dx(0) = (v+1)*dt
+  //                  dt =  dx(0)/(1+v)
+  //Corner case 1: Moving directly away from observer
+  //|p(t-dt)-p_obs| - dt = dx(0)+v*dt-dt
+  //                     = dx(0)+(v-1)*dt = 0
+  //               dx(0) = (1-v)*dt
+  //                  dt =  dx(0)/(1-v)
+  local t0:=       euklideanNorm(positionFunction(atTime   )-observerPosition);
+  t0:=regulaFalsi({euklideanNorm(positionFunction(atTime-$t)-observerPosition)-$t},
+                  t0/(1+speed),
+                  t0/(1-speed),
+                  1E-2,
+                  1E-2);
+  print(positionFunction);
+  [positionFunction(atTime-t0     )-observerPosition,
+   positionFunction(atTime-t0+1E-3)-observerPosition];
 end;
 
-apparentPositions(scenario,observerPosition:NumericList(2),atTime:Real)->
-  scenario.each(charge,
-               apparentPosition(charge[0],observerPosition,atTime)|charge[1]);
+apparentPositions(scenario,observerPosition:NumericList(2),atTime:Real,speed:Real)->
+  scenario.each(charge,apparentPosition(charge[0],observerPosition,atTime,speed)|charge[1]);
+
+dataToStore(data)->begin
+  local previousFrame:=[WEATHER_FLAG_POSITIONS.map({[0,0]}),
+                        GRID_POINTS.map({0}),
+                        GRID_POINTS.map({0})];
+  data.each(frame,begin
+    local curr:=frame-previousFrame;
+    previousFrame:=frame;
+    curr;
+  end).transpose.serialize.compress(1);
+end;
+
+storeToData(stored:String)->begin
+  local previousFrame:=[WEATHER_FLAG_POSITIONS.map({[0,0]}),
+                        GRID_POINTS.map({0}),
+                        GRID_POINTS.map({0})];
+  stored.decompress.deserialize.transpose.each(d,previousFrame+=d);
+end;
 
 getCalculatedScenario(scenarioName in (SCENARIOS.getInner(0)),speed:FractionOfC)->begin
   local key:=[scenarioName,speed];
@@ -130,42 +175,40 @@ getCalculatedScenario(scenarioName in (SCENARIOS.getInner(0)),speed:FractionOfC)
     local scenarioAtSpeed:=SCENARIOS[scenarioName,0](speed);
     local pointsInTime:=SCENARIOS[scenarioName,1].toExpression()(speed);
     print('Calculating scenario ',key.join(" "),'; ',pointsInTime.size,' frames must be calculated');
-    print(repeat("------------------------|",4));
-    local progressDot:=round([1..100]*pointsInTime.size/100)-1;
+    print(repeat("-",pointsInTime.size-1),'|');
     local scenarioData:=
     pointsInTime.pEach(t,begin
-      index in progressDot ? printDirect('.') : void;
       local forces:=WEATHER_FLAG_POSITIONS
-         .each(obsPos,apparentPositions(scenarioAtSpeed,obsPos,t)
+         .each(obsPos,apparentPositions(scenarioAtSpeed,obsPos,t,speed)
                       .each(p,p[2]*p[0]/(p[0].euklideanNorm^3),+));
       local potentials:=GRID_POINTS
           .each(obsPos,begin
-            local apPos:=apparentPositions(scenarioAtSpeed,obsPos,t);
+            local apPos:=apparentPositions(scenarioAtSpeed,obsPos,t,speed);
             [apPos.each(p,p[2]     / p[0].euklideanNorm   ,+),
             (apPos.each(p,p[2]*p[0]/(p[0].euklideanNorm^3),+)-
-             apPos.each(p,p[2]*p[1]/(p[1].euklideanNorm^3),+)).euklideanNorm.*(1E3).sqrt];
+             apPos.each(p,p[2]*p[1]/(p[1].euklideanNorm^3),+)).euklideanNorm.sqrt];
            end).transpose;
       [forces       .map({$f.isNan.agg(or) OR $f.isInfinite.agg(or) ? [0,0] : $f}),
        potentials[0].map({$p.isNan         OR $p.isInfinite         ?  0    : $p}),
-       potentials[1].map({$p.isNan         OR $p.isInfinite         ?  0    : $p})];
+       potentials[1].map({$p.isNan         OR $p.isInfinite         ?  0    : $p}),
+       printDirect('.')];
     end);
-    scenarioData.showVariable;
     print;
     local globalMaxForce    :=scenarioData.getInner(0).pMap({$x.map(::euklideanNorm)}).flatten    .sort;
     local globalMaxPotential:=scenarioData.getInner(1)                                .flatten.abs.sort;
     local globalMaxMagnetFld:=scenarioData.getInner(2)                                .flatten.abs.sort;
-          globalMaxForce    :=globalMaxForce    [round(0.95*globalMaxForce    .size)];
+          globalMaxForce    :=globalMaxForce    [round(0.90*globalMaxForce    .size)];
           globalMaxPotential:=globalMaxPotential[round(0.95*globalMaxPotential.size)];
           globalMaxMagnetFld:=globalMaxMagnetFld[round(0.95*globalMaxMagnetFld.size)];
     scenarioData:=scenarioData.pEach(frameData,begin
-      index in progressDot ? printDirect('.') : void;
       [frameData[0]./(globalMaxForce).map({round($f*18/max(1,$f.euklideanNorm))}),
        frameData[1].map({max(-globalMaxPotential,$x).min(globalMaxPotential)/globalMaxPotential*178}).round,
-       frameData[2].map({min($x.isNan ? 0 : $x,globalMaxMagnetFld)/globalMaxMagnetFld*255}).round];
+       frameData[2].map({                    min($x     ,globalMaxMagnetFld)/globalMaxMagnetFld*255}).round,
+       printDirect('.')];
     end);
     print("\nCalculation done in ",time-startOfCalculation,' seconds');
-    scenarioData.serialize.compress;
-  end).decompress.deserialize;
+    scenarioData.dataToStore;
+  end).storeToData;
 end;
 
 normed(x:NumericList)->x/x.euklideanNorm;
@@ -240,12 +283,13 @@ main(scenario in (SCENARIOS.getInner(0)),speed)->showAnimation(scenario,toReal(s
 //*Show animation for the given scenario and movement speed
 //*Display magnetic field strength instead of electric potential
 main(scenario in (SCENARIOS.getInner(0)),speed,'m')->showAnimation(scenario,toReal(speed),true);
-
 //*Prepare animation for the given scenario and movement speed without displaying it
 main('prepare',scenario in (SCENARIOS.getInner(0)),speed)->getCalculatedScenario(scenario,speed);
 //*List script parameters for cached scenarios
 main('list')->
-  storedScenarios.getInner(0).sort.map({join(myPath.extractFileName|$x,' ').print});
+  storedScenarios.size = 0
+  ? print('No scenarios are stored')
+  : storedScenarios.getInner(0).sort.map({join($x,' ').print});
 //*Initialize defaults
 main('defaults')->
   begin
@@ -257,5 +301,3 @@ main('defaults')->
   end;
 //*Delete a specific scenario
 main('delete',scenario,speed)->begin storedScenarios[[scenario,speed.toReal]]:=void; end;
-
-

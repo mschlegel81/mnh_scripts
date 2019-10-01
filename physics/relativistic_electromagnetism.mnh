@@ -1,107 +1,59 @@
-USE inspectionUtil;
-
 ducktype FractionOfC(v:Numeric)->0<=v<=1;
 
-@SuppressUnusedWarning
-@Scenario=circling
-@Frames=[0..99]/100*2*pi/$v
-private SCENARIO_CIRCLING(speed:FractionOfC)->
-  [[{[ cos($t*speed), sin($t*speed)]}, 1],
-   [{[-cos($t*speed),-sin($t*speed)]},-1]];
+private makeCondensatorPositions   (v:FractionOfC)->[[{[ $t*v,-3.5]}, 1],
+                                                     [{[-$t*v,-2.5]},-1],
+                                                     [{[ $t*v,-1.5]}, 1],
+                                                     [{[-$t*v,-0.5]},-1],
+                                                     [{[ $t*v, 0.5]}, 1],
+                                                     [{[-$t*v, 1.5]},-1],
+                                                     [{[ $t*v, 2.5]}, 1],
+                                                     [{[-$t*v, 3.5]},-1]];
+private makeDivergePositions       (v:FractionOfC)->[[{[0, $t*v]}, 1],
+                                                     [{[0,-$t*v]},-1]];
+private makeFlybyPositions         (v:FractionOfC)->[[{[ 1,0*$t    ]}, 1],
+                                                     [{[-1,$t*v]},-1]];
+private makeMovingPairPositions    (v:FractionOfC)->[[{begin local tau:=$t*v; [ sin(tau*3)*0.1,(tau-0.1*(cos(3*tau)/3))*0.79]; end}, 1],
+                                                     [{begin local tau:=$t*v; [-sin(tau*3)*0.1,(tau-0.1*(cos(3*tau)/3))*0.79]; end},-1]];
+private makeSinglePosition         (v:FractionOfC)->[[{[0,$t*v]},1]];
+private makeAtomPosition           (v:FractionOfC)->[[{[0                   ,$t*0                ]}, 2],
+                                                     [{[sin($t*v)    ,cos($t*v)    ]},-1],
+                                                     [{[sin($t*v*-2)*0.5,cos($t*v*-2)*0.5]},-1]];
+private makePairPositions          (v:FractionOfC)->[[{[ 0.5,$t*v]}, 1],
+                                                     [{[-0.5,$t*v]},-1]];
+private makeCirclingPositions      (v:FractionOfC)->[[{[ cos($t*v), sin($t*v)]}, 1],
+                                                     [{[-cos($t*v),-sin($t*v)]},-1]];
+private makeDoubleCirclingPositions(v:FractionOfC)->[[{[ 2+cos($t*v), sin($t*v)]}, 1],
+                                                     [{[ 2-cos($t*v),-sin($t*v)]},-1],
+                                                     [{[-2-cos($t*v), sin($t*v)]},-1],
+                                                     [{[-2+cos($t*v),-sin($t*v)]}, 1]];
+private invSpiralTau(x)->1/2*sqrt(9*x^2+1)*x+1/6*ln(sqrt(9*x^2+1)+3*x);
+private spiral_tau(y)->begin
+  local x0:=sqrt(y+0.25)-0.5;
+  local x1:=x0+0.01; local f1:=invSpiralTau(x1)-y;
+        x0:=x0-0.01; local f0:=invSpiralTau(x0)-y;
+  local xm:=x1-f1*(x0-x1)/(f0-f1);
+  local fm:=invSpiralTau(xm)-y;
+  max(0,
+  f0*fm>0
+  ? x1-f1*(xm-x1)/(fm-f1)
+  : xm-fm*(x0-xm)/(f0-fm));
+end;
 
-@SuppressUnusedWarning
-@Scenario=double_circling
-@Frames=[0..99]/100*2*pi/$v
-private SCENARIO_DOUBLE_CIRCLING(speed:FractionOfC)->
-  [[{[ 2+cos($t*speed), sin($t*speed)]}, 1],
-   [{[ 2-cos($t*speed),-sin($t*speed)]},-1],
-   [{[-2-cos($t*speed), sin($t*speed)]},-1],
-   [{[-2+cos($t*speed),-sin($t*speed)]}, 1]];
-
-@SuppressUnusedWarning
-@Scenario=quad_circling
-@Frames=[0..99]/100*16*pi/$v
-private SCENARIO_QUAD_CIRCLING(speed:FractionOfC)->
-  [[{[-6+cos($t*speed  ),-6+sin($t*speed  )]}, 1],
-   [{[-6-cos($t*speed  ),-6-sin($t*speed  )]},-1],
-   [{[-6-cos($t*speed/2), 6+sin($t*speed/2)]},-1],
-   [{[-6+cos($t*speed/2), 6-sin($t*speed/2)]}, 1],
-   [{[ 6-cos($t*speed/4),-6+sin($t*speed/4)]},-1],
-   [{[ 6+cos($t*speed/4),-6-sin($t*speed/4)]}, 1],
-   [{[ 6-cos($t*speed/8), 6+sin($t*speed/8)]},-1],
-   [{[ 6+cos($t*speed/8), 6-sin($t*speed/8)]}, 1]];
-
-@SuppressUnusedWarning
-@Scenario=atom
-@Frames=[0..99]/100*2*pi/$v
-private SCENARIO_ATOM(speed:FractionOfC)->
-  [[{[   0*$t,0]}, 1],
-   [{[-cos($t*speed),-sin($t*speed)]},-1]];
-
-@SuppressUnusedWarning
-@Scenario=anihilate
-@Frames=[-150..50]/100*(8/$speed)
-private SCENARIO_ANIHILATION(speed:FractionOfC)->
-   [[{min(0,$t*speed)*[1.0,0.0]},1],
-    [{min(0,$t*speed)*[0.70710678118654757,0.70710678118654746]},1],
-    [{min(0,$t*speed)*[6.123233995736766E-17,1.0]},1],
-    [{min(0,$t*speed)*[-0.70710678118654746,0.70710678118654757]},-1],
-    [{min(0,$t*speed)*[-1.0,1.2246467991473532E-16]},-1],
-    [{min(0,$t*speed)*[-0.70710678118654768,-0.70710678118654746]},-1],
-    [{min(0,$t*speed)*[-1.8369701987210297E-16,-1.0]},-1],
-    [{min(0,$t*speed)*[0.70710678118654746,-0.70710678118654768]},1]];
-
-@SuppressUnusedWarning
-@Scenario=condensator
-@Frames=[-100..100]/100*(8/$speed)
-private SCENARIO_CONDENSATOR(speed:FractionOfC)->
-   [[{[ $t*speed,-3.5]}, 1],
-    [{[-$t*speed,-2.5]},-1],
-    [{[ $t*speed,-1.5]}, 1],
-    [{[-$t*speed,-0.5]},-1],
-    [{[ $t*speed, 0.5]}, 1],
-    [{[-$t*speed, 1.5]},-1],
-    [{[ $t*speed, 2.5]}, 1],
-    [{[-$t*speed, 3.5]},-1]];
-
-@SuppressUnusedWarning
-@Scenario=diverge
-@Frames=[-100..100]/100*(8/$speed)
-private SCENARIO_DIVERGE(speed:FractionOfC)->
-  [[{[0, $t*speed]}, 1],
-   [{[0,-$t*speed]},-1]];
-
-@SuppressUnusedWarning
-@Scenario=flyby
-@Frames=[-100..100]/100*(8/$speed)
-private SCENARIO_FLYBY(speed:FractionOfC)->
-  [[{[ 1,0*$t    ]}, 1],
-   [{[-1,$t*speed]},-1]];
-
-@SuppressUnusedWarning
-@Scenario=moving_pair
-@Frames=[-100..100]/100*(8/$speed)
-private SCENARIO_MOVING_PAIR(speed:FractionOfC)->
-  [[{[ 0.25*sin($t*speed*2),$t*speed*0.866]}, 1],
-   [{[-0.25*sin($t*speed*2),$t*speed*0.866]},-1]];
-
-@SuppressUnusedWarning
-@Scenario=single
-@Frames=[-100..100]/100*(8/$speed)
-private SCENARIO_SINGLE(speed:FractionOfC)->
-  [[{[0,$t*speed]},1]];
-
-@SuppressUnusedWarning
-@Scenario=pair
-@Frames=[-100..100]/100*(8/$speed)
-private SCENARIO_PAIR(speed:FractionOfC)->
-  [[{[ 0.5,$t*speed]}, 1],
-   [{[-0.5,$t*speed]},-1]];
-
-SCENARIOS:=
-inspect['declares'].filter({!isVoid($rule.ruleAttributes['Scenario'])})
-                   .map({$rule.ruleAttributes['Scenario']=>[$rule.getFunction,$rule.ruleAttributes['Frames']]})
-                   .toMap;
+private makeSpiralPositions    (v:FractionOfC)->[[{begin local tau:=spiral_tau(-$t*v); [ cos(3*tau), sin(3*tau)]*tau; end}, 1],
+                                                 [{begin local tau:=spiral_tau(-$t*v); [-cos(3*tau),-sin(3*tau)]*tau; end},-1]];
+private makeAnnihilatePositions(v:FractionOfC)->[[{[ v*(sqr(max(0,min(12,$t+12)))*0.041666666666666664-6),0]}, 1],
+                                                 [{[-v*(sqr(max(0,min(12,$t+12)))*0.041666666666666664-6),0]},-1]];
+SCENARIOS:=['circling'       =>[::makeCirclingPositions      ,{[0..99]/100*2*pi/$v}],
+            'double_circling'=>[::makeDoubleCirclingPositions,{[0..99]/100*2*pi/$v}],
+            'pair'           =>[::makePairPositions          ,{[-100..100]/100*(8/$v)}],
+            'single'         =>[::makeSinglePosition         ,{[-100..100]/100*(8/$v)}],
+            'moving_pair'    =>[::makeMovingPairPositions    ,{[-100..100]/100*(8/$v)}],
+            'flyby'          =>[::makeFlybyPositions         ,{[-100..100]/100*(8/$v)}],
+            'diverge'        =>[::makeDivergePositions       ,{[-100..100]/100*(8/$v)}],
+            'condensator'    =>[::makeCondensatorPositions   ,{[-100..100]/100*(8/$v)}],
+            'spiral'         =>[::makeSpiralPositions        ,{[-180..20 ]/100*(8/$v)}],
+            'annihilate'     =>[::makeAnnihilatePositions    ,{[-150..50 ]/100*(8/$v)}],
+            'atom'           =>[::makeAtomPosition           ,{[0..99]/100*2*pi/$v}]].toMap;
 
 WEATHER_FLAG_POSITIONS:=[-20..20].each(x,[-23..23].each(y,[x+(y and 1)*0.5,0.5*sqrt(3)*y]*0.4),|);
 GRID_SIZE:=0.1;
@@ -132,13 +84,12 @@ apparentPosition(positionFunction:Expression(1),observerPosition:NumericList(2),
   //                     = dx(0)+(v-1)*dt = 0
   //               dx(0) = (1-v)*dt
   //                  dt =  dx(0)/(1-v)
-  local t0:=       euklideanNorm(positionFunction(atTime   )-observerPosition);
+  local t0:=       euklideanNorm(positionFunction(atTime   )-observerPosition).max(1E-3);
   t0:=regulaFalsi({euklideanNorm(positionFunction(atTime-$t)-observerPosition)-$t},
                   t0/(1+speed),
                   t0/(1-speed),
                   1E-2,
                   1E-2);
-  print(positionFunction);
   [positionFunction(atTime-t0     )-observerPosition,
    positionFunction(atTime-t0+1E-3)-observerPosition];
 end;
@@ -166,49 +117,52 @@ end;
 
 getCalculatedScenario(scenarioName in (SCENARIOS.getInner(0)),speed:FractionOfC)->begin
   local key:=[scenarioName,speed];
-  print('Restoring scenario ',key.join(" "));
-  (storedScenarios[key] orElse
-   storedScenarios[key]:=
-   begin
-    assertUniqueInstance;
-    local startOfCalculation:=time;
-    local scenarioAtSpeed:=SCENARIOS[scenarioName,0](speed);
-    local pointsInTime:=SCENARIOS[scenarioName,1].toExpression()(speed);
-    print('Calculating scenario ',key.join(" "),'; ',pointsInTime.size,' frames must be calculated');
-    print(repeat("-",pointsInTime.size-1),'|');
-    local scenarioData:=
-    pointsInTime.pEach(t,begin
-      local forces:=WEATHER_FLAG_POSITIONS
-         .each(obsPos,apparentPositions(scenarioAtSpeed,obsPos,t,speed)
-                      .each(p,p[2]*p[0]/(p[0].euklideanNorm^3),+));
-      local potentials:=GRID_POINTS
-          .each(obsPos,begin
-            local apPos:=apparentPositions(scenarioAtSpeed,obsPos,t,speed);
-            [apPos.each(p,p[2]     / p[0].euklideanNorm   ,+),
-            (apPos.each(p,p[2]*p[0]/(p[0].euklideanNorm^3),+)-
-             apPos.each(p,p[2]*p[1]/(p[1].euklideanNorm^3),+)).euklideanNorm.sqrt];
-           end).transpose;
-      [forces       .map({$f.isNan.agg(or) OR $f.isInfinite.agg(or) ? [0,0] : $f}),
-       potentials[0].map({$p.isNan         OR $p.isInfinite         ?  0    : $p}),
-       potentials[1].map({$p.isNan         OR $p.isInfinite         ?  0    : $p}),
-       printDirect('.')];
-    end);
-    print;
-    local globalMaxForce    :=scenarioData.getInner(0).pMap({$x.map(::euklideanNorm)}).flatten    .sort;
-    local globalMaxPotential:=scenarioData.getInner(1)                                .flatten.abs.sort;
-    local globalMaxMagnetFld:=scenarioData.getInner(2)                                .flatten.abs.sort;
-          globalMaxForce    :=globalMaxForce    [round(0.90*globalMaxForce    .size)];
-          globalMaxPotential:=globalMaxPotential[round(0.95*globalMaxPotential.size)];
-          globalMaxMagnetFld:=globalMaxMagnetFld[round(0.95*globalMaxMagnetFld.size)];
-    scenarioData:=scenarioData.pEach(frameData,begin
-      [frameData[0]./(globalMaxForce).map({round($f*18/max(1,$f.euklideanNorm))}),
-       frameData[1].map({max(-globalMaxPotential,$x).min(globalMaxPotential)/globalMaxPotential*178}).round,
-       frameData[2].map({                    min($x     ,globalMaxMagnetFld)/globalMaxMagnetFld*255}).round,
-       printDirect('.')];
-    end);
-    print("\nCalculation done in ",time-startOfCalculation,' seconds');
-    scenarioData.dataToStore;
-  end).storeToData;
+  storedScenarios[key].isVoid
+  ? begin
+      assertUniqueInstance;
+      local startOfCalculation:=time;
+      local scenarioAtSpeed:=SCENARIOS[scenarioName,0](speed);
+      local pointsInTime:=SCENARIOS[scenarioName,1].toExpression()(speed);
+      print('Calculating scenario ',key.join(" "),'; ',pointsInTime.size,' frames must be calculated');
+      print(repeat("-",pointsInTime.size-1),'|');
+      local scenarioData:=
+      pointsInTime.pEach(t,begin
+        local forces:=WEATHER_FLAG_POSITIONS
+           .each(obsPos,apparentPositions(scenarioAtSpeed,obsPos,t,speed)
+                        .each(p,p[2]*p[0]/(p[0].euklideanNorm^3),+));
+        local potentials:=GRID_POINTS
+            .each(obsPos,begin
+              local apPos:=apparentPositions(scenarioAtSpeed,obsPos,t,speed);
+              [apPos.each(p,p[2]     / p[0].euklideanNorm   ,+),
+              (apPos.each(p,p[2]*p[0]/(p[0].euklideanNorm^3),+)-
+               apPos.each(p,p[2]*p[1]/(p[1].euklideanNorm^3),+)).euklideanNorm.sqrt];
+             end).transpose;
+        [forces       .map({$f.isNan.agg(or) OR $f.isInfinite.agg(or) ? [0,0] : $f}),
+         potentials[0].map({$p.isNan         OR $p.isInfinite         ?  0    : $p}),
+         potentials[1].map({$p.isNan         OR $p.isInfinite         ?  0    : $p}),
+         printDirect('.')];
+      end);
+      print;
+      local globalMaxForce    :=scenarioData.getInner(0).pMap({$x.map(::euklideanNorm)}).flatten    .sort;
+      local globalMaxPotential:=scenarioData.getInner(1)                                .flatten.abs.sort;
+      local globalMaxMagnetFld:=scenarioData.getInner(2)                                .flatten.abs.sort;
+            globalMaxForce    :=globalMaxForce    [round(0.90*globalMaxForce    .size)];
+            globalMaxPotential:=globalMaxPotential[round(0.95*globalMaxPotential.size)];
+            globalMaxMagnetFld:=globalMaxMagnetFld[round(0.95*globalMaxMagnetFld.size)];
+      scenarioData:=scenarioData.pEach(frameData,begin
+        [frameData[0]./(globalMaxForce).map({round($f*18/max(1,$f.euklideanNorm))}),
+         frameData[1].map({max(-globalMaxPotential,$x).min(globalMaxPotential)/globalMaxPotential*178}).round,
+         frameData[2].map({                    min($x     ,globalMaxMagnetFld)/globalMaxMagnetFld*255}).round,
+         printDirect('.')];
+      end);
+      print("\nCalculation done in ",time-startOfCalculation,' seconds');
+      storedScenarios[key]:=scenarioData.dataToStore;
+      scenarioData;
+    end
+  : begin
+      print('Restoring scenario ',key.join(" "));
+      storedScenarios[key].storeToData;
+    end;
 end;
 
 normed(x:NumericList)->x/x.euklideanNorm;
@@ -256,24 +210,25 @@ showAnimation(scenarioName in (SCENARIOS.getInner(0)),speed:FractionOfC,magnetic
                                  'Courier New',
                                  [1,1,1]]]));
   end;
-  calculatedScenario.each(frameData,begin
-    printDirect("\rRendering frame ",index,'/',size(calculatedScenario),'  ');
+  print(repeat("-",calculatedScenario.size-1),'|');
+  //Convert frame data to plot commands
+  calculatedScenario.each(frameData,
+    future({begin
+              (magnetic
+               ?  GRID_BOXES.group($frameData[2]).each(g,g[0]=0 ? void : [g[1].each(box,box,|),int_styleOfRelativeMagnetic (g[0])])
+               :  GRID_BOXES.group($frameData[1]).each(g,g[0]=0 ? void : [g[1].each(box,box,|),int_styleOfRelativePotential(g[0])]))
+               |[[[WEATHER_FLAG_POSITIONS,$frameData[0]].transpose.each(p,arrow@p,|),'0.9 black']]
+               |actualPositions[index].map({head($x,2)});
+            end},[frameData]))
+  .each(frameFuture,begin
+    printDirect('.');
     plot();
-    magnetic
-    ?  GRID_BOXES.group(frameData[2])
-      .each(g,g[0]=0 ? void : addPlot(g[1].each(hexagon,hexagon,[Nan,Nan],|),int_styleOfRelativeMagnetic (g[0])))
-    :  GRID_BOXES.group(frameData[1])
-      .each(g,g[0]=0 ? void : addPlot(g[1].each(hexagon,hexagon,[Nan,Nan],|),int_styleOfRelativePotential(g[0])));
-    [WEATHER_FLAG_POSITIONS,frameData[0]].transpose.each(p,arrow@p,|)
-    .addPlot('0.9 black');
-    actualPositions[index].map({addPlot@head($x,2)});
+    frameFuture().each(stmt,addPlot@stmt);
     actualPositions[index].each(charge,
       charge[0].each(p,drawText@(p|charge[2])));
-
     addAnimationFrame;
-    index=0 ? postDisplay : void;
   end);
-
+  postDisplay;
   print;
 end;
 
@@ -294,10 +249,22 @@ main('list')->
 main('defaults')->
   begin
     print('INITIALIZING DEFAULT SCENARIOS');
-    SCENARIOS.getInner(0).cross([0.5,0.9]).each(param,begin
+    SCENARIOS.getInner(0).cross([0.9,0.5])
+    .filter({storedScenarios[$key].isVoid})
+    .{begin
+        print('Missing defaults: ');
+        $L.map({join($x,' ').print});
+        $L;
+      end}
+    .each(param,begin
       getCalculatedScenario@param;
       writeDataStores;
     end);
   end;
 //*Delete a specific scenario
-main('delete',scenario,speed)->begin storedScenarios[[scenario,speed.toReal]]:=void; end;
+main('delete',scenario,speed)->begin
+  assert(!(storedScenarios[[scenario,speed.toReal]].isVoid),scenario,' ',speed,' does not exist');
+  assertUniqueInstance;
+  storedScenarios[[scenario,speed.toReal]]:=void;
+  print(scenario,' ',speed,' has been deleted');
+end;

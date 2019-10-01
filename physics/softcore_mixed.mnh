@@ -3,6 +3,15 @@ USE rungeKutta;
 
 PERSISTENT:=true;
 
+//makeAttractiveForce(neutralRange,amplitude)->[amplitude/2,'*((2-',2*neutralRange,'/$x)*ord($x<',neutralRange,')+(1-sqr(2-',1/neutralRange,'*$x))*ord(',neutralRange,'<$x<',3*neutralRange,'))'].toExpression;
+//makeRepulsiveForce (neutralRange,amplitude)->[amplitude/2,'* (2-',2*neutralRange,'/$x)*ord($x<',neutralRange,')'                                                                              ].toExpression;
+makeAttractiveForce(neutralRange,amplitude)->[ amplitude*10.124,'*(cos($x*',pi/2/neutralRange,')+1)*ord($x<',2*neutralRange,')*(',  neutralRange,'/$x-sqr(',neutralRange,'/$x))'].toExpression;
+makeRepulsiveForce (neutralRange,amplitude)->[-amplitude*10.124,'*(cos($x*',pi/2/neutralRange,')+1)*ord($x<',2*neutralRange,                       ')*sqr(',neutralRange,'/$x)' ].toExpression;
+
+mutable absForce00:=makeAttractiveForce(1,1);
+mutable absForce11:=absForce00;
+mutable absForce01:=absForce00;
+
 SCENARIO_SIMPLE :='simple';
 SCENARIO_POLYMER:='polymer';
 SCENARIO_NACL   :='NaCl';
@@ -11,7 +20,58 @@ SCENARIO_PHOBIC :='phobic';
 SCENARIO_DUST   :='dust';
 SCENARIO_HEX    :='hex';
 SCENARIO_LAYERS :='layers';
-SCENARIOS:=inspect['declares'].filter({$x[0].matches('^SCENARIO_')}).map({$x[1,'function']}).map({$x()}).sort;
+
+SCENARIO_INIT:=
+  [SCENARIO_SIMPLE=>
+    {begin
+      absForce00:=makeAttractiveForce(1  ,1);
+      absForce11:=absForce00;
+      absForce01:=absForce00;
+    end},
+   SCENARIO_NACL=>
+    {begin
+      absForce00:=makeAttractiveForce(1,1);
+      absForce11:=absForce00;
+      absForce01:=makeAttractiveForce(sqrt(0.5),1);
+    end},
+  SCENARIO_POLYMER=>
+    {begin
+      absForce00:=makeRepulsiveForce(1,1);
+      absForce11:=absForce00;
+      absForce01:=makeAttractiveForce(0.75,1);
+    end},
+  SCENARIO_DIPOLES=>
+    {begin
+      absForce00:=makeAttractiveForce(1,0.5);
+      absForce11:=absForce00;
+      absForce01:=makeAttractiveForce(0.3,1);
+    end},
+  SCENARIO_PHOBIC=>
+    {begin
+      absForce00:=makeAttractiveForce(1,1);
+      absForce11:=makeAttractiveForce(1,1);
+      absForce01:=makeRepulsiveForce(0.6,1);
+    end},
+  SCENARIO_DUST=>
+    {begin
+      absForce00:=makeAttractiveForce(1,0.5);
+      absForce11:=makeAttractiveForce(cos(pi/6)*2,1);
+      absForce01:=makeAttractiveForce(1,1);
+    end},
+  SCENARIO_HEX=>
+    {begin
+      absForce00:=makeAttractiveForce(1  ,0.5);
+      absForce11:=makeAttractiveForce(1  ,0.5);
+      absForce01:=makeAttractiveForce(0.5,1);
+    end},
+  SCENARIO_LAYERS=>
+    {begin
+      absForce00:=makeAttractiveForce(0.7,1);
+      absForce11:=makeAttractiveForce(0.7,1);
+      absForce01:=makeAttractiveForce(1  ,1);
+    end}].toMap;
+
+SCENARIOS:=SCENARIO_INIT.getInner(0);
 
 type SimSetup(L:List(3))->L[0].isInt AND L[0]>=0 AND
                           L[1].isInt AND L[1]>=0 AND
@@ -36,68 +96,8 @@ setParticleCount(simSetup:SimSetup)->begin
   PAIRS_01:=cross([0..PARTICLE_COUNT-1],[0..PARTICLE_COUNT-1]).filter({                PARTICLE_CLASS[$k[0]]=0 AND PARTICLE_CLASS[$k[1]]=1});
 end;
 //---------------------:Particle class config
-//Force config:------------------------------
-DAMPING:=0.5;
-GRAVITY:=0.05; //small gravity force towards origin
-makeForceFunction(range,strength)->[strength*16,'*(1-',range*0.5,'/$x)*(',range*0.5,'/$x-0.5)*ord($x<',range,')'].toExpression;
-makeForceFunctionRepulsiveOnly(range,strength)->[strength*10,'*(1-',range,'/$x)*ord($x<',range,')'].toExpression;
 
-mutable absForce00:=makeForceFunction(1,1);
-mutable absForce11:=absForce00;
-mutable absForce01:=absForce00;
-
-setupForces(simSetup:SimSetup)->begin
-  (local scenario:=simSetup[2])==SCENARIO_SIMPLE
-  ? begin
-      absForce00:=makeForceFunction(1  ,1);
-      absForce11:=absForce00;
-      absForce01:=makeForceFunction(1.05,1);
-    end
-  : scenario==SCENARIO_NACL
-  ? begin
-      absForce00:=makeForceFunction(1,1);
-      absForce11:=absForce00;
-      absForce01:=makeForceFunction(sqrt(0.5),1);
-    end
-  : scenario==SCENARIO_POLYMER
-  ? begin
-      absForce00:=makeForceFunctionRepulsiveOnly(0.6,0.5);
-      absForce11:=absForce00;
-      absForce01:=makeForceFunction(0.5,1);
-    end
-  : scenario==SCENARIO_DIPOLES
-  ? begin
-      absForce00:=makeForceFunction(1.1,0.5);
-      absForce11:=makeForceFunction(1,0.5);
-      absForce01:=makeForceFunction(0.25,1);
-    end
-  : scenario==SCENARIO_PHOBIC
-
-  ? begin
-      absForce00:=makeForceFunction(1,1);
-      absForce11:=makeForceFunction(1,1);
-      absForce01:=makeForceFunctionRepulsiveOnly(0.5,1);
-    end
-  : scenario==SCENARIO_DUST
-  ? begin
-      absForce00:=makeForceFunctionRepulsiveOnly(0.2,1);
-      absForce11:=makeForceFunction(1,1);
-      absForce01:=makeForceFunction(0.5,2);
-    end
-  : scenario==SCENARIO_HEX
-  ? begin
-      absForce00:=makeForceFunction(1,1.2);
-      absForce11:=makeForceFunction(1,1.2);
-      absForce01:=makeForceFunction(0.42,2);
-    end
-  : scenario==SCENARIO_LAYERS
-  ? begin
-      absForce00:=makeForceFunction(1,0.5);
-      absForce11:=makeForceFunction(1,0.5);
-      absForce01:=makeForceFunction(1.2,1);
-    end
-  : fail('Unknown scenario: ',escape(scenario));
-end;
+setupForces(simSetup:SimSetup)->SCENARIO_INIT[simSetup[2]]();
 //------------------------------:Force config
 
 @SuppressUnusedWarning
@@ -112,7 +112,7 @@ centralDartThrowing(count:Int)->begin
   while(result.size<count,begin
     local p:=2*pi*random;
     p:=radius*[cos(p),sin(p)];
-    result.each(q,euklideanNorm(q-p)>0.5,AND)
+    result.each(q,euklideanNorm(q-p)>1,AND)
     ? result|=[p]
     : void;
     radius+=0.001;
@@ -120,24 +120,25 @@ centralDartThrowing(count:Int)->begin
   result;
 end;
 
-memoized zeros(listSize>1)->[0..listSize-1]*0;
+memoized zeros(listSize>1)->[0..listSize-1].map({[0,0]});
 
 forcesOf(points:List,pairs:List,absForce:Expression(1))->begin
   local diffs:=points[pairs.getInner(0)]-
                points[pairs.getInner(1)];
-  local dists :=diffs.map(::euklideanNorm);
-  local forces:=absForce(dists)/dists*diffs;
+  local dists :=diffs.euklideanNorm;
+  local forces:=(absForce(dists)/dists)*diffs;
 
   [pairs.getInner(0),-forces].transpose|
   [pairs.getInner(1), forces].transpose;
 end;
 
-attractToOrigin(points:List)->-GRAVITY*points.pEach(p,p/p.euklideanNorm);
+attractToOrigin(points:List)->-0.02*points;
+dampingFactors(L:List)->-0.5*L;
 
 D(system:List(2))->begin
   local points:=system[0];
   [system[1],points.attractToOrigin
-            -DAMPING*system[1]
+            +dampingFactors(system [1])
             +(forcesOf(points,PAIRS_00,absForce00)
              |forcesOf(points,PAIRS_11,absForce11)
              |forcesOf(points,PAIRS_01,absForce01)
@@ -147,12 +148,25 @@ D(system:List(2))->begin
             .getInner(1)];
 end;
 
+nearestNeighborDistances_recursive(points:List,splitIndex)->
+  points.size<50
+  ? points.each(p,points.each(q,q==p ? void : euklideanNorm(p-q),min))
+  : begin
+      local oneDim    :=points.getInner(splitIndex and 1);
+      local splitValue:=oneDim.sort[points.size div 2];
+      local mask      :=oneDim<splitValue;
+      local part0     :=nearestNeighborDistances_recursive(points[ mask],splitIndex+1);
+      local part1     :=nearestNeighborDistances_recursive(points[!mask],splitIndex+1);
+      local bMask     :=abs(oneDim-splitValue)<max(part0.max,part1.max);
+      local partB     :=nearestNeighborDistances_recursive(points[bMask],splitIndex+1);
+      [indexOf( mask),part0].transpose.toMap.mergeMaps(
+      [indexOf(!mask),part1].transpose.toMap,::min).mergeMaps(
+      [indexOf(bMask),partB].transpose.toMap,::min)
+      .sort(0).getInner(1);
+    end;
+
 prepareForPlot(points:List)->
-  points.each(p,begin
-    local i:=index;
-    local r:=points.each(q,i=index ? void : (q-p).euklideanNorm,min)/2;
-    [p-r,p+r];
-  end)
+  [points,points.nearestNeighborDistances_recursive(0)].transpose.map({[$x[0]-$x[1]/2,$x[0]+$x[1]/2]})
   .group(PARTICLE_CLASS)
   .each(groupByClass,[groupByClass[0],groupByClass[1].agg(|)])
   .toMap
@@ -214,7 +228,7 @@ end;
 
 plotSystem(points:List)->points.prepareForPlot.plotPreparedSystem(true);
 
-maxVelocity(sys:List(2))->sys[1].pEach(v,v.isScalar ? v : v.euklideanNorm,max);
+maxVelocity(sys:List(2))->sys[1].euklideanNorm.max;// pEach(v,v.isScalar ? v : v.euklideanNorm,max);
 
 private datastore replays:=[].toMap;
 
@@ -227,9 +241,11 @@ replay(setup:SimSetup)->
       setupForces(setup);
       local frames:=replays[setup].decompress.deserialize*1E-3;
       local frameCount:=frames.size;
-      frames.each(frame,
-        future({printDirect($0) orElse prepareForPlot($1)},["\r"&(index+1)&'/'&frameCount,frame]))
-      .each(ballFuture,ballFuture().plotPreparedSystem(true));
+      frames.reverseList
+            .each(frame,future(::prepareForPlot,[frame]))
+            .reverseList
+            .each(ballFuture,printDirect("\r"&(index+1)&'/'&frameCount),
+                             ballFuture().plotPreparedSystem(true));
       true;
     end;
 
@@ -327,16 +343,12 @@ end;
 
 //*Initialize default replays
 main('defaults')->main('headless',
-  '100','100','NaCl',
-  '100','100','dipoles',
-  '100','100','dust',
-  '100','100','phobic',
-  '150','50','dust',
-  '170','30','dust',
-  '100','100','hex',
-  '100','100','layers',
-  '132','66','layers',
-  '100','100','polymer',
-  '132','66','polymer',
-  '20','0','simple');
-
+  100,100,SCENARIO_NACL,
+  100,100,SCENARIO_DIPOLES,
+  100,100,SCENARIO_DUST,
+  100,100,SCENARIO_PHOBIC,
+  170, 30,SCENARIO_DUST,
+  100,100,SCENARIO_HEX,
+  100,100,SCENARIO_LAYERS,
+  100,100,SCENARIO_POLYMER,
+  20 ,  0,SCENARIO_SIMPLE);

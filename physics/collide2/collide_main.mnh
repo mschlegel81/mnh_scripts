@@ -114,7 +114,11 @@ private evolve(geometry,positions,velocities)->begin
     sliceCount+=1;
     //Construct a list of collisions, sorted by time
     local collisions:=[0..P.size-1].pEach(j,
-      j=0 ? void : [0..j-1].pEach(i,boundingBoxesIntersect(ballBox[i],ballBox[j]) ? ballsCollide(P[i]-P[j],V[i]-V[j],i,j) : void),
+      j=0
+      ? void
+      : [0..j-1].each(i,boundingBoxesIntersect(ballBox[i],ballBox[j])
+                        ? ballsCollide(P[i]-P[j],V[i]-V[j],i,j)
+                        : void),
       ballHitsGeometry(geometry,j,P[j],V[j],ballBox[j]),|)
     .pFilter({$x[0]<=dtRest}).sort;
     //Find collision time (or none)

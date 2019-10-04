@@ -4,67 +4,173 @@ conic(w=0.0)-> ::sqr;
 conic(w<0.0)->(1/circle   (w))*{   circle(w*$t)};
 conic(w>0.0)->(1/hyperbola(w))*{hyperbola(w*$t)};
 
+
 ducktype ConicParamter(x:Numeric)->-1<=x<Inf;
 ducktype ValidWidth(x:Numeric)->0<x<=1;
 ducktype ValidReal(x:Numeric)->!x.isNan AND !x.isInfinite;
 
+REFLECTOR_POINTS:=30;
+SAMPLE_RAYS:=20;
+REFLECT_EPSILON:=1E-6;
+
 makeReflector(parameter:ConicParamter,
               depth:ValidReal,
               width:ValidWidth)->begin
-  local Y:=[-50..50]/50*width;
+  local Y:=[-1000..1000]/1000*width;
   local X:=Y.map(conic(parameter)*depth);
-  [X-X.agg(+)/X.size,
-   Y-Y.agg(+)/Y.size].transpose;
+  local points:=[X-X.agg(+)/X.size,
+                 Y-Y.agg(+)/Y.size].transpose;
+  local curveLength:=0;
+  local mask:=0|(euklideanNorm(points.tail-points.leading)).each(d,curveLength+=d);
+  mask/=mask.trailing;
+  mask:=([0..REFLECTOR_POINTS]/REFLECTOR_POINTS).each(l,argMin(abs(mask-l)));
+
+  [points[mask],
+   mask.each(k,(points[k+1] orElse points[k])-
+               (points[k-1] orElse points[k]))
+       .each(d,d.reverseList*[-1,1]/d.euklideanNorm)];
 end;
 
 @SuppressUnusedParameterWarning
 ducktype Vec2(v:NumericList(2))->true;
 
-det(a:Vec2,b:Vec2)->a[0]*b[1]-a[1]*b[0];
-cramerSolve(a:Vec2,b:Vec2,c:Vec2)->[det(c,b),det(a,c)]/det(a,b);
+cramerSolve(a:Vec2,b:Vec2,c:Vec2)->[(c*b.reverseList).agg(-),
+                                    (a*c.reverseList).agg(-)]/
+                                   ((a*b.reverseList).agg(-));
 
 rayHitsLine(rayStart:Vec2,rayDirection:Vec2,
             lineStart:Vec2,lineEnd:Vec2)->begin
   //rayStart +rayDirection*t= lineStart+lineLength *u
   //rayDirection*t- lineLength *u= lineStart-rayStart
   local sol:=cramerSolve(rayDirection,lineStart-lineEnd,lineStart-rayStart);
-  0<=sol[1]<=1 AND sol[0]>1E-1
-  ? sol[0]
+  0<=sol[1]<=1 AND sol[0]>REFLECT_EPSILON
+  ? sol
   : void;
 end;
 
+private X0:=-2;
+private X1:= 3;
+private Y0:=-2.5;
+private Y1:= 2.5;
+
+rayHitsBoundingBox(rayStart:Vec2,rayDirection:Vec2)->
+  [(X0-rayStart[0])/rayDirection[0],
+   (X1-rayStart[0])/rayDirection[0],
+   (Y0-rayStart[1])/rayDirection[1],
+   (Y1-rayStart[1])/rayDirection[1]]
+  .filter({!$x.isNan AND !$x.isInfinite AND $x>REFLECT_EPSILON}).min;
+
 rayBundle(angle)->begin
   local direction:=[cos(angle),sin(angle)];
-  local shift:=direction.reverseList*[-0.1,0.1];
-  [-5..5].each(i,[shift*i-5*direction,direction]);
+  local shift    :=direction.reverseList*[-0.5,0.5];
+  local bundle   :=([0.. SAMPLE_RAYS-1]/(SAMPLE_RAYS-1)*2-1).each(i,begin
+    local start:=shift*i;
+    [start-rayHitsBoundingBox(start,-direction) *direction,direction];
+  end);
+  bundle;
 end;
-
-reflectRay(edgeStart:Vec2,edgeEnd:Vec2,oldDirection:Vec2)->begin
-  local edgeNormal:=reverseList(edgeEnd-edgeStart)*[-1,1];
-  edgeNormal/=sqrt(edgeNormal.sqr.agg(+));
-  local dir:=oldDirection-edgeNormal*((edgeNormal*oldDirection).agg(+)*2);
-  dir/sqrt(dir.sqr.agg(+));
-end;
-
 
 traceRay(mirror:List,ray:List(2))->begin
+  local mirrorPoints :=mirror[0];
   local firstHit:=
-  [0..mirror.size-2].each(i,begin
-    local tHit:=rayHitsLine(ray[0],ray[1],mirror[i],mirror[i+1]);
+  [0..mirrorPoints.size-2].each(i,begin
+    local tHit:=rayHitsLine(ray[0],ray[1],mirrorPoints[i],mirrorPoints[i+1]);
     tHit.isVoid
     ? void
-    : [tHit,mirror[i],mirror[i+1]];
+    : [tHit[0],tHit[1],i];
   end).sort[0];
   firstHit.isVoid
-  ? [ray[0],ray[0]+5*ray[1]]
+  ? [ray[0],ray[0]+rayHitsBoundingBox(ray[0],ray[1])*ray[1]]
   : begin
-      local hitPoint:=ray[0]+firstHit[0]*ray[1];
-      local outDir  :=reflectRay(firstHit[1],firstHit[2],ray[1]);
+      local mirrorNormals:=mirror[1];
+      local hitNormal:=mirrorNormals[firstHit[2]+1]*(  firstHit[1])+
+                       mirrorNormals[firstHit[2]  ]*(1-firstHit[1]);
+      hitNormal/=hitNormal.euklideanNorm;
+      local hitPoint :=ray[0]+firstHit[0]*ray[1];
+      local outDir   :=ray[1]-hitNormal*((ray[1]*hitNormal).agg(+)*2);
+      outDir/=outDir.euklideanNorm;
       [ray[0]]|traceRay(mirror,[hitPoint,outDir]);
     end;
 end;
 
+prettyRays(rays:List)->begin
+  local MAX_SEG:=20;
+  local partLength:=rays.each(ray,ray.euklideanNorm.agg(+)).sort[round(0.8*rays.size)]/MAX_SEG;
+  local segmentsByPart:=[].toMap;
+  local styles:=[0..MAX_SEG].each(k,'RGB1,0,0,'&((MAX_SEG+1-k)/MAX_SEG));
+  rays.each(ray,begin
+    local restLength:=partLength;
+    local partIndex:=0;
+    [0..ray.size-2].each(k,begin
+      local p0:=ray[k  ];
+      local p1:=ray[k+1];
+      while(euklideanNorm(p1-p0)>restLength,begin
+        local pSplit:=p0+(p1-p0)/euklideanNorm(p1-p0)*restLength;
+        segmentsByPart[min(MAX_SEG,partIndex+=1)]|=[p0,p0:=pSplit,[Nan,Nan]];
+        restLength:=partLength;
+      end);
+      segmentsByPart[min(MAX_SEG,partIndex)]|=[p0,p1,[Nan,Nan]];
+      restLength-=euklideanNorm(p1-p0);
+    end);
+  end);
+  segmentsByPart.each(s,addPlot(s[1],styles[s[0]]));
+end;
 
-mirror:=makeReflector(-1,1,1);
-mirror.plot('2 l');
-rayBundle(pi+0.1).each(x,addPlot(traceRay(mirror,x),'red'));
+USE customFormUtil;
+main->begin
+  clearAnimation;
+  resetOptions;
+  setOptions(['x0'=>X0,'x1'=>X1,
+              'y0'=>Y0,'y1'=>Y1,
+              'axisStyleX'=>3,
+              'axisStyleY'=>3,
+              'autoscaleX'=>false,
+              'autoscaleY'=>false]);
+
+  local formTxt :=local formParameter :=-1;
+  local depthTxt:=local depthParameter:= 1;
+  local widthTxt:=local widthParameter:= 1;
+  local mirror:=makeReflector(-1,1,1);
+  local rayDirection  :=0;
+
+  local refreshRays:={begin
+    mirror[0].plot('black');
+    rayBundle(rayDirection)
+    .pEach(x,traceRay(mirror,x)).prettyRays;
+    postDisplay;
+  end};
+
+  local updateMirror:={begin
+    mirror:=makeReflector(formParameter,depthParameter,widthParameter);
+    refreshRays();
+  end};
+
+  showDialog('Mirror',[
+    newEdit.withCaption('form parameter')
+           .bind(::formTxt)
+           .withAction({begin
+             formParameter:=try({formTxt.toReal},formParameter).max(-1).min(100);
+             formTxt:=formParameter;
+             updateMirror();
+           end}),
+    newEdit.withCaption('depth')
+           .bind(::depthTxt)
+           .withAction({begin
+             depthParameter:=try({depthTxt.toReal},depthParameter).max(0).min(100);
+             depthTxt:=depthParameter;
+             updateMirror();
+           end}),
+    newEdit.withCaption('width')
+           .bind(::widthTxt)
+           .withAction({begin
+             widthParameter:=try({widthTxt.toReal},widthParameter).max(0).min(1);
+             widthTxt:=widthParameter;
+             updateMirror();
+           end}),
+    newPlotDock,
+    newPlotLink.withMouseMoved({begin
+      rayDirection:=pi/2-arctan2(-$y,-$x);
+      refreshRays();
+    end})]);
+end;
+

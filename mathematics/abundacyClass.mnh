@@ -1,0 +1,85 @@
+
+
+ABUNDANT := 1;
+PERFECT  := 0;
+DEFICIENT:=-1;
+
+BASIC_NAME:=[ABUNDANT=>'abundant',
+             PERFECT=>'perfect',
+             DEFICIENT=>'deficient'].toMap;
+
+sum(L)->L.agg(+) orElse 0;
+prod(L)->L.agg(*) orElse 1;
+
+properDividers(k:Int)->k.factorize.subSets.map(::prod).filter({$x<k});
+memoized sumOfProperDividers(k:Int)->properDividers(k).sum;
+
+//*Returns {ABUNDANT} for abundant numbers, {PERFECT} for perfect numbers and {DEFICIENT} for deficient numbers
+basicCategorize(k:Int)->sign(sumOfProperDividers(k)-k);
+
+isHighlyAbundant(k:Int)->begin
+  local s:=(k+k.sumOfProperDividers);
+  k=1 OR rangeGenerator(k-1,1).each(j,s>j+j.sumOfProperDividers,AND);
+end;
+
+isSuperAbundant(k:Int)->begin
+  local s:=k.sumOfProperDividers/k;
+  k=1 OR rangeGenerator(k-1,1).each(j,s>j.sumOfProperDividers/j,AND);
+end;
+
+isPseudoperfect(k:Int,properDividers)->properDividers.sort.reverseList.canSumTo(k);
+
+canSumTo(summands:IntCollection,sum:Int)->
+  summands.size<10 ? summands.subSets.each(s,(s.agg(+) orElse 0)=sum,OR)
+                   : canSumToR(summands,sum);
+
+canSumToR(summands:IntCollection,sum:Int)->
+  summands.agg(+).orElse(0) <sum ? false :
+  sum=0 OR sum in summands ? true :
+  begin
+    local summands_:=summands.tail(5);
+    (sum-summands.head(5).subSets.map({$x.agg(+) orElse 0}))
+    .each(sum_,sum>=0 AND canSumToR(summands_,sum_),OR);
+  end;
+
+
+getAbundanceName(k:Int)->begin
+  local basic:=basicCategorize(k);
+  local result:=BASIC_NAME[basic];
+  local abundancyMod:=[basic==ABUNDANT AND properDividers(k).each(divider,divider.basicCategorize==DEFICIENT,AND)
+                       ? 'primitive' : void,
+                       isSuperAbundant(k) ? 'super' : isHighlyAbundant(k) ? 'highly' : void];
+  basic==ABUNDANT
+  ? trim(abundancyMod.join(",")&" "&result&(isPseudoperfect(k,properDividers(k)) ? void : ' and WEIRD!'))
+  : result&(abundancyMod.size=0 ? void : ' but '&abundancyMod.join(",")&' '&BASIC_NAME[ABUNDANT]);
+end;
+
+memoized numberOfAllDividers(k:Int)->1+properDividers(k).size;
+
+isHighlyComposite(1)->true;
+isHighlyComposite(k:Int)->begin
+  local divCount:=numberOfAllDividers(k);
+  rangeGenerator(k-1,1).each(j,numberOfAllDividers(j)<divCount,AND);
+end;
+
+getCompositeName(k:Int)-> k.isPrime ? 'prime' : begin
+  local factorMap:=k.factorize.elementFrequency;
+  local greatestCommonPower:=gcd@(factorMap.getInner(1));
+  greatestCommonPower=1
+  ? (isHighlyComposite(k) ? 'highly ': void)&'composite'
+  : (greatestCommonPower=2
+    ? factorMap.size=1
+      ? 'prime square'
+      : 'square'
+  : greatestCommonPower=3
+    ? factorMap.size=1
+      ? 'prime cube'
+      : 'cube'
+  : factorMap.size=1
+      ? 'prime ^'&greatestCommonPower
+      : greatestCommonPower&'th power')&(isHighlyComposite(k) ? ', highly composite' : void);
+end;
+
+printf("%s",[1..10000].pMap({format("%s\t%s\t%s",$x,$x.getCompositeName,$x.getAbundanceName)}));
+
+

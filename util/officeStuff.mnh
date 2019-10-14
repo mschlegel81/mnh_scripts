@@ -3,6 +3,7 @@ toExcelColumnIndex(i<=26)->LETTERS[i-1];
 toExcelColumnIndex(i)->LETTERS[(i-1) div 26-1] &
                        LETTERS[(i-1) mod 26];
 
+@SuppressUnusedWarning
 fromExcelColumnIndex(s:String)->begin
   local cleaned:=s.upper.clean(LETTERS,'');
   assert(cleaned.length in [1,2],'Wrong format');

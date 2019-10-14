@@ -21,17 +21,6 @@ step(sys:List(2),dt)->begin
    sys[1]+dt*d[1]];
 end;
 
-circlePoint(phi)->[cos(phi/180*4*arctan(1)),
-                           sin(phi/180*4*arctan(1))];
-
-initialState:=
-  [[circlePoint(  0),
-    circlePoint(120),
-    circlePoint(240)],
-   [0.76*circlePoint( 90),
-    0.76*circlePoint(120+90),
-    0.76*circlePoint(240+90)]];
-
 PARTICLE_COUNT:=100;
 randomInitialState->
   begin

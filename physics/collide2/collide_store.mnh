@@ -2,7 +2,7 @@
 
 TIME_STEP_SIZE:=0.2;
 DOWNWARD_ACCEL:=-0.1;
-USE collide_types,collide_initialState;
+USE collide_initialState;
 datastore collisions:=[].toMap;
 storedCollisions->collisions.getInner(0).sort;
 

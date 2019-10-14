@@ -1,3 +1,4 @@
+@SuppressUnusedParameterWarning
 ducktype Point(P:NumericList(2))->true;
 ducktype PointList(L:List)->L.each(p,p.isPoint,AND);
 

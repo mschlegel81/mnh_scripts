@@ -150,7 +150,7 @@ end;
 
 nearestNeighborDistances_recursive(points:List,splitIndex)->
   points.size<50
-  ? points.each(p,points.each(q,q==p ? void : euklideanNorm(p-q),min))
+  ? points.pEach(p,points.each(q,q==p ? void : euklideanNorm(p-q),min))
   : begin
       local oneDim    :=points.getInner(splitIndex and 1);
       local splitValue:=oneDim.sort[points.size div 2];
@@ -166,7 +166,7 @@ nearestNeighborDistances_recursive(points:List,splitIndex)->
     end;
 
 prepareForPlot(points:List)->
-  [points,points.nearestNeighborDistances_recursive(0)].transpose.map({[$x[0]-$x[1]/2,$x[0]+$x[1]/2]})
+  [points,points.nearestNeighborDistances_recursive(0)].transpose.pMap({[$x[0]-$x[1]/2,$x[0]+$x[1]/2]})
   .group(PARTICLE_CLASS)
   .each(groupByClass,[groupByClass[0],groupByClass[1].agg(|)])
   .toMap

@@ -72,9 +72,10 @@ begin
   hist;
 end;
 
-traceStyle1   :=format('0.75 HUE%s',[0..INT_MAX]/INT_MAX);
-traceStyle2   :=format('0.5 HUE%s' ,[0..INT_MAX]/INT_MAX);
-traceStyle3   :=format('0.25 HUE%s',[0..INT_MAX]/INT_MAX);
+memoized traceStyle(index,part)->format('0.75 HSV%s,1,1,%s',index/INT_MAX,1-part/64);
+//traceStyle1   :=format('0.75 HSV%s,1,1,1',[0..INT_MAX]/INT_MAX);
+//traceStyle2   :=format('0.75 HSV%s,1,1,0.66',[0..INT_MAX]/INT_MAX);
+//traceStyle3   :=format('0.75 HSV%s,1,1,0.33',[0..INT_MAX]/INT_MAX);
 pendulumStyle:=format('2 . l HUE%s',[0..INT_MAX]/INT_MAX);
 
 animate->begin
@@ -91,15 +92,17 @@ animate->begin
     setOptions([['autoscaleX',false],['autoscaleY',false],['preserveAspect',true],['x0',globalX0],['x1',globalX1],['y0',globalY0],['y1',globalY1],['axisStyleX',0],['axisStyleY',0]]);
   end;
   clearAnimation;
-  [0..A.head.size-1].each(k,begin
-    local trailLength:=0;//max(200-k div 6,5);
-    print('Plotting frame #',k);
+  rangeGenerator(0,A.head.size-1).lazyMap({begin
+    traces.each(trace,begin
+      local trail:=trace.head($k+1).trailing(64).reverseList;
+      local prev:=trail[0];
+      local traceIdx:=index;
+      trail.each(p,[[prev,prev:=p],traceStyle(traceIdx,index)]);
+    end,|)|
+    A.getInner($k).each(pendulum,[pendulum.plottable,pendulumStyle[index]]);
+  end}).each(frame,begin
     plot();
-    trailLength=0 ? void :
-    traces.each(trace,addPlot(trace.head(k+1).trailing(trailLength  )                    ,traceStyle1[index]),
-                      addPlot(trace.head(k+1).trailing(trailLength*2).head(trailLength+1),traceStyle2[index]),
-                      addPlot(trace.head(k+1).trailing(trailLength*3).head(trailLength+1),traceStyle3[index]));
-    A.getInner(k).each(pendulum,addPlot(pendulum.plottable,pendulumStyle[index]));
+    frame.map({addPlot@$f});
     addAnimationFrame;
   end);
   display;
@@ -107,6 +110,7 @@ end;
 
 mod2pi(x:Numeric)->x-floor(x/(2*pi))*(2*pi);
 mod2pi(x:NumericList)->(x+pi).map(::mod2pi)-pi;
+@SuppressUnusedWarning
 phaseDiagram->begin
   clearAnimation;
   resetOptions;
@@ -129,3 +133,4 @@ phaseDiagram->begin
 end;
 
 main->animate;
+phaseDiagram;

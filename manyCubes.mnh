@@ -3,8 +3,6 @@ memoized fillStyle(phi)->
    'p fs 0:% GREY0.8',
    'p fs 0:% GREY0.7'];
 
-@SuppressUnusedParameterWarning
-ducktype Vec3(n:NumericList(3))->true;
 
 SIZER:=6;
 

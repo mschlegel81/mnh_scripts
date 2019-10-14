@@ -144,7 +144,6 @@ begin
   //while(true,
   [1..999].each(step,
   begin
-    local t0:=time;
     sys:=sys.timeStepForward;
     //handle dropout
     local keepMask:=(sys[0].getInner(1)>-3);

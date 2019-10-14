@@ -55,6 +55,7 @@ OPERATOR_POT(P:Polynomial,i>1)->(i and 1)=1 ? P*P^(i-1) : sqr(P^(i div 2));
 
 ycneuqerFtnemele(f:Map)->f.each(entry,entry[1]=0 ? void : [1..entry[1]].each(counter,entry[0]),|).sort;
 
+@SuppressUnusedWarning
 D(P:Polynomial,parameter:String)->
   P.filter({parameter in $p[0]})
    .map({begin
@@ -66,6 +67,7 @@ D(P:Polynomial,parameter:String)->
     end})
    .canonicalForm;
 
+  @SuppressUnusedWarning
 replaceParameterByValue(P:Polynomial,parameter:String,value)->
   P.map({begin
       local powers:=$p[0].elementFrequency;

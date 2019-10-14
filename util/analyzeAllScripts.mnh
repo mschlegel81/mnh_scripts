@@ -8,9 +8,10 @@ main->begin
   local errors  :=[];
   local usedBuiltin:=[].toSet;
   allScriptFiles
-  .each(file,begin
-    print('Inspecting ',file);
-    local s:=file.inspect;
+  .pMap(::inspect)
+  .each(s,begin
+   // print('Inspecting ',file);
+//    local s:=file.inspect;
     usedScripts|=s['uses'].getInner(1);
     warnings|=s['messages'].filter(::isWarning);
     errors  |=s['messages'].filter(::isError);

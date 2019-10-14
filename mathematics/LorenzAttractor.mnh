@@ -1,0 +1,165 @@
+D(x:NumericList(3))->[10*(x[1]-x[0]),
+                      28*x[0]-x[1]-x[0]*x[2],
+                      x[0]*x[1]-8/3*x[2]];
+
+USE rungeKutta,plot3d;
+
+step:=integrator(CASH_KARP,::D,1E-2,1E-3);
+
+heightOfTriangle(A:NumericList(3),
+                 B:NumericList(3),
+                 C:NumericList(3))->begin
+  local X:=C-A;
+  local Y:=B-A;
+  euklideanNorm(X*((X*Y).agg(+)/(sqr(X).agg(+)))-Y);
+end;
+
+filterList(L:List)->begin
+  local result:=[local x:=L[0]];
+  local buffer:=[];
+  L.tail.each(y,
+    buffer.each(b,heightOfTriangle(x,b,y)<0.03,AND)
+    ? buffer|=[y]
+    : begin
+        result|=[x:=buffer.trailing];
+        buffer:=[y];
+        void;
+      end);
+  buffer.size>0
+  ? result|=[buffer.trailing]
+  : void;
+  print('filtering reduced list size from ',L.size,' to ',result.size);
+  result;
+end;
+
+
+showSingleAttractor->begin
+  local L:=[1,0,30].iterate(step,20000).filterList;
+  local c:=L.approxBoundingSphereCenter;
+  setOptions(['axisStyleX'=>0,
+              'axisStyleY'=>0,
+              'autoscaleX'=>false,
+              'autoscaleY'=>false,
+              'strictInput'=>false,
+              'x0'=>-1,'x1'=>1,'y0'=>-1,'y1'=>1]);
+  clearAnimation;
+  print(repeat('-'.repeat(24)&'|',4));
+  ([0..99]/100*2*pi).pEach(angle,begin
+    printDirect('.');
+    projectOnly(L.rotateX(pi/2).rotateY(angle),
+              [c].rotateX(pi/2).rotateY(angle).head,0.5);
+  end)
+  .{print orElse postDisplay orElse $L}
+  .each(row,begin
+    printDirect('.');
+    row.plot('RGB0,0,0,0.5');
+    addAnimationFrame;
+  end);
+  print;
+end;
+
+showAnimation->
+begin
+  clearAnimation(true);
+  resetOptions;
+  setOptions(['axisStyleX'=>0,
+              'axisStyleY'=>0,
+              'autoscaleX'=>false,
+              'autoscaleY'=>false,
+              'strictInput'=>true]);
+  local y0:=local x0:= Inf;
+  local y1:=          -Inf;
+
+  local state0:=[1,0,30+0   ];
+  local state1:=[1,0,30+1E-3];
+  local hist0:=[]; local fHist0:=[];
+  local hist1:=[]; local fHist1:=[];
+  postDisplay;
+  while(true,begin
+    hist0|=[state0]; state0:=state0.step;
+    hist1|=[state1]; state1:=state1.step;
+    local t0:=time;
+    hist0.size>1000
+    ? begin
+        fHist0:=filterList(fHist0|hist0); hist0:=[hist0.trailing];
+        fHist1:=filterList(fHist1|hist1); hist1:=[hist1.trailing];
+      end
+    : void;
+    setOptions(['x0'=>x0:=min(x0,-euklideanNorm(state0[[0,1]])),
+                'x1'=>-x0,
+                'y0'=>y0:=min(y0,state0[2]),
+                'y1'=>y1:=max(y1,state0[2])]);
+    plot();
+    fHist0.size>0
+    ? begin
+        addPlot(fHist0.getInner(0),fHist0.getInner(2),'red l');
+        addPlot(fHist1.getInner(0),fHist1.getInner(2),'blue l');
+      end
+    : void;
+    hist0.size>0
+    ? begin
+        addPlot(hist0.getInner(0),hist0.getInner(2),'red l');
+        addPlot(hist1.getInner(0),hist1.getInner(2),'blue l');
+      end
+    : void;
+    addPlot([state0[[0,2]]],'red .');
+    addPlot([state1[[0,2]]],'blue .');
+    addAnimationFrame;
+    printf('%5d %3.5fs',size(hist0),time-t0);
+  end);
+end;
+
+
+ensembleSimulation-> begin
+  local precision:=1;
+  local sx0:=-18.661594123730463; local sx1:=18.731635800300932;
+  local sy0:=-25.403979973671209; local sy1:=25.58945290045964 ;
+  local sz0:= 3.5599525218872889; local sz1:=46.158706497583395;
+
+  local L:=[0..99].pEach(run,([sx0,sy0,sz0]+random(3)*[sx1-sx0,sy1-sy0,sz1-sz0]).iterate(step,1000).tail(200),|);
+  L:=L.group(L.round(precision)).pEach(g,g[1].agg(+)/g[1].size);
+  local oldSize:=L.size*2;
+  local newSize:=L.size;
+  print('Initial system has size: ',L.size);
+  while(newSize<oldSize*0.99-10,begin
+    oldSize:=L.size;
+    L:=L.pMap({$x+1E-3*D($x)});
+    L:=L.group(L.round(precision)).pEach(g,g[1].agg(+)/g[1].size);
+    newSize:=L.size;
+    print(newSize);
+  end);
+
+ // resetOptions;
+ // local L:=initials.pEach(startValue,begin
+ //   print(index);
+ //   local L:=startValue.iterate(step,200).trailing(20);
+ // end,
+ // [[Nan,Nan,Nan]],|);
+ //
+  local c:=L.filter({!$x.isNan.agg(or)}).approxBoundingSphereCenter;
+  print(c);
+  setOptions(['axisStyleX'=>0,
+              'axisStyleY'=>0,
+              'autoscaleX'=>false,
+              'autoscaleY'=>false,
+              'strictInput'=>false,
+              'x0'=>-1,'x1'=>1,'y0'=>-1,'y1'=>1]);
+  clearAnimation;
+  print(repeat('-'.repeat(24)&'|',4));
+  ([0..99]/100*2*pi).pEach(angle,begin
+    printDirect('.');
+    projectOnly(L.rotateX(pi/2).rotateY(angle),
+              [c].rotateX(pi/2).rotateY(angle).head,0.5);
+  end)
+  .{print orElse postDisplay orElse $L}
+  .each(row,begin
+    printDirect('.');
+    row.plot('0.5 . RGB0,0,0,0.2');
+    addAnimationFrame;
+  end);
+  print;
+end;
+
+ensembleSimulation;
+
+

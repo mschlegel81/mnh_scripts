@@ -4,7 +4,6 @@ D(x:NumericList(3))->[10*(x[1]-x[0]),
 
 USE rungeKutta,plot3d;
 
-step:=integrator(CASH_KARP,::D,1E-2,1E-3);
 
 heightOfTriangle(A:NumericList(3),
                  B:NumericList(3),
@@ -32,9 +31,9 @@ filterList(L:List)->begin
   result;
 end;
 
-
 showSingleAttractor->begin
-  local L:=[1,0,30].iterate(step,20000).filterList;
+  local step:=integrator(CASH_KARP,::D,1E-2,1E-3);
+  local L:=[1,0,30].iterate(step,20000).tail(200);//.filterList;
   local c:=L.approxBoundingSphereCenter;
   setOptions(['axisStyleX'=>0,
               'axisStyleY'=>0,
@@ -44,12 +43,9 @@ showSingleAttractor->begin
               'x0'=>-1,'x1'=>1,'y0'=>-1,'y1'=>1]);
   clearAnimation;
   print(repeat('-'.repeat(24)&'|',4));
-  ([0..99]/100*2*pi).pEach(angle,begin
-    printDirect('.');
-    projectOnly(L.rotateX(pi/2).rotateY(angle),
-              [c].rotateX(pi/2).rotateY(angle).head,0.5);
-  end)
-  .{print orElse postDisplay orElse $L}
+  ([0..99]/100*2*pi).futureMap({
+    projectOnly(L.rotateX(pi/2).rotateY($angle),
+              [c].rotateX(pi/2).rotateY($angle).head,0.5)})
   .each(row,begin
     printDirect('.');
     row.plot('RGB0,0,0,0.5');
@@ -60,6 +56,7 @@ end;
 
 showAnimation->
 begin
+  local step:=integrator(CASH_KARP,::D,1E-2,1E-3);
   clearAnimation(true);
   resetOptions;
   setOptions(['axisStyleX'=>0,
@@ -109,35 +106,17 @@ begin
   end);
 end;
 
-
-ensembleSimulation-> begin
-  local precision:=1;
-  local sx0:=-18.661594123730463; local sx1:=18.731635800300932;
-  local sy0:=-25.403979973671209; local sy1:=25.58945290045964 ;
-  local sz0:= 3.5599525218872889; local sz1:=46.158706497583395;
-
-  local L:=[0..99].pEach(run,([sx0,sy0,sz0]+random(3)*[sx1-sx0,sy1-sy0,sz1-sz0]).iterate(step,1000).tail(200),|);
-  L:=L.group(L.round(precision)).pEach(g,g[1].agg(+)/g[1].size);
-  local oldSize:=L.size*2;
-  local newSize:=L.size;
-  print('Initial system has size: ',L.size);
-  while(newSize<oldSize*0.99-10,begin
-    oldSize:=L.size;
-    L:=L.pMap({$x+1E-3*D($x)});
-    L:=L.group(L.round(precision)).pEach(g,g[1].agg(+)/g[1].size);
-    newSize:=L.size;
-    print(newSize);
-  end);
-
- // resetOptions;
- // local L:=initials.pEach(startValue,begin
- //   print(index);
- //   local L:=startValue.iterate(step,200).trailing(20);
- // end,
- // [[Nan,Nan,Nan]],|);
- //
-  local c:=L.filter({!$x.isNan.agg(or)}).approxBoundingSphereCenter;
-  print(c);
+showDots->begin
+  local step:={begin local d:=D($x); $x+d/d.euklideanNorm*0.5; end};
+  local L:=//[random,random,random].iterate(step,5000).tail(500);//.filterList;
+  [0..31].pEach(run,[-10+random,-15+random,24+random].iterate(step,5000).tail(4000),|);
+  print(L.size,' dots initial');
+                   L:=group(L,round(2*L)).map({$x[1].agg(+)/$x[1].size}); print(L.size,' dots after grouping A');
+  L|=L.pMap(step); L:=group(L,round(2*L)).map({$x[1].agg(+)/$x[1].size}); print(L.size,' dots after grouping B');
+  L|=L.pMap(step); L:=group(L,round(2*L)).map({$x[1].agg(+)/$x[1].size}); print(L.size,' dots after grouping C');
+  L|=L.pMap(step); L:=group(L,round(2*L)).map({$x[1].agg(+)/$x[1].size}); print(L.size,' dots after grouping D');
+  L|=L.pMap(step); L:=group(L,round(2*L)).map({$x[1].agg(+)/$x[1].size}); print(L.size,' dots after grouping E');
+  local c:=L.approxBoundingSphereCenter;
   setOptions(['axisStyleX'=>0,
               'axisStyleY'=>0,
               'autoscaleX'=>false,
@@ -146,20 +125,18 @@ ensembleSimulation-> begin
               'x0'=>-1,'x1'=>1,'y0'=>-1,'y1'=>1]);
   clearAnimation;
   print(repeat('-'.repeat(24)&'|',4));
-  ([0..99]/100*2*pi).pEach(angle,begin
-    printDirect('.');
-    projectOnly(L.rotateX(pi/2).rotateY(angle),
-              [c].rotateX(pi/2).rotateY(angle).head,0.5);
-  end)
-  .{print orElse postDisplay orElse $L}
+  ([0..99]/100*2*pi).futureMap({
+    projectOnly(L.rotateX(pi/2).rotateY($angle),
+              [c].rotateX(pi/2).rotateY($angle).head,0.5)})
   .each(row,begin
     printDirect('.');
-    row.plot('0.5 . RGB0,0,0,0.2');
+    row.plot('0.5 . RGB0,0,0,0.5');
     addAnimationFrame;
   end);
   print;
 end;
 
-ensembleSimulation;
+
+showSingleAttractor;
 
 

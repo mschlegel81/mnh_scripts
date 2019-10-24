@@ -241,11 +241,9 @@ replay(setup:SimSetup)->
       setupForces(setup);
       local frames:=replays[setup].decompress.deserialize*1E-3;
       local frameCount:=frames.size;
-      frames.reverseList
-            .each(frame,future(::prepareForPlot,[frame]))
-            .reverseList
+      frames.futureMap(::prepareForPlot)
             .each(ballFuture,printDirect("\r"&(index+1)&'/'&frameCount),
-                             ballFuture().plotPreparedSystem(true));
+                             ballFuture.plotPreparedSystem(true));
       true;
     end;
 

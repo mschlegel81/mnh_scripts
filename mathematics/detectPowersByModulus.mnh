@@ -1,0 +1,74 @@
+#!C:\bin\mnh.exe -GUI
+//uniqueRemainders(modulus:Int,power:Int)->powMod([0..modulus-1].toSet,power,modulus).size;
+uniqueRemainders(modulus:Int,power:Int)->powMod([0..modulus-1],power,modulus).toSet.size;
+MAX_POW:=12;
+datastore superiorModul:=[].toMap;
+
+first:=begin
+  [2..MAX_POW].each(p,superiorModul[p]:=superiorModul[p] orElse []);
+  superiorModul.getInner(1).flatten.|(2).max;
+end;
+
+crossGenerator(range1:IteratableExpression,range2:List)->{
+begin
+  local gen:=range1;
+  local k:=void;
+  local L:=range2;
+  local i:=L.size-1;
+save;
+  (i+=1)>=L.size
+  ? begin
+      k:=gen();
+      i:=0;
+    end
+  : void;
+  [k,L[i]];
+end}.toIteratableExpression;
+
+
+
+displayState->begin
+  plot();
+  superiorModul.sort.each(g,g[1]==[] ? void : begin
+    print(g);
+    local power:=g[0];
+    local moduls:=g[1];
+    local efficiency:=g[1].map({uniqueRemainders($m,power)/$m});
+    addPlot(moduls,efficiency,'. l');
+  end);
+  postDisplay;
+end;
+
+calculateSome(timeoutInSeconds:Numeric)-> begin
+  local next:=crossGenerator(rangeGenerator(first),[2..MAX_POW])
+              .futureMap({$x|uniqueRemainders($x[0],$x[1])});
+
+  local bestUpToHere:=superiorModul.map({$x[0]=>$x[1].trailing}).map({$x[0]=>$x[1]==[] ? Inf : uniqueRemainders($x[1],$x[0])/$x[1]}).toMap;
+  local timeOut:=time+timeoutInSeconds;
+  local anyFound:=false;
+  while(time<timeOut OR !anyFound,begin
+    local curr     :=next();
+    local k        :=curr[0];
+    local power    :=curr[1];
+    local distincts:=curr[2];
+    power=2 AND k mod 100 =0
+    ? print('Checking ',k,'; ',round(timeOut-time),' seconds remaining')
+    : void;
+
+    local myRatio:=distincts/k;
+    myRatio<bestUpToHere[power]
+    ? begin
+        superiorModul[power]|=k;
+        bestUpToHere[power]:=myRatio;
+        anyFound:=true;
+        print(power,' ',k,' ',distincts,'/',k,' ',round(100*(1-myRatio),2),'%');
+      end
+    : void;
+  end);
+end;
+
+main->begin
+  displayState;
+  calculateSome(600);
+  displayState;
+end;

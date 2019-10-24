@@ -10,8 +10,6 @@ main->begin
   allScriptFiles
   .pMap(::inspect)
   .each(s,begin
-   // print('Inspecting ',file);
-//    local s:=file.inspect;
     usedScripts|=s['uses'].getInner(1);
     warnings|=s['messages'].filter(::isWarning);
     errors  |=s['messages'].filter(::isError);
@@ -31,8 +29,8 @@ main->begin
   printf("  @%s:1,1\t%s",errors.getInner(0),errors.getInner(1));
   warnings.unique;
 
-  //print('The following builtin functions are not used anywhere:');
-  //printf('  %s',listBuiltin.minus(usedBuiltin.flatten).sort);
+  print('The following builtin functions are not used anywhere:');
+  printf('  %s',listBuiltin.minus(usedBuiltin.flatten).sort);
 end;
 
 

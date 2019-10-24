@@ -2,3 +2,5 @@
 *.datastore*
 *.exe
 *.mkv
+
+/oeis_tools/oeis/oeis_server.log

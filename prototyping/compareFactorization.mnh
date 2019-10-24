@@ -1,0 +1,14 @@
+nextPrime(greaterThan:Int)->begin
+  local r:=greaterThan-1;
+  while(!isPrime(r+=1));
+  r;
+end;
+
+primeCube  (greaterThan:Int)->nextPrime(floor(greaterThan^(1/3)))^3;
+primeSquare(greaterThan:Int)->nextPrime(floor(greaterThan^(1/2)))^2;
+primeBicube(greaterThan:Int)->nextPrime(floor(greaterThan^(1/4)))^4;
+
+(2^[2..70]).map(::nextPrime).map({[$x,time(::factorize,[$x])['time']]}).plot('. l');
+(2^[2..70]).map(::primeSquare).map({[$x,time(::factorize,[$x])['time']]}).addPlot('. l');
+(2^[2..70]).map(::primeCube).map({[$x,time(::factorize,[$x])['time']]}).addPlot('. l');
+(2^[2..70]).map(::primeBicube).map({[$x,time(::factorize,[$x])['time']]}).addPlot('. l');

@@ -1,0 +1,81 @@
+private IPC_ID:=myPath.extractFileNameOnly;
+private CLIENT_ID:=$1;
+private HEARTBEAT_INTERVAL:=2;
+private boxLine(totalLength:Int,''     )->'+'&repeat('-',max(63,totalLength)-2)&'+';
+private boxLine(totalLength:Int,s:String)->format('| %-'&max(63,totalLength)-4&'s |',s);
+private niceInterval(timeInDays<0.00069444444444444447)->format('%0.3f',timeInDays*86400);
+private niceInterval(timeInDays)->formatTime('hh:nn:ss.zzz',timeInDays);
+
+@SuppressUnusedWarning
+private onStartup:=
+  CLIENT_ID.isVoid
+  ? void
+  : //This is the client instance; start heartbeat client
+    async({
+      //We need the outer try for a graceful stop
+      try({while(true,sleep(HEARTBEAT_INTERVAL) orElse
+                      //We need the inner try for robustness if server dies
+                      try({sendIpcRequest(IPC_ID,CLIENT_ID)})
+                )}
+         )
+      });
+
+ensureServer->isIpcServerRunning(IPC_ID) ? void :
+  begin
+    startIpcServer(IPC_ID,{scriptRunning('post',$X)});
+    sleep(0.2);
+  end;
+
+mutable runners:=[].toMap;
+
+synchronized scriptRunning('query')->begin
+  ensureServer;
+  runners.getInner(0).each(id,begin
+    time>runners[id]
+    ? runners[id]:=void
+    : void;
+  end);
+  runners;
+end;
+
+private synchronized scriptRunning('post',id)->begin
+  runners[id]:=time+3*HEARTBEAT_INTERVAL;
+end;
+
+private
+splitCommandLineParameters(s:String)->
+  regex.matchComposite(s,'("[^"]+"|[^\s"]+)').getInner(0).map({
+    $x.copy(0,1)='"'=$x.copy($x.length-1,1)
+    ? $x.copy(1,$x.length-2)
+    : $x});
+
+startExecution(logname,scriptName,parameters:String)->begin
+  local programAndScript:=
+    scriptName.extractFileExt.lower=='.bat'
+    ? ['cmd','/C',scriptName]
+    : scriptName.extractFileExt.lower=='.mnh'
+    ? [executor,'-v(1)','-headless',scriptName]
+    : return void;
+  execAsync(executor,[myPath,logname] | programAndScript | splitCommandLineParameters(parameters));
+  ensureServer;
+  scriptRunning('post',logname);
+  true;
+end;
+@SuppressUnusedParameterWarning
+startExecution(...)->false;
+
+main(logname,program,...)->begin
+  logname.writeFileLines([local startLine:='Run started at '&formatTime('yyyy-mm-dd hh:nn:ss.zzz',local startTime:=systime)],"\n");
+  local executionResult:=teeExec(program,...);
+  local l:=executionResult[0].length.max orElse 0;
+  local endTime:=systime;
+  logname.writeFileLines(
+  [boxLine(l,startLine),
+   boxLine(l,'')]|
+  executionResult[0]|
+  [boxLine(l,''),
+   boxLine(l,'Run finished at '&formatTime('yyyy-mm-dd hh:nn:ss.zzz',endTime)),
+   boxLine(l,'With exit code '&executionResult[1]),
+   boxLine(l,'After '&niceInterval(endTime-startTime)),
+   boxLine(l,'')],"\n");
+end;

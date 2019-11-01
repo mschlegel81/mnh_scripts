@@ -4,3 +4,6 @@
 *.mkv
 
 /oeis_tools/oeis/oeis_server.log
+/oeis_tools/oeis/oeis_server.log
+/tinyServer/logs/*
+/tinyServer/tinyServer.log

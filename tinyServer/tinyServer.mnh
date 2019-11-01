@@ -1,0 +1,227 @@
+#!C:\dev\mnh5\ide\mnh_debug.exe -GUI -headless
+USE tinyServer_html,tinyServer_config,loggingRunner;
+
+//CPU Usage:--------------------------------------------------------------------------
+mutable cpuUsageHistory:=[];
+
+private getCpuDiagram->begin
+  setOptions(["preserveAspect"=>false,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
+  local x1:=max(cpuUsageHistory.size-1,1);
+  plot(  [[0,0],  [x1,100]],'GREY0.13 fs box');
+  cpuUsageHistory.size>0
+  ? addPlot(cpuUsageHistory,'GREY0.5 f')
+  : void;
+  addPlot([[0,START_WHEN_WORKLOAD_BELOW],[x1,START_WHEN_WORKLOAD_BELOW]],'GREY0.5');
+  drawTextAbsolute(0,0.5,'CPU',80,'L','Century Gothic',[0.2,0.2,0.2]);
+  format('<img src="data:image/png;base64,%s" />',renderToString(500,100).base64encode);
+end;
+
+private isCpuAlmostIdle->(cpuUsageHistory.size>0) AND (cpuUsageHistory.trailing(SAMPLES_FOR_WORKLOAD_CHECK)<START_WHEN_WORKLOAD_BELOW).agg(AND);
+//--------------------------------------------------------------------------:CPU Usage
+
+private SPECIAL_TASK_RESTART:='RESTART';
+datastore queued     :=[];
+datastore history    :=[];
+
+private enqueueTask(script,parameters)->begin
+  queued|=[[systime,script,parameters]];
+  writeDataStores;
+end;
+
+private statusSection->tag(
+  ('Status').tag('h2')&htmlTable(
+  [['Date:'  .tag('b'),formatTime('dd.mm.yyyy',      systime),''                ,htmlLink('restart server','restart')],
+   ['Time:'  .tag('b'),formatTime('hh:nn:ss',        systime),''                ,htmlLink('show server log',encodeRequest('','displayFile',['filename'=>changeFileExt(myPath,'.log')].toMap))],
+   ['Uptime:'.tag('b'),formatTime('hh:nn:ss',time/(24*60*60))]]),'div')&getCpuDiagram.join("<br>").tag('code');
+
+private getQueuedSection->
+  tag(
+  tag('Queue    '&htmlLink('(+)','enqueue'), 'h2')&
+  htmlTable(
+  [['Enqueued at','','Script','Parameters',''].map({$x.tag('b')})] |
+    queued.each(x,[formatTime('yyyy/mm/dd hh:nn:ss',x[0]),
+                   htmlLink('remove','dequeue?index='&index),
+                   x[1].tag('code'),
+                   x[2].tag('code'),
+                   htmlLink('force start','forceStart?index='&index)])),'div');
+
+private getHistorySection->begin
+  local runningScripts:=scriptRunning('query').getInner(0);
+  tag(
+  tag('History','h2')&
+  htmlTable([['#','Executed','Script','Parameters','Log',''].map({$x.tag('b')})]|history.reverseList.map(
+          {[$x[0],
+            formatTime('yyyy/mm/dd hh:nn:ss',$x[1]),
+            $x[2].tag('code'),
+            $x[3].tag('code'),
+            fileExists(getLogName($x[0])) ? htmlLink(getLogName($x[0]),encodeRequest('','displayFile',['filename'=>getLogName($x[0])].toMap)) : '- log missing -',
+            (getLogName($x[0]) in runningScripts)
+            ? tag('RUNNING','b')
+            : fileExists(fullScriptName($x[2]))
+              ? htmlLink('restart',encodeRequest('','addTask',['scriptName'=>$x[2],'cmdLineParameters'=>$x[3]].toMap))
+              : ''
+            ]})),'div');
+end;
+
+mutable forceStart:=false;
+private getNextTask->queued.size<=0 ? [] : begin
+  local historyIndex:=history.getInner(0).max+1;
+  local task:=queued.head;
+  local scriptName  :=task[1];
+  local scriptParams:=task[2];
+  queued:=queued.tail;
+  local historyEntry:=[historyIndex,systime,scriptName,scriptParams];
+  history.size>=MAX_HISTORY_SIZE
+  ? history:=history.tail|[historyEntry]
+  : history|=             [historyEntry];
+  writeAllDataStores;
+  scriptName=SPECIAL_TASK_RESTART
+  ? SPECIAL_TASK_RESTART
+  : [getLogName(historyIndex),scriptName.fullScriptName.systemSpecificFilename,scriptParams];
+end;
+private nextTaskIsRestart->
+  queued.size>0 AND queued[0,1]==SPECIAL_TASK_RESTART
+  ? begin
+      queued:=queued.tail;
+      writeAllDataStores;
+      true;
+    end
+  : false;
+
+servePath('/',parameters:Map)->htmlPage('Server Overview',statusSection&getQueuedSection&getHistorySection,true).wrapTextInHttp;
+servePath('/restart',parameters)->begin
+  enqueueTask(SPECIAL_TASK_RESTART,'');
+  redirectTo('/');
+end;
+servePath('/dequeue',parameters)->begin
+  local indexToDrop:=parameters['index'];
+  indexToDrop.isInt
+  ? queued[indexToDrop]:=void
+  : void;
+  redirectTo('/');
+end;
+USE javascriptUtils;
+servePath('/enqueue',parameters)->
+  htmlPage('Enqueue task',
+  '<FORM name="myForm">'&
+  tag(
+  tag('Enqueue task','h2')&htmlTable(
+    filesInScriptFolder
+    .each(script,[script.tag('code'),
+             htmlLink('use','enqueue?scriptName='&script),
+             htmlLink('show script',encodeRequest('','displayFile',['filename'=>script.fullScriptName].toMap))]))&
+  jsHiddenInputFields(parameters).join&
+  (parameters['scriptName'] orElse '----')&
+  jsTextInputField('cmdLineParameters','',parameters,100)
+  ,'div')&
+  (parameters['scriptName'].isVoid ? void : '<br>'&htmlLink('enqueue task',http.encodeRequest('','addTask',parameters)))&
+  tag(
+  tag('Rerun previous','h2')&
+  history.map({$x[[2,3]]})
+       .unique
+       .filter({$x[0]!=SPECIAL_TASK_RESTART AND fileExists(fullScriptName($x[0]))})
+       .map({htmlLink($x.join(' ').tag('code'),encodeRequest('','addTask',['scriptName'=>$x[0],'cmdLineParameters'=>$x[1]].toMap))})
+       .join("<br>")
+   ,'div')
+
+
+  &'</FORM>'
+  ,false).wrapTextInHttp;
+
+servePath('/addTask',parameters)->begin
+  enqueueTask(parameters['scriptName'],
+              parameters['cmdLineParameters'] orElse '');
+  redirectTo('/');
+end;
+
+servePath('/displayFile',parameters)->begin
+  local filename:=parameters['filename'];
+  isString(filename) AND fileExists(filename)
+  ? fileContents(filename).wrapTextInHttp('text/plain')
+  : redirectTo('/');
+end;
+
+servePath('/forceStart',parameters)->begin
+  local indexToStart:=parameters['index'];
+  isInt(indexToStart) AND (0<=indexToStart<queued.size)
+  ? begin
+      indexToStart=0
+      ? void
+      : queued:=queued[indexToStart|filter([0..queued.size-1],{$x<>indexToStart})];
+      forceStart:=true;
+    end
+  : void;
+  redirectTo('/');
+end;
+
+servePath(unknownPath,parameters)->begin
+  warn('Unhandled path: ',unknownPath);
+  redirectTo('/');
+end;
+
+mutable serveStatistics:=[].toMap;
+
+logServeStats(forceOutput:Boolean)->begin
+  local lastPrint:=0;
+save;
+  forceOutput OR (time>lastPrint+STATISTICS_INTERVAL_IN_SECONDS)
+  ? begin
+      print('+---------------------------------- - - -');
+      print('| Time ',formatTime(systime));
+      print('| Uptime ',formatTime('hh:nn:ss',time/(24*60*60)));
+      print('+---------------------------------- - - -');
+      serveStatistics
+        .map({$x[0]|$x[1]})
+        .sort(2)
+        .each(entry,print('Request: ',entry[0]),
+                    printf(" served:\t%s\ttimes\n\t%s\tseconds (total)\n\t%s\tseconds (average)",entry[1],entry[2],entry[2]/entry[1]));
+      serveStatistics:=[].toMap;
+      lastPrint:=time;
+    end
+  : void;
+end;
+
+serve(M)->begin
+  logServeStats(false);
+  local path:=M['request','path'];
+  local serveTime:=-time;
+  local response:=
+  servePath(path.extractPath,
+            path.extractParameters);
+  serveTime+=time;
+  serveStatistics[path]:=(serveStatistics[path] orElse [0,0])+[1,serveTime];
+  response;
+end;
+
+main->begin
+  local logCpuUsage:={
+  begin
+    cpuUsageHistory|=exec('wmic',['path','Win32_PerfFormattedData_PerfOS_Processor','get','Name,','PercentProcessorTime'])[0]
+                    .tail.filter({$x!=''}).map({$line.trim.replace('  ',' ').split(' ').softCast}).toMap['_Total'] orElse -1;
+    cpuUsageHistory.size>1000
+    ? cpuUsageHistory:=cpuUsageHistory.tail
+    : void;
+  end};
+  local sinceLastTaskStart:=0;
+  local restartScheduled:=false;
+  startHttpServer(SERVE_AT,::serve,-1);
+  while(!restartScheduled,begin
+    logCpuUsage();
+    nextTaskIsRestart
+    ? restartScheduled:=true
+    : (sinceLastTaskStart+=1)>=SAMPLES_FOR_WORKLOAD_CHECK AND isCpuAlmostIdle OR forceStart
+      ? begin
+          forceStart:=false;
+          startExecution@getNextTask
+          ? sinceLastTaskStart:=0
+          : void;
+          sleep(2);
+        end
+      : sleep(2);
+  end);
+  logServeStats(true);
+end;
+
+@after
+restart->execAsync(executor,[myPath]);
+

@@ -1,13 +1,15 @@
-private curry sumand(n,k)->4*powMod(16,n-k,8*k+1)/(8*k+1)
-                          -2*powMod(16,n-k,8*k+4)/(8*k+4)
-                          -  powMod(16,n-k,8*k+5)/(8*k+5)
-                          -  powMod(16,n-k,8*k+6)/(8*k+6);
+private sumand(n,k)->4*powMod(16,n-k,8*k+1)/(8*k+1)
+                    -2*powMod(16,n-k,8*k+4)/(8*k+4)
+                    -  powMod(16,n-k,8*k+5)/(8*k+5)
+                    -  powMod(16,n-k,8*k+6)/(8*k+6);
 //see also: https://en.wikipedia.org/wiki/Bailey%E2%80%93Borwein%E2%80%93Plouffe_formula
 private calcPiHexDigit(n)->begin
   //Calculate the n-th hexadecimal digit of pi
-  local d:=[0..n].map(sumand(n)).agg(+);
+  local d:=[0..n].each(k,sumand(n,k),+);
   (d:=floor(d*16) mod 16)<0 ? d+16 : d;
 end;
+
+private datastore calculatedDigitsOfPi:=[];
 
 private hexToDecimal(hexDigits:IntList)->
   //Transform hexadecimal digits to decimal form:
@@ -16,53 +18,61 @@ private hexToDecimal(hexDigits:IntList)->
   //  - use as digits after decimal point
   '3.'&(hexDigits.composeDigits(16)*10^floor(hexDigits.size*ln(16)/ln(10))).shiftRight(4*hexDigits.size);
 
-
-private datastore calculatedDigitsOfPi:=[];
-
-private calcPi(digitCount>=1)->begin
-  //Calculate how many decimal digits correspond to the given number of hexadecimal digits
-  local hexDigitCount:=ceil(ln(10)/ln(16)*digitCount);
-  calculatedDigitsOfPi.size<hexDigitCount
-  ? calculatedDigitsOfPi:=calculatedDigitsOfPi | (calculatedDigitsOfPi.size+[0..hexDigitCount-calculatedDigitsOfPi.size]).pMap(::calcPiHexDigit)
+private printNewDigits(nextHexDigit:Int)->begin
+  local currentSum:=calculatedDigitsOfPi.composeDigits(16);
+  local currentHexDigits:=calculatedDigitsOfPi.size;
+  local currentDecimalDigits:=0;
+  printDirect('3.');
+save;
+  currentSum:=currentSum*16+nextHexDigit;
+  currentHexDigits+=1;
+  local newDecimalDigits:=floor(currentHexDigits*1.2041199826559246-1);
+  newDecimalDigits>currentDecimalDigits
+  ? shiftRight(currentSum*10^newDecimalDigits,4*currentHexDigits).mod(10^(newDecimalDigits-currentDecimalDigits)).printDirect
   : void;
-
-  //Calculate hexadecimal digits of pi
-  calculatedDigitsOfPi.head(hexDigitCount).hexToDecimal;
+  currentDecimalDigits:=newDecimalDigits;
+  nextHexDigit;
 end;
 
-//*Calculate showing statistics instead of pi
-main('x')->begin
-  local quit:=localAsync({ask('Press enter to quit')});
-  local lastPrint:=time;
-  local toCompute:=8;
-  while(quit().isVoid,begin
-    calculatedDigitsOfPi|=(calculatedDigitsOfPi.size+[0..toCompute-1]).pMap(::calcPiHexDigit);
-    print('Digit #',calculatedDigitsOfPi.size,'; ',toCompute/(time-lastPrint),' digits per second');
-    toCompute:=round(10*toCompute/(time-lastPrint)).max(8).min(200);
-    lastPrint:=time;
-  end);
-  print("\nCalculation stopped @ ",calculatedDigitsOfPi.size,' hexadecimal digits',
-        "\n                    = ",floor(ln(16)/ln(10)*calculatedDigitsOfPi.size),' decimal digits');
+calculate(quit:Expression(0),quiet:Boolean)->begin
+  note("Evaluation starts",
+       "\ninitial state : ",local initialDigits:=calculatedDigitsOfPi.size,' (hex)',
+       "\n                ",floor(calculatedDigitsOfPi.size*1.2041199826559246),' (decimal)');
+  local startOfCalculation:=time;
+  local digitGen:=
+  rangeGenerator(calculatedDigitsOfPi.size)
+    .futureMap(::calcPiHexDigit);
+  quiet
+  ? while(quit().isVoid,calculatedDigitsOfPi|=               digitGen() )
+  : while(quit().isVoid,calculatedDigitsOfPi|=printNewDigits(digitGen()));
+  note("\nEvaluation finished",
+       "\ncurrent digits: ",calculatedDigitsOfPi.size,' (hex)',
+       "\n                ",floor(calculatedDigitsOfPi.size*1.2041199826559246),' (decimal)',
+       "\ncalculated ",(calculatedDigitsOfPi.size-initialDigits)/(time-startOfCalculation),' digits per second');
 end;
 
-main(digitsOfPiToCompute)->calcPi(digitsOfPiToCompute.toInt).print;
+//*Calculates digits of pi until enter is pressed
+main->calculate(async(::ask,['Press Enter to quit']),false);
 
-//*Continuous calculation; output every 10 seconds
-main->begin
-  local quit:=localAsync({ask('Press enter to quit')});
-  local currPi:=calculatedDigitsOfPi==[] ? '3.' : hexToDecimal(calculatedDigitsOfPi);
-  local lastPrint:=time;
-  print;
-  printDirect(currPi);
-  local toCompute:=8;
-  while(quit().isVoid,begin
-    calculatedDigitsOfPi|=(calculatedDigitsOfPi.size+[0..toCompute-1]).pMap(::calcPiHexDigit);
-    local newPi:=hexToDecimal(calculatedDigitsOfPi);
-    printDirect(newPi.copy(currPi.length,newPi.length-currPi.length));
-    currPi:=newPi;
-    toCompute:=round(10*toCompute/(time-lastPrint)).max(8).min(200);
-    lastPrint:=time;
-  end);
-  print("\nCalculation stopped @ ",calculatedDigitsOfPi.size,' hexadecimal digits',
-        "\n                    = ",floor(ln(16)/ln(10)*calculatedDigitsOfPi.size),' decimal digits');
+//*Print pi, as far as calculated
+main('show')->begin
+  print(calculatedDigitsOfPi.hexToDecimal);
+  print("current digits:\t",calculatedDigitsOfPi.size,"\t(hex)",
+        "\n\t",floor(calculatedDigitsOfPi.size*1.2041199826559246),"\t(decimal)");
 end;
+
+//*Calculates the given number of digits of pi
+main(numberOfDigitsToCompute)->begin
+  local count:=ceil(numberOfDigitsToCompute.toInt/1.2041199826559246);
+  calculatedDigitsOfPi.size>=count
+  ? print(calculatedDigitsOfPi.head(count).hexToDecimal)
+  : calculate({calculatedDigitsOfPi.size<count ? void : true},false);
+end;
+
+//*Calculates digits of pi for the given time in seconds
+main('for',numberOfSeconds)->begin
+  local timeout:=time+numberOfSeconds.toInt;
+  calculate({time<timeout ? void : true},true);
+end;
+
+

@@ -1,4 +1,4 @@
-#!C:\dev\mnh5\ide\mnh_debug.exe -GUI -headless
+#!C:\bin\mnh.exe -GUI -quiet +out ?.log(1)
 USE tinyServer_html,tinyServer_config,loggingRunner;
 
 //CPU Usage:--------------------------------------------------------------------------
@@ -46,20 +46,23 @@ private getQueuedSection->
                    htmlLink('force start','forceStart?index='&index)])),'div');
 
 private getHistorySection->begin
-  local runningScripts:=scriptRunning('query').getInner(0);
+  local runningScripts:=scriptRunning('query');
   tag(
   tag('History','h2')&
-  htmlTable([['#','Executed','Script','Parameters','Log',''].map({$x.tag('b')})]|history.reverseList.map(
+  htmlTable([['#','Executed','Script','Parameters','Log','Status'].map({$x.tag('b')})]|history.reverseList.map(
           {[$x[0],
             formatTime('yyyy/mm/dd hh:nn:ss',$x[1]),
             $x[2].tag('code'),
             $x[3].tag('code'),
             fileExists(getLogName($x[0])) ? htmlLink(getLogName($x[0]),encodeRequest('','displayFile',['filename'=>getLogName($x[0])].toMap)) : '- log missing -',
             (getLogName($x[0]) in runningScripts)
-            ? tag('RUNNING','b')
-            : fileExists(fullScriptName($x[2]))
-              ? htmlLink('restart',encodeRequest('','addTask',['scriptName'=>$x[2],'cmdLineParameters'=>$x[3]].toMap))
-              : ''
+            ? tag('running ','b')
+              & (getLogName($x[0]) in killRequests
+                 ? tag('kill reqested','i')
+                 : htmlLink('kill',encodeRequest('','kill',['index'=>$x[0]].toMap)))
+            : getLogName($x[0]).isLogComplete
+              ? 'finished'
+              : 'cancelled'
             ]})),'div');
 end;
 
@@ -91,6 +94,13 @@ private nextTaskIsRestart->
 servePath('/',parameters:Map)->htmlPage('Server Overview',statusSection&getQueuedSection&getHistorySection,true).wrapTextInHttp;
 servePath('/restart',parameters)->begin
   enqueueTask(SPECIAL_TASK_RESTART,'');
+  redirectTo('/');
+end;
+servePath('/kill',parameters)->begin
+  local indexToKill:=parameters['index'];
+  indexToKill.isInt
+  ? killRequests|=getLogName(indexToKill)
+  : void;
   redirectTo('/');
 end;
 servePath('/dequeue',parameters)->begin
@@ -205,6 +215,7 @@ main->begin
   local sinceLastTaskStart:=0;
   local restartScheduled:=false;
   startHttpServer(SERVE_AT,::serve,-1);
+  print(systime.formatTime,' - server is up at ',SERVE_AT);
   while(!restartScheduled,begin
     logCpuUsage();
     nextTaskIsRestart

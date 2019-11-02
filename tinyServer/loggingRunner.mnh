@@ -1,45 +1,65 @@
 private IPC_ID:=myPath.extractFileNameOnly;
 private CLIENT_ID:=$1;
-private HEARTBEAT_INTERVAL:=2;
+private HEARTBEAT_INTERVAL:=1;
 private boxLine(totalLength:Int,''     )->'+'&repeat('-',max(63,totalLength)-2)&'+';
 private boxLine(totalLength:Int,s:String)->format('| %-'&max(63,totalLength)-4&'s |',s);
 private niceInterval(timeInDays<0.00069444444444444447)->format('%0.3f',timeInDays*86400);
 private niceInterval(timeInDays)->formatTime('hh:nn:ss.zzz',timeInDays);
+private KILL_SIGNAL:=['KILL',197512];
 
 @SuppressUnusedWarning
 private onStartup:=
   CLIENT_ID.isVoid
   ? void
   : //This is the client instance; start heartbeat client
-    async({
+    async({begin
+      local killRequestReceived:=false;
       //We need the outer try for a graceful stop
-      try({while(true,sleep(HEARTBEAT_INTERVAL) orElse
+      try({while(!killRequestReceived,sleep(HEARTBEAT_INTERVAL) orElse
                       //We need the inner try for robustness if server dies
-                      try({sendIpcRequest(IPC_ID,CLIENT_ID)})
+                      try({sendIpcRequest(IPC_ID,CLIENT_ID)})==KILL_SIGNAL
+                      ? killRequestReceived:=true
+                      : void
                 )}
-         )
-      });
+         );
+      assert(!killRequestReceived);
+    end});
 
-ensureServer->isIpcServerRunning(IPC_ID) ? void :
+private ensureServer->isIpcServerRunning(IPC_ID) ? void :
   begin
     startIpcServer(IPC_ID,{scriptRunning('post',$X)});
     sleep(0.2);
   end;
 
 mutable runners:=[].toMap;
+mutable completeLogs:=[].toSet;
+mutable killRequests:=[].toSet;
 
+//*Returns list of ids (log names) for scripts that are currently running
 synchronized scriptRunning('query')->begin
   ensureServer;
   runners.getInner(0).each(id,begin
     time>runners[id]
-    ? runners[id]:=void
+    ? begin
+        runners[id]:=void;
+        killRequests>>id;
+      end
     : void;
   end);
-  runners;
+  runners.getInner(0);
+end;
+
+isLogComplete(name:String)->(name in completeLogs) OR begin
+  local complete:=fileStats(name)[0]>=5;
+  complete ? completeLogs|=name : void;
+  complete;
 end;
 
 private synchronized scriptRunning('post',id)->begin
   runners[id]:=time+3*HEARTBEAT_INTERVAL;
+  (id in killRequests
+  ? KILL_SIGNAL
+  : false);
 end;
 
 private
@@ -65,12 +85,14 @@ end;
 startExecution(...)->false;
 
 main(logname,program,...)->begin
+  local callForLog:=join(program|...,' ');
   logname.writeFileLines([local startLine:='Run started at '&formatTime('yyyy-mm-dd hh:nn:ss.zzz',local startTime:=systime)],"\n");
   local executionResult:=teeExec(program,...);
-  local l:=executionResult[0].length.max orElse 0;
+  local l:=(executionResult[0].length.max orElse 0).max(length(callForLog));
   local endTime:=systime;
   logname.writeFileLines(
-  [boxLine(l,startLine),
+  [boxLine(l,callForLog),
+   boxLine(l,startLine),
    boxLine(l,'')]|
   executionResult[0]|
   [boxLine(l,''),

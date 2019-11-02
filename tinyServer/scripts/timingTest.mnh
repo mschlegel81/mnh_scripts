@@ -1,0 +1,11 @@
+main->begin
+  local t0:=[time,systime];
+  print('Start to sleep');
+  sleep(60);
+  local t1:=[time,systime];
+  local dt:=(t1-t0)*[1,24*60*60];
+  print('Time passed according to systime: ',dt[1]);
+  print('Time passed according to time   : ',dt[0]);
+  print('Error (absolute)                : ',dt.agg(-));
+  print('Error (relative)                : ',dt.agg(-)/dt[1]);
+end;

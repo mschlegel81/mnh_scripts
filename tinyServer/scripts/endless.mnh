@@ -1,0 +1,1 @@
+main->while(true,sleep(1) orElse systime.formatTime.print);

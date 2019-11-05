@@ -1,38 +1,21 @@
+USE processUtil;
 private IPC_ID:=myPath.extractFileNameOnly;
-private CLIENT_ID:=$1;
 private HEARTBEAT_INTERVAL:=1;
-private boxLine(totalLength:Int,''     )->'+'&repeat('-',max(63,totalLength)-2)&'+';
-private boxLine(totalLength:Int,s:String)->format('| %-'&max(63,totalLength)-4&'s |',s);
+private boxPrint->print('+'&repeat('-',92)&' - - -');
+private boxPrint(s:String)->printf('| %s',s);
 private niceInterval(timeInDays<0.00069444444444444447)->format('%0.3f',timeInDays*86400);
 private niceInterval(timeInDays)->formatTime('hh:nn:ss.zzz',timeInDays);
 private KILL_SIGNAL:=['KILL',197512];
-
-@SuppressUnusedWarning
-private onStartup:=
-  CLIENT_ID.isVoid
-  ? void
-  : //This is the client instance; start heartbeat client
-    async({begin
-      local killRequestReceived:=false;
-      //We need the outer try for a graceful stop
-      try({while(!killRequestReceived,sleep(HEARTBEAT_INTERVAL) orElse
-                      //We need the inner try for robustness if server dies
-                      try({sendIpcRequest(IPC_ID,CLIENT_ID)})==KILL_SIGNAL
-                      ? killRequestReceived:=true
-                      : void
-                )}
-         );
-      assert(!killRequestReceived);
-    end});
+private FINAL_LINE:='### - DONE - ###';
 
 private ensureServer->isIpcServerRunning(IPC_ID) ? void :
   begin
     startIpcServer(IPC_ID,{scriptRunning('post',$X)});
-    sleep(0.2);
+    while(!isIpcServerRunning(IPC_ID),sleep(1E-3));
   end;
 
 mutable runners:=[].toMap;
-mutable completeLogs:=[].toSet;
+mutable logState:=[].toMap;
 mutable killRequests:=[].toSet;
 
 //*Returns list of ids (log names) for scripts that are currently running
@@ -49,10 +32,10 @@ synchronized scriptRunning('query')->begin
   runners.getInner(0);
 end;
 
-isLogComplete(name:String)->(name in completeLogs) OR begin
-  local complete:=fileStats(name)[0]>=5;
-  complete ? completeLogs|=name : void;
-  complete;
+isLogComplete(name:String)->begin
+  ((logState[name].isVoid) OR (logState[name,0]!=fileInfo(name)['time'])
+  ? logState[name]:=[fileInfo(name)['time'],fileExists(name) AND fileLines(name).trailing==FINAL_LINE]
+  : logState[name])[1];
 end;
 
 private synchronized scriptRunning('post',id)->begin
@@ -76,7 +59,7 @@ startExecution(logname,scriptName,parameters:String)->begin
     : scriptName.extractFileExt.lower=='.mnh'
     ? [executor,'-v(1)','-headless',scriptName]
     : return void;
-  execAsync(executor,[myPath,logname] | programAndScript | splitCommandLineParameters(parameters));
+  execAsync(executor,['-out',logname,myPath,logname] | programAndScript | splitCommandLineParameters(parameters));
   ensureServer;
   scriptRunning('post',logname);
   true;
@@ -85,19 +68,32 @@ end;
 startExecution(...)->false;
 
 main(logname,program,...)->begin
-  local callForLog:=join(program|...,' ');
-  logname.writeFileLines([local startLine:='Run started at '&formatTime('yyyy-mm-dd hh:nn:ss.zzz',local startTime:=systime)],"\n");
-  local executionResult:=teeExec(program,...);
-  local l:=(executionResult[0].length.max orElse 0).max(length(callForLog));
+  async({begin
+    local killRequestReceived:=false;
+    //We need the outer try for a graceful stop
+    try({while(!killRequestReceived,sleep(HEARTBEAT_INTERVAL) orElse
+                    //We need the inner try for robustness if server dies
+                    try({sendIpcRequest(IPC_ID,logname)})==KILL_SIGNAL
+                    ? killRequestReceived:=true
+                    : void
+              )}
+       );
+    killRequestReceived
+    ? begin
+        print('KILL SIGNAL RECEIVED - propagating');
+        killAllMyChildren;
+      end
+    : void;
+    end});
+  boxPrint(join(program|...,' '));
+  boxPrint('Run started at '&formatTime('yyyy-mm-dd hh:nn:ss.zzz',local startTime:=systime));
+  boxPrint;
+  local executionResult:=teeExec(program,...,::print);
   local endTime:=systime;
-  logname.writeFileLines(
-  [boxLine(l,callForLog),
-   boxLine(l,startLine),
-   boxLine(l,'')]|
-  executionResult[0]|
-  [boxLine(l,''),
-   boxLine(l,'Run finished at '&formatTime('yyyy-mm-dd hh:nn:ss.zzz',endTime)),
-   boxLine(l,'With exit code '&executionResult[1]),
-   boxLine(l,'After '&niceInterval(endTime-startTime)),
-   boxLine(l,'')],"\n");
+  boxPrint;
+  boxPrint('Run finished at '&formatTime('yyyy-mm-dd hh:nn:ss.zzz',endTime));
+  boxPrint('With exit code '&executionResult[1]);
+  boxPrint('After '&niceInterval(endTime-startTime));
+  boxPrint;
+  print(FINAL_LINE);
 end;

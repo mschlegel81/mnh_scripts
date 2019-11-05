@@ -1,10 +1,10 @@
-SERVE_AT:='127.0.0.1:23001';
-MAX_HISTORY_SIZE:=32;
+SERVE_AT_IP:='127.0.0.1';
+mutable SERVE_AT_SOCKET:=23000;
+MAX_HISTORY_SIZE:=50;
 private LOG_FOLDER:='logs';
 private SCRIPT_FOLDER:='scripts';
 START_WHEN_WORKLOAD_BELOW:=20;
 SAMPLES_FOR_WORKLOAD_CHECK:=10;
-STATISTICS_INTERVAL_IN_SECONDS:=10*60;
 
 getLogName(index)->format('%s/log%s.txt',LOG_FOLDER,index);
 fullScriptName(filename)->format('%s/%s',SCRIPT_FOLDER,filename);

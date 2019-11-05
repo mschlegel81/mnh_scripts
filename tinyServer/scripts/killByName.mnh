@@ -1,0 +1,18 @@
+USE '..\processUtil.mnh';
+main(namePattern)->begin
+  local lines:=exec('wmic',['process','get','Caption,ParentProcessId,ProcessId'])[0].trim.filter({$x<>''});
+  local commonSpaces:=intersect@(lines.map({$x.matchComposite(' ').getInner(1)}));
+  commonSpaces:=commonSpaces.minus(commonSpaces-1).sort.head(2);
+  lines:=
+  lines.tail.each(l,
+    [l.copy(0,commonSpaces[0]-1),
+     l.copy(commonSpaces[0],commonSpaces[1]-commonSpaces[0]),
+     l.copy(commonSpaces[1])])
+     .trim
+     .filter({$x[0].matches(namePattern)})
+     .getInner(2)
+     .softCast
+     .filter(::isInt)
+     .map(::stopProcess);
+end;
+

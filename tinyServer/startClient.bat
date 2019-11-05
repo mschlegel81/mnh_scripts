@@ -1,1 +1,0 @@
-mnh -cmd USE tinyServer_config; openUrl('http://'+SERVE_AT);

@@ -1,0 +1,39 @@
+ducktype ProcessInfo(L:List(3))->L[0].isString AND L[1].isInt AND L[2].isInt;
+
+//*Returns a map parent -> [children]
+//*Results are process ids
+getProcessMap->
+exec('wmic',['process','get','Caption,ParentProcessId,ProcessId'])
+.head
+.replace('  ',' ')
+.split(' ')
+.map({$x.size>=3 ? $x.softCast.head(3) : void})
+.filter(::isProcessInfo)
+.group(1)
+.each(g,g[0]=>g[1].map({$x[[0,2]]}))
+.toMap;
+
+processesStaredByMe->getProcessMap[mnhInfo['PID']].filter({$x[0]!='conhost.exe'});
+
+allProcessesStartedByMe->begin
+  local m:=getProcessMap;
+  local parentPidsToConsider:=[mnhInfo['PID']].toSet;
+  local result:=[];
+  local pc:=0;
+  while(parentPidsToConsider.size<>pc,begin
+    pc:=parentPidsToConsider.size;
+    parentPidsToConsider.each(pid,
+      (m[pid] orElse []).each(childProcess,
+        childProcess in result
+        ? void
+        : begin
+            result|=[childProcess];
+            parentPidsToConsider|=childProcess[1];
+          end));
+  end);
+  result;
+end;
+
+stopProcess(pid:Int)->execAsync('taskkill',['/f','/PID',toString(pid)]);
+
+killAllMyChildren->begin allProcessesStartedByMe.filter({$x[0]!='conhost.exe'}).getInner(1).map(::stopProcess); void; end;

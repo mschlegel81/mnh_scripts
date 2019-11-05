@@ -1,19 +1,27 @@
 #!C:\bin\mnh.exe -GUI -quiet +out ?.log(1)
 USE tinyServer_html,tinyServer_config,loggingRunner;
-
+private LOG_NAME:=changeFileExt(myPath,'.log');
 //CPU Usage:--------------------------------------------------------------------------
 mutable cpuUsageHistory:=[];
 
 private getCpuDiagram->begin
-  setOptions(["preserveAspect"=>false,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
-  local x1:=max(cpuUsageHistory.size-1,1);
-  plot(  [[0,0],  [x1,100]],'GREY0.13 fs box');
-  cpuUsageHistory.size>0
-  ? addPlot(cpuUsageHistory,'GREY0.5 f')
-  : void;
-  addPlot([[0,START_WHEN_WORKLOAD_BELOW],[x1,START_WHEN_WORKLOAD_BELOW]],'GREY0.5');
-  drawTextAbsolute(0,0.5,'CPU',80,'L','Century Gothic',[0.2,0.2,0.2]);
-  format('<img src="data:image/png;base64,%s" />',renderToString(500,100).base64encode);
+  local shownFor:=[];
+  local lastResult:='';
+save;
+  cpuUsageHistory==shownFor
+  ? lastResult
+  : begin
+      shownFor:=cpuUsageHistory;
+      setOptions(["preserveAspect"=>false,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
+      local x1:=max(cpuUsageHistory.size-1,1);
+      plot(  [[0,0],  [x1,100]],'GREY0.13 fs box');
+      cpuUsageHistory.size>0
+      ? addPlot(cpuUsageHistory,'GREY0.5 f')
+      : void;
+      addPlot([[0,START_WHEN_WORKLOAD_BELOW],[x1,START_WHEN_WORKLOAD_BELOW]],'GREY0.5');
+      drawTextAbsolute(0,0.5,'CPU',80,'L','Century Gothic',[0.2,0.2,0.2]);
+      lastResult:= format('<img src="data:image/png;base64,%s" />',renderToString(500,100).base64encode);
+    end;
 end;
 
 private isCpuAlmostIdle->(cpuUsageHistory.size>0) AND (cpuUsageHistory.trailing(SAMPLES_FOR_WORKLOAD_CHECK)<START_WHEN_WORKLOAD_BELOW).agg(AND);
@@ -31,19 +39,21 @@ end;
 private statusSection->tag(
   ('Status').tag('h2')&htmlTable(
   [['Date:'  .tag('b'),formatTime('dd.mm.yyyy',      systime),''                ,htmlLink('restart server','restart')],
-   ['Time:'  .tag('b'),formatTime('hh:nn:ss',        systime),''                ,htmlLink('show server log',encodeRequest('','displayFile',['filename'=>changeFileExt(myPath,'.log')].toMap))],
+   ['Time:'  .tag('b'),formatTime('hh:nn:ss',        systime),''                ,htmlLink('show server log',encodeRequest('','displayFile',['filename'=>LOG_NAME].toMap))],
    ['Uptime:'.tag('b'),formatTime('hh:nn:ss',time/(24*60*60))]]),'div')&getCpuDiagram.join("<br>").tag('code');
 
-private getQueuedSection->
+private getQueuedSection(withLink:Boolean)->
   tag(
-  tag('Queue    '&htmlLink('(+)','enqueue'), 'h2')&
+  tag('Queue'&(withLink ? '    '&htmlLink('(+)','enqueue') : void), 'h2')&
   htmlTable(
-  [['Enqueued at','','Script','Parameters',''].map({$x.tag('b')})] |
+  [['Enqueued at','','Script','Parameters'].map({$x.tag('b')})] |
     queued.each(x,[formatTime('yyyy/mm/dd hh:nn:ss',x[0]),
                    htmlLink('remove','dequeue?index='&index),
                    x[1].tag('code'),
                    x[2].tag('code'),
-                   htmlLink('force start','forceStart?index='&index)])),'div');
+                   htmlLink('force start','forceStart?index='&index),
+                   index=0 ? '' :
+                   htmlLink('move to front','moveToFront?index='&index)])),'div');
 
 private getHistorySection->begin
   local runningScripts:=scriptRunning('query');
@@ -66,7 +76,6 @@ private getHistorySection->begin
             ]})),'div');
 end;
 
-mutable forceStart:=false;
 private getNextTask->queued.size<=0 ? [] : begin
   local historyIndex:=history.getInner(0).max+1;
   local task:=queued.head;
@@ -91,29 +100,33 @@ private nextTaskIsRestart->
     end
   : false;
 
-servePath('/',parameters:Map)->htmlPage('Server Overview',statusSection&getQueuedSection&getHistorySection,true).wrapTextInHttp;
+START_PAGE:='/index';
+ENQUEUE_PAGE:='/enqueue';
+servePath((START_PAGE),parameters:Map)->htmlPage('Server Overview',statusSection&getQueuedSection(true)&getHistorySection,true).wrapTextInHttp;
 servePath('/restart',parameters)->begin
   enqueueTask(SPECIAL_TASK_RESTART,'');
-  redirectTo('/');
+  redirectTo(START_PAGE);
 end;
 servePath('/kill',parameters)->begin
   local indexToKill:=parameters['index'];
   indexToKill.isInt
   ? killRequests|=getLogName(indexToKill)
   : void;
-  redirectTo('/');
+  redirectTo(START_PAGE);
 end;
 servePath('/dequeue',parameters)->begin
   local indexToDrop:=parameters['index'];
   indexToDrop.isInt
   ? queued[indexToDrop]:=void
   : void;
-  redirectTo('/');
+  redirectTo(START_PAGE);
 end;
 USE javascriptUtils;
-servePath('/enqueue',parameters)->
+servePath((ENQUEUE_PAGE),parameters)->
   htmlPage('Enqueue task',
   '<FORM name="myForm">'&
+  htmlLink('<<<'.htmlClean,START_PAGE)&
+  getQueuedSection(false)&
   tag(
   tag('Enqueue task','h2')&htmlTable(
     filesInScriptFolder
@@ -133,22 +146,23 @@ servePath('/enqueue',parameters)->
        .map({htmlLink($x.join(' ').tag('code'),encodeRequest('','addTask',['scriptName'=>$x[0],'cmdLineParameters'=>$x[1]].toMap))})
        .join("<br>")
    ,'div')
-
-
   &'</FORM>'
   ,false).wrapTextInHttp;
 
 servePath('/addTask',parameters)->begin
   enqueueTask(parameters['scriptName'],
               parameters['cmdLineParameters'] orElse '');
-  redirectTo('/');
+  redirectTo(ENQUEUE_PAGE);
 end;
 
 servePath('/displayFile',parameters)->begin
   local filename:=parameters['filename'];
   isString(filename) AND fileExists(filename)
-  ? fileContents(filename).wrapTextInHttp('text/plain')
-  : redirectTo('/');
+  ? begin
+      filename==LOG_NAME ? logServeStats : void;
+      fileContents(filename).wrapTextInHttp('text/plain');
+    end
+  : redirectTo(START_PAGE);
 end;
 
 servePath('/forceStart',parameters)->begin
@@ -158,24 +172,39 @@ servePath('/forceStart',parameters)->begin
       indexToStart=0
       ? void
       : queued:=queued[indexToStart|filter([0..queued.size-1],{$x<>indexToStart})];
-      forceStart:=true;
+      queued.size>0 AND queued[0,1]==SPECIAL_TASK_RESTART
+      ? void
+      : startExecution@getNextTask;
     end
   : void;
-  redirectTo('/');
+  redirectTo(START_PAGE);
+end;
+
+servePath('/moveToFront',parameters)->begin
+  local indexToStart:=parameters['index'];
+  isInt(indexToStart) AND (0<indexToStart<queued.size)
+  ? begin
+      queued:=queued[indexToStart|filter([0..queued.size-1],{$x<>indexToStart})];
+    end
+  : void;
+  redirectTo(START_PAGE);
+end;
+
+servePath('/favicon.ico',parameters)->begin
+  fileExists('favicon.ico')
+  ? wrapTextInHttp(fileContents('favicon.ico'),'image/x-icon')
+  : httpError;
 end;
 
 servePath(unknownPath,parameters)->begin
   warn('Unhandled path: ',unknownPath);
-  redirectTo('/');
+  redirectTo(START_PAGE);
 end;
 
 mutable serveStatistics:=[].toMap;
 
-logServeStats(forceOutput:Boolean)->begin
-  local lastPrint:=0;
-save;
-  forceOutput OR (time>lastPrint+STATISTICS_INTERVAL_IN_SECONDS)
-  ? begin
+logServeStats->
+    begin
       print('+---------------------------------- - - -');
       print('| Time ',formatTime(systime));
       print('| Uptime ',formatTime('hh:nn:ss',time/(24*60*60)));
@@ -185,14 +214,12 @@ save;
         .sort(2)
         .each(entry,print('Request: ',entry[0]),
                     printf(" served:\t%s\ttimes\n\t%s\tseconds (total)\n\t%s\tseconds (average)",entry[1],entry[2],entry[2]/entry[1]));
-      serveStatistics:=[].toMap;
-      lastPrint:=time;
-    end
-  : void;
-end;
+      serveStatistics.size>100
+      ? serveStatistics:=[].toMap
+      : void;
+    end;
 
 serve(M)->begin
-  logServeStats(false);
   local path:=M['request','path'];
   local serveTime:=-time;
   local response:=
@@ -214,15 +241,24 @@ main->begin
   end};
   local sinceLastTaskStart:=0;
   local restartScheduled:=false;
-  startHttpServer(SERVE_AT,::serve,-1);
-  print(systime.formatTime,' - server is up at ',SERVE_AT);
+  begin
+    local serverIsUp:=false;
+    while(!serverIsUp,{begin
+      startHttpServer(SERVE_AT_IP&':'&SERVE_AT_SOCKET,::serve,-1);
+      serverIsUp:=true;
+    end}.try({
+    begin
+      print('Failed to start server at ',SERVE_AT_IP,':',SERVE_AT_SOCKET,' - trying next');
+      assert((SERVE_AT_SOCKET+=1)<=65535,'No valid socket found for IP ',SERVE_AT_IP);
+    end}));
+  end;
+  print(systime.formatTime,' - server is up at ',SERVE_AT_IP&':'&SERVE_AT_SOCKET);
   while(!restartScheduled,begin
     logCpuUsage();
     nextTaskIsRestart
     ? restartScheduled:=true
-    : (sinceLastTaskStart+=1)>=SAMPLES_FOR_WORKLOAD_CHECK AND isCpuAlmostIdle OR forceStart
+    : (sinceLastTaskStart+=1)>=SAMPLES_FOR_WORKLOAD_CHECK AND isCpuAlmostIdle
       ? begin
-          forceStart:=false;
           startExecution@getNextTask
           ? sinceLastTaskStart:=0
           : void;
@@ -230,9 +266,9 @@ main->begin
         end
       : sleep(2);
   end);
-  logServeStats(true);
+  logServeStats;
 end;
 
-@after
-restart->execAsync(executor,[myPath]);
+//@after
+//restart->execAsync(executor,[myPath]);
 

@@ -1,0 +1,10 @@
+plain script;
+fileLines(myPath.extractFileDirectory&'/tinyServer.log')
+  .filter({$x.matches('http Microserver started\. ')})
+  .trailing
+  .trim
+  .matchComposite('\d+\.\d+\.\d+\.\d+\:\d+')
+  .head
+  .head
+  .{print('opening: ',escape($x)) orElse 'http://'&$x}
+  .openUrl;

@@ -1,0 +1,30 @@
+#!C:\dev\mnh5\target\Win64\mnh.exe -out ?.log
+sortingMeasure2(L:NumericList)->trueCount(L.tail<L.leading)/(L.size-1);
+//*Returns the normalized squared distance between the indexes of the values and their indexes in a sorted list
+//*The value is normalized to give:
+//*  0 for a sorted list (ascending)
+//*  1 for a sorted list (descending)
+//*0.5 for a "random" list
+sortingMeasure(L)->begin
+  sqr(sortPerm(L)-[0..(local k:=L.size)-1]).agg(+)*3/((k-1)*k*(k+1));
+end;
+
+//mutable out;
+sleepSort(I:NumericList)->begin
+  local out:=[];
+  local t0:=time+0.1;
+  local sleepAndAppend:={sleepUntil($k+t0) orElse (out|=$k) orElse $k};
+  I.each(k,localAsync(sleepAndAppend,[k]))
+   .each(x,while(x().isVoid,sleep(0.1)));
+  out;
+end;
+
+main->(2^[1..13]).each(listSize   ,
+(2^[1..13]).each(granularity,
+  begin
+    local L:=(random(listSize)*granularity).floor/granularity;
+    L:=L.sleepSort;
+    print([listSize,granularity,L.size=listSize,sortingMeasure(L),sortingMeasure2(L)]);
+  end));
+
+

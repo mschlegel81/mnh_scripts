@@ -46,7 +46,7 @@ getHistorySection->begin
     report.each(r,
       [r['index'],
        fmtT(r[STARTTIME]),
-       tag(r[SCRIPT],'code'),
+       tag(r[SCRIPT].extractFileName,'code'),
        tag(r[PARAMETERS],'code'),
        r[FILESTATS]==[0.0,-1] ? '- log missing -' : htmlLink(getLogName(r['index']).extractFileName,
                                                        encodeRequest('','displayFile',['filename'=>getLogName(r['index'])].toMap)),

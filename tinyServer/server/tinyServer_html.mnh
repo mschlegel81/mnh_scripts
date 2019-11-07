@@ -1,3 +1,4 @@
+USE tinyServer_config;
 htmlPage(title:String,body:String,refresh:Boolean)->//!~<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
 <head>
 <meta content="text/html; charset=UTF-8" http-equiv="content-type"><title>~&title&'</title>'&
@@ -25,10 +26,14 @@ code {
   white-space: pre;
 }
 table {
-  text-align: left;
-  background-color: #333333;
-  border="10";
+  border-collapse: collapse;
 }
+th, td {
+  padding: 3px;
+  text-align: left;
+  border-bottom: 1px solid #555555;
+}
+tr:hover {background-color:#444444;}
 h2 {
   font-style: inherit;
   font-size: 200%;
@@ -49,3 +54,23 @@ redirectTo(path)->wrapTextInHttp('<html><head><meta http-equiv="Refresh" content
 htmlClean(text:String)->
 text.replace(['&'  ,'"'   ,"'"   ,'<' ,'>'],
          '&'&['amp','quot','apos','lt','gt']&';');
+
+mutable headLinks:=[];
+
+private mutable fileServed:=[].toMap;
+serveFile(filename:String)->
+fileExists(filename) ? begin
+  local cachedResult:=fileServed[filename];
+  local currentFileInfo:=fileInfo(filename);
+  cachedResult.isVoid OR !(cachedResult[0]==currentFileInfo)
+  ? begin
+      local response:=filename.extractFileExt.lower=='.ico'
+                      ? wrapTextInHttp(fileContents(filename),200,['Cache-Control'=>'max-age=3600','Content-type'=>'image/x-icon'].toMap)
+                      : formatHtmlPage(filename.fileLines,filename.extractFileName).wrapTextInHttp;
+      fileServed[filename]:=[currentFileInfo,response];
+      response;
+    end
+  : cachedResult[1];
+end : void;
+
+memoized getHeadLinks->headLinks.join("&nbsp;&nbsp;").tag('div');

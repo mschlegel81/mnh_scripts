@@ -1,0 +1,149 @@
+USE loggingRunner,tinyServer_html,tinyServer_config,javascriptUtils;
+
+datastore queued  :=[];
+datastore previous:=[];
+SPECIAL_TASK_RESTART:='RESTART';
+
+getNextTask->queued.size<=0 ? [] : begin
+  local task:=queued.head;
+  local scriptName  :=task[1];
+  local scriptParams:=task[2];
+  queued:=queued.tail;
+  writeDataStores;
+  scriptName=SPECIAL_TASK_RESTART
+  ? SPECIAL_TASK_RESTART
+  : [scriptName.fullScriptName.systemSpecificFilename,scriptParams];
+end;
+
+nextTaskIsRestart->
+  queued.size>0 AND queued[0,1]==SPECIAL_TASK_RESTART
+  ? begin
+      queued:=queued.tail;
+      writeDataStores;
+      true;
+    end
+  : false;
+
+getQueuedSection(withLink:Boolean)->
+  tag(
+  tag('Queue'&(withLink ? '    '&htmlLink('(+)','enqueue') : void), 'h2')&
+  htmlTable(
+  [['Enqueued at','','Script','Parameters'].map({$x.tag('b')})] |
+    queued.each(x,[formatTime('yyyy/mm/dd hh:nn:ss',x[0]),
+                   htmlLink('remove','dequeue?index='&index),
+                   x[1].tag('code'),
+                   x[2].tag('code'),
+                   htmlLink('force start','forceStart?index='&index),
+                   index=0 ? '' :
+                   htmlLink('move to front','moveToFront?index='&index)])),'div');
+
+getHistorySection->begin
+  local report:=getTaskReport;
+  local fmtT:={formatTime('yyyy/mm/dd hh:nn:ss',$0)};
+  tag(
+  tag('History','h2')&
+  htmlTable([['#','Started','Script','Parameters','Log','Status',''].map({$x.tag('b')})]|
+    report.each(r,
+      [r['index'],
+       fmtT(r[STARTTIME]),
+       tag(r[SCRIPT],'code'),
+       tag(r[PARAMETERS],'code'),
+       r[FILESTATS]==[0.0,-1] ? '- log missing -' : htmlLink(getLogName(r['index']).extractFileName,
+                                                       encodeRequest('','displayFile',['filename'=>getLogName(r['index'])].toMap)),
+       r[RUNNING]
+       ? tag('running ','b')
+         & ((r[KILLREQUESTED] orElse false)
+            ? tag('kill reqested','i')
+            : htmlLink('kill',encodeRequest('','kill',['index'=>r['index']].toMap)))
+       : ((r[KILLREQUESTED] orElse false) ? 'killed' : r[FINISHED] ? 'finished' :  'cancelled'),
+       fmtT(r[FINISHTIME] orElse systime)])
+   ),'div');
+end;
+
+@SuppressUnusedWarning=Used in tinyServer.mnh
+servePath('/kill',parameters:Map)->begin
+  local indexToKill:=parameters['index'];
+  indexToKill.isInt
+  ? setKillRequest(indexToKill)
+  : void;
+  redirectTo(START_PAGE);
+end;
+
+servePath('/dequeue',parameters:Map)->begin
+  local indexToDrop:=parameters['index'];
+  indexToDrop.isInt
+  ? queued[indexToDrop]:=void
+  : void;
+  redirectTo(START_PAGE);
+end;
+
+servePath('/addTask',parameters:Map)->begin
+  enqueueTask(parameters['scriptName'],
+              parameters['cmdLineParameters'] orElse '');
+  redirectTo(ENQUEUE_PAGE);
+end;
+
+servePath((ENQUEUE_PAGE),parameters:Map)->
+  htmlPage('Enqueue task',
+  '<FORM name="myForm">'&
+  htmlLink('<<<'.htmlClean,START_PAGE)&
+  getQueuedSection(false)&
+  tag(
+  tag('Enqueue task','h2')&htmlTable(
+    filesInScriptFolder
+    .each(script,[script.tag('code'),
+             htmlLink('use','enqueue?scriptName='&script),
+             htmlLink('show script', encodeRequest('','displayFile',['filename'=>script.fullScriptName].toMap))]))&
+  jsHiddenInputFields(parameters).join&
+  (parameters['scriptName'] orElse '----')&
+  jsTextInputField('cmdLineParameters','',parameters,100)
+  ,'div')&
+  (parameters['scriptName'].isVoid ? void : '<br>'&htmlLink('enqueue task',http.encodeRequest('','addTask',parameters)))&
+  tag(
+  tag('Rerun previous','h2')&
+  previous.filter({$x[0]!=SPECIAL_TASK_RESTART AND fileExists(fullScriptName($x[0]))})
+       .map({htmlLink($x.join(' ').tag('code'),encodeRequest('','addTask',['scriptName'=>$x[0],'cmdLineParameters'=>$x[1]].toMap))})
+       .join("<br>")
+   ,'div')
+  &'</FORM>'
+  ,false).wrapTextInHttp;
+
+servePath('/forceStart',parameters:Map)->begin
+  local indexToStart:=parameters['index'];
+  isInt(indexToStart) AND (0<=indexToStart<queued.size)
+  ? begin
+      indexToStart=0
+      ? void
+      : queued:=queued[indexToStart|filter([0..queued.size-1],{$x<>indexToStart})];
+      queued.size>0 AND queued[0,1]==SPECIAL_TASK_RESTART
+      ? void
+      : startExecution@getNextTask;
+    end
+  : void;
+  redirectTo(START_PAGE);
+end;
+
+servePath('/moveToFront',parameters:Map)->begin
+  local indexToStart:=parameters['index'];
+  isInt(indexToStart) AND (0<indexToStart<queued.size)
+  ? begin
+      queued:=queued[indexToStart|filter([0..queued.size-1],{$x<>indexToStart})];
+    end
+  : void;
+  redirectTo(START_PAGE);
+end;
+private addToPrevious(script,parameters)->begin
+  previous:=[[script,parameters]]|previous;
+  previous.size>1
+  ? [1..previous.size-1].each(i,previous[i]==previous[0] ? previous[i]:=void
+                                                         : void)
+  : void;
+  previous:=head(previous,MAX_HISTORY_SIZE);
+end;
+
+enqueueTask(script,parameters)->begin
+  queued|=[[systime,script,parameters]];
+  addToPrevious(script,parameters);
+  writeDataStores;
+end;
+

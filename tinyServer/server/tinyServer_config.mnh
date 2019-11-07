@@ -1,10 +1,13 @@
 SERVE_AT_IP:='127.0.0.1';
-mutable SERVE_AT_SOCKET:=23000;
-MAX_HISTORY_SIZE:=50;
-private LOG_FOLDER:='logs';
-private SCRIPT_FOLDER:='scripts';
-START_WHEN_WORKLOAD_BELOW:=20;
+mutable SERVE_AT_SOCKET   :=23000;
+MAX_HISTORY_SIZE          :=50;
+private LOG_FOLDER        :='logs';
+private SCRIPT_FOLDER     :='scripts';
+START_WHEN_WORKLOAD_BELOW :=20;
 SAMPLES_FOR_WORKLOAD_CHECK:=10;
+
+START_PAGE:='/index';
+ENQUEUE_PAGE:='/enqueue';
 
 getLogName(index)->format('%s/log%s.txt',LOG_FOLDER,index);
 fullScriptName(filename)->format('%s/%s',SCRIPT_FOLDER,filename);
@@ -17,6 +20,4 @@ save;
   : begin
       nextUpdate:=time+30; //update every 30 seconds
       result:=extractFileName(files(SCRIPT_FOLDER&'\*.mnh')|files(SCRIPT_FOLDER&'\*.bat')).sort;
-    end;
-end;
-
+    end;end;

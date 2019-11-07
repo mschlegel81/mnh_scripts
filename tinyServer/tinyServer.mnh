@@ -1,5 +1,9 @@
 #!C:\bin\mnh.exe -GUI -quiet +out ?.log(1)
-USE tinyServer_html,tinyServer_config,loggingRunner;
+USE tinyServer_html,tinyServer_config,loggingRunner,serveTasks,serveProcesses;
+
+@SuppressUnusedWarning
+USE serveFiles;
+
 private LOG_NAME:=changeFileExt(myPath,'.log');
 //CPU Usage:--------------------------------------------------------------------------
 mutable cpuUsageHistory:=[];
@@ -26,179 +30,28 @@ end;
 
 private isCpuAlmostIdle->(cpuUsageHistory.size>0) AND (cpuUsageHistory.trailing(SAMPLES_FOR_WORKLOAD_CHECK)<START_WHEN_WORKLOAD_BELOW).agg(AND);
 //--------------------------------------------------------------------------:CPU Usage
-
-private SPECIAL_TASK_RESTART:='RESTART';
-datastore queued     :=[];
-datastore history    :=[];
-
-private enqueueTask(script,parameters)->begin
-  queued|=[[systime,script,parameters]];
-  writeDataStores;
-end;
-
-private statusSection->tag(
+private getStatusSection->tag(
   ('Status').tag('h2')&htmlTable(
   [['Date:'  .tag('b'),formatTime('dd.mm.yyyy',      systime),''                ,htmlLink('restart server','restart')],
-   ['Time:'  .tag('b'),formatTime('hh:nn:ss',        systime),''                ,htmlLink('show server log',encodeRequest('','displayFile',['filename'=>LOG_NAME].toMap))],
+   ['Time:'  .tag('b'),formatTime('hh:nn:ss',        systime),''                ,htmlLink('show server log','showLog')],
    ['Uptime:'.tag('b'),formatTime('hh:nn:ss',time/(24*60*60))]]),'div')&getCpuDiagram.join("<br>").tag('code');
 
-private getQueuedSection(withLink:Boolean)->
-  tag(
-  tag('Queue'&(withLink ? '    '&htmlLink('(+)','enqueue') : void), 'h2')&
-  htmlTable(
-  [['Enqueued at','','Script','Parameters'].map({$x.tag('b')})] |
-    queued.each(x,[formatTime('yyyy/mm/dd hh:nn:ss',x[0]),
-                   htmlLink('remove','dequeue?index='&index),
-                   x[1].tag('code'),
-                   x[2].tag('code'),
-                   htmlLink('force start','forceStart?index='&index),
-                   index=0 ? '' :
-                   htmlLink('move to front','moveToFront?index='&index)])),'div');
-
-private getHistorySection->begin
-  local runningScripts:=scriptRunning('query');
-  tag(
-  tag('History','h2')&
-  htmlTable([['#','Executed','Script','Parameters','Log','Status'].map({$x.tag('b')})]|history.reverseList.map(
-          {[$x[0],
-            formatTime('yyyy/mm/dd hh:nn:ss',$x[1]),
-            $x[2].tag('code'),
-            $x[3].tag('code'),
-            fileExists(getLogName($x[0])) ? htmlLink(getLogName($x[0]),encodeRequest('','displayFile',['filename'=>getLogName($x[0])].toMap)) : '- log missing -',
-            (getLogName($x[0]) in runningScripts)
-            ? tag('running ','b')
-              & (getLogName($x[0]) in killRequests
-                 ? tag('kill reqested','i')
-                 : htmlLink('kill',encodeRequest('','kill',['index'=>$x[0]].toMap)))
-            : getLogName($x[0]).isLogComplete
-              ? 'finished'
-              : 'cancelled'
-            ]})),'div');
-end;
-
-private getNextTask->queued.size<=0 ? [] : begin
-  local historyIndex:=history.getInner(0).max+1;
-  local task:=queued.head;
-  local scriptName  :=task[1];
-  local scriptParams:=task[2];
-  queued:=queued.tail;
-  local historyEntry:=[historyIndex,systime,scriptName,scriptParams];
-  history.size>=MAX_HISTORY_SIZE
-  ? history:=history.tail|[historyEntry]
-  : history|=             [historyEntry];
-  writeAllDataStores;
-  scriptName=SPECIAL_TASK_RESTART
-  ? SPECIAL_TASK_RESTART
-  : [getLogName(historyIndex),scriptName.fullScriptName.systemSpecificFilename,scriptParams];
-end;
-private nextTaskIsRestart->
-  queued.size>0 AND queued[0,1]==SPECIAL_TASK_RESTART
-  ? begin
-      queued:=queued.tail;
-      writeAllDataStores;
-      true;
-    end
-  : false;
-
-START_PAGE:='/index';
-ENQUEUE_PAGE:='/enqueue';
-servePath((START_PAGE),parameters:Map)->htmlPage('Server Overview',statusSection&getQueuedSection(true)&getHistorySection,true).wrapTextInHttp;
-servePath('/restart',parameters)->begin
+servePath((START_PAGE),parameters:Map)->htmlPage('Server Overview',getHeadLinks&getStatusSection&getQueuedSection(true)&getHistorySection,true).wrapTextInHttp;
+servePath('/restart',parameters:Map)->begin
   enqueueTask(SPECIAL_TASK_RESTART,'');
   redirectTo(START_PAGE);
 end;
-servePath('/kill',parameters)->begin
-  local indexToKill:=parameters['index'];
-  indexToKill.isInt
-  ? killRequests|=getLogName(indexToKill)
-  : void;
-  redirectTo(START_PAGE);
-end;
-servePath('/dequeue',parameters)->begin
-  local indexToDrop:=parameters['index'];
-  indexToDrop.isInt
-  ? queued[indexToDrop]:=void
-  : void;
-  redirectTo(START_PAGE);
-end;
-USE javascriptUtils;
-servePath((ENQUEUE_PAGE),parameters)->
-  htmlPage('Enqueue task',
-  '<FORM name="myForm">'&
-  htmlLink('<<<'.htmlClean,START_PAGE)&
-  getQueuedSection(false)&
-  tag(
-  tag('Enqueue task','h2')&htmlTable(
-    filesInScriptFolder
-    .each(script,[script.tag('code'),
-             htmlLink('use','enqueue?scriptName='&script),
-             htmlLink('show script',encodeRequest('','displayFile',['filename'=>script.fullScriptName].toMap))]))&
-  jsHiddenInputFields(parameters).join&
-  (parameters['scriptName'] orElse '----')&
-  jsTextInputField('cmdLineParameters','',parameters,100)
-  ,'div')&
-  (parameters['scriptName'].isVoid ? void : '<br>'&htmlLink('enqueue task',http.encodeRequest('','addTask',parameters)))&
-  tag(
-  tag('Rerun previous','h2')&
-  history.map({$x[[2,3]]})
-       .unique
-       .filter({$x[0]!=SPECIAL_TASK_RESTART AND fileExists(fullScriptName($x[0]))})
-       .map({htmlLink($x.join(' ').tag('code'),encodeRequest('','addTask',['scriptName'=>$x[0],'cmdLineParameters'=>$x[1]].toMap))})
-       .join("<br>")
-   ,'div')
-  &'</FORM>'
-  ,false).wrapTextInHttp;
 
-servePath('/addTask',parameters)->begin
-  enqueueTask(parameters['scriptName'],
-              parameters['cmdLineParameters'] orElse '');
-  redirectTo(ENQUEUE_PAGE);
+servePath('/showLog',parameters:Map)->begin
+  logServeStats;
+  redirectTo(encodeRequest('','displayFile',['filename'=>LOG_NAME].toMap));
 end;
 
-servePath('/displayFile',parameters)->begin
+servePath('/displayFile',parameters:Map)->begin
   local filename:=parameters['filename'];
-  isString(filename) AND fileExists(filename)
-  ? begin
-      filename==LOG_NAME ? logServeStats : void;
-      fileContents(filename).wrapTextInHttp('text/plain');
-    end
-  : redirectTo(START_PAGE);
-end;
-
-servePath('/forceStart',parameters)->begin
-  local indexToStart:=parameters['index'];
-  isInt(indexToStart) AND (0<=indexToStart<queued.size)
-  ? begin
-      indexToStart=0
-      ? void
-      : queued:=queued[indexToStart|filter([0..queued.size-1],{$x<>indexToStart})];
-      queued.size>0 AND queued[0,1]==SPECIAL_TASK_RESTART
-      ? void
-      : startExecution@getNextTask;
-    end
-  : void;
-  redirectTo(START_PAGE);
-end;
-
-servePath('/moveToFront',parameters)->begin
-  local indexToStart:=parameters['index'];
-  isInt(indexToStart) AND (0<indexToStart<queued.size)
-  ? begin
-      queued:=queued[indexToStart|filter([0..queued.size-1],{$x<>indexToStart})];
-    end
-  : void;
-  redirectTo(START_PAGE);
-end;
-
-servePath('/favicon.ico',parameters)->begin
-  fileExists('favicon.ico')
-  ? wrapTextInHttp(fileContents('favicon.ico'),'image/x-icon')
-  : httpError;
-end;
-
-servePath(unknownPath,parameters)->begin
-  warn('Unhandled path: ',unknownPath);
-  redirectTo(START_PAGE);
+  (isString(filename) AND fileExists(filename)
+   ? serveFile(filename)
+   : void) orElse redirectTo(START_PAGE);
 end;
 
 mutable serveStatistics:=[].toMap;
@@ -223,11 +76,15 @@ serve(M)->begin
   local path:=M['request','path'];
   local serveTime:=-time;
   local response:=
-  servePath(path.extractPath,
-            path.extractParameters);
+  try(::servePath,[path.extractPath,path.extractParameters],
+  {begin
+     warn('Unhandled path: ',path);
+     warn($0);
+     redirectTo(START_PAGE);
+   end});
   serveTime+=time;
   serveStatistics[path]:=(serveStatistics[path] orElse [0,0])+[1,serveTime];
-  response;
+  response orElse redirectTo(START_PAGE);
 end;
 
 main->begin
@@ -269,6 +126,7 @@ main->begin
   logServeStats;
 end;
 
-//@after
-//restart->execAsync(executor,[myPath]);
+@after
+restart->execAsync(executor,[myPath]);
+
 

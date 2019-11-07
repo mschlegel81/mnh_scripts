@@ -1,0 +1,148 @@
+USE processUtil,tinyServer_config;
+private IPC_ID:=myPath.extractFileNameOnly;
+private HEARTBEAT_INTERVAL:=1;
+private boxPrint->print('+'&repeat('-',92)&' - - -');
+private boxPrint(s:String)->printf('| %s',s);
+private niceInterval(timeInDays<0.00069444444444444447)->format('%0.3f',timeInDays*86400);
+private niceInterval(timeInDays)->formatTime('hh:nn:ss.zzz',timeInDays);
+private DATE_TIME_FORMAT:='yyyy-mm-dd hh:nn:ss.zzz';
+private DATE_TIME_FORMAT_PATTERN:=DATE_TIME_FORMAT.replace(['a'..'z'],'\d').replace('.','\.').replace(':','\:').replace('-','\-');
+private KILL_SIGNAL:=['KILL',197512];
+private FINAL_LINE:='### - DONE - ###';
+
+FILESTATS       :='fileStats'       ;
+SCRIPT          :='script'          ;
+PARAMETERS      :='parameters'      ;
+HEARTBEATTIMEOUT:='heartbeatTimeout';
+RUNNING         :='running'         ;
+KILLREQUESTED   :='killRequested'   ;
+FINISHED        :='finished'        ;
+STARTTIME       :='startTime'       ;
+FINISHTIME      :='finishTime'      ;
+
+datastore taskHistory:=[].toMap;
+
+private logTaskStarted(taskIndex:Int,scriptName:String,scriptParameters:String)->
+  begin
+    taskHistory[taskIndex]:=
+    [FILESTATS       =>[],
+     SCRIPT          =>scriptName,
+     PARAMETERS      =>scriptParameters,
+     HEARTBEATTIMEOUT=>time+HEARTBEAT_INTERVAL*3,
+     RUNNING         =>true,
+     FINISHED        =>false,
+     STARTTIME       =>systime].toMap;
+    note('Created task #',taskIndex,': ',taskHistory[taskIndex]);
+    writeDataStores;
+  end;
+
+setKillRequest(taskIndex)->taskHistory[taskIndex].isVoid ? void : begin
+  taskHistory[taskIndex,KILLREQUESTED]:=true;
+end;
+
+getTaskReport->
+begin
+  taskHistory
+  .getInner(0)
+  .each(taskIndex,begin
+     local pathToLog:=getLogName(taskIndex);
+     local current:=taskHistory[taskIndex];
+     local running:=time<=current[HEARTBEATTIMEOUT];
+     local fileStats:=fileInfo(pathToLog).getAll(['time','size']);
+     (fileStats==current[FILESTATS] AND running==current[RUNNING])
+     ? void
+     : begin
+         local lastLines:=fileExists(pathToLog) ? fileLineIterator(pathToLog).trailing(5) : [];
+         local finishTime:=parseTime(DATE_TIME_FORMAT, lastLines.filter({$line.matches('^\| Run finished at '&DATE_TIME_FORMAT_PATTERN)}).copy(18,DATE_TIME_FORMAT.length))[0] orElse systime;
+         local runIsFinished:=lastLines.trailing==FINAL_LINE;
+         current[RUNNING         ]:=running AND !runIsFinished;
+         current[FILESTATS       ]:=fileStats;
+         current[FINISHED        ]:=runIsFinished;
+         current[FINISHTIME      ]:=finishTime;
+         runIsFinished
+         ? current[HEARTBEATTIMEOUT]:=0
+         : void;
+         taskHistory[taskIndex]:=current;
+       end;
+   end);
+  local report:=taskHistory.map({[$x[1,RUNNING   ] orElse false,      //primary sort key
+                                  $x[1,FINISHTIME] orElse systime,    //secondary sort key
+                                  $x[1].mergeMaps(['index'=>$x[0]].toMap,::orElse)]}).sort.getInner(2).reverseList;
+  while(report.size>MAX_HISTORY_SIZE AND !report.trailing[RUNNING],begin
+    taskHistory[report.trailing['index']]:=void;
+    report:=report.leading;
+  end);
+  report;
+end;
+
+private ensureServer->isIpcServerRunning(IPC_ID) ? void :
+  begin
+    //On server startup, reset all timeouts
+    taskHistory.getInner(0).each(taskIndex,
+      taskHistory[taskIndex,HEARTBEATTIMEOUT]:=0);
+    startIpcServer(IPC_ID,{postScriptRunning($X)});
+    while(!isIpcServerRunning(IPC_ID),sleep(0.001));
+  end;
+
+private postScriptRunning(id:Int)->begin
+  taskHistory[id,HEARTBEATTIMEOUT]:=time+3*HEARTBEAT_INTERVAL;
+  taskHistory[id,RUNNING]:=true;
+  (taskHistory[id,KILLREQUESTED] orElse false)
+  ? KILL_SIGNAL
+  : false;
+end;
+
+private splitCommandLineParameters(s:String)->
+  regex.matchComposite(s,'("[^"]+"|[^\s"]+)').getInner(0).map({
+    $x.copy(0,1)='"'=$x.copy($x.length-1,1)
+    ? $x.copy(1,$x.length-2)
+    : $x});
+
+startExecution(scriptName,parameters:String)->begin
+  local logIndex:=taskHistory.getInner(0).max+1;
+  local logName:=getLogName(logIndex);
+  local programAndScript:=
+    scriptName.extractFileExt.lower=='.bat'
+    ? ['cmd','/C',scriptName]
+    : scriptName.extractFileExt.lower=='.mnh'
+    ? [executor,'-v(1)','-headless',scriptName]
+    : return void;
+  execAsync(executor,['-out',logName,myPath,logIndex.toString] | programAndScript | splitCommandLineParameters(parameters));
+  ensureServer;
+  logTaskStarted(logIndex,scriptName,parameters);
+  true;
+end;
+@SuppressUnusedParameterWarning
+startExecution(...)->false;
+
+main(taskIndexAsString,program,...)->begin
+  local taskIndex:=taskIndexAsString.toInt;
+  localAsync({begin
+    local killRequestReceived:=false;
+    //We need the outer try for a graceful stop
+    try({while(!killRequestReceived,sleep(HEARTBEAT_INTERVAL) orElse
+                    //We need the inner try for robustness if server dies
+                    try({sendIpcRequest(IPC_ID,taskIndex)})==KILL_SIGNAL
+                    ? killRequestReceived:=true
+                    : void
+              )}
+       );
+    killRequestReceived
+    ? begin
+        print('KILL SIGNAL RECEIVED - propagating');
+        killAllMyChildren;
+      end
+    : void;
+    end});
+  boxPrint(join(program|...,' '));
+  boxPrint('Run started at '&formatTime(DATE_TIME_FORMAT,local startTime:=systime));
+  boxPrint;
+  local executionResult:=teeExec(program,...,::print);
+  local endTime:=systime;
+  boxPrint;
+  boxPrint('Run finished at '&formatTime(DATE_TIME_FORMAT,endTime));
+  boxPrint('With exit code '&executionResult[1]);
+  boxPrint('After '&niceInterval(endTime-startTime));
+  boxPrint;
+  print(FINAL_LINE);
+end;

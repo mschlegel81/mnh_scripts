@@ -129,28 +129,4 @@ end;
 //h^2   -2h^2   h^2
 
 
-//cos(0.1)/0.1^2-2*cos(0)/0.1^2+cos(-0.1)/0.1^2;
-
-begin
- local c:=[0,1].toPolynomial;
- local x:=c;
- print(x.toExpression);
- print(x.D.toExpression);
- x:=x*x+c;
- print(x.toExpression);
- print(x.D.toExpression);
- x:=x*x+c;
- print(x.toExpression);
- print(x.D.toExpression);
- x:=x*x+c;
- print(x);
- x:=x*x+c;
- print(x);
- x:=x*x+c;
- print(x);
- x:=x*x+c;
- print(x);
-end;
-
-[0..10].map(::factorial);
 

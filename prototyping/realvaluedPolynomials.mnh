@@ -1,11 +1,9 @@
 ducktype Identifier(id:String)->id.matches('^\$?\D\w*$') OR id.matches('^\$\d+$');
 ducktype IdentifierFreqMap(m:Map)->m.each(entry,entry[0].isIdentifier AND entry[1].isInt AND entry[1]>=0,AND);
-ducktype NumericOrComplex(x)->x.isNumeric OR x.isComplex;
-type Polynomial(P:Map)->P.each(entry,entry[0].isIdentifierFreqMap AND entry[1].isNumericOrComplex,AND);
-INCLUDE complex;
+type Polynomial(P:Map)->P.each(entry,entry[0].isIdentifierFreqMap AND entry[1].isNumeric,AND);
 
 poly(id:String)->[[id=>1].toMap=>1].toMap.toPolynomial;
-poly(value:NumericOrComplex)->[[].toMap=>value].toMap.toPolynomial;
+poly(value:Numeric)->[[].toMap=>value].toMap.toPolynomial;
 
 private canonicalForm(m:Iteratable)->
   m.each(entry,[entry[0].filter({$x[1]>0}).toMap,entry[1]])
@@ -24,14 +22,12 @@ OPERATOR_MULT(P:Polynomial,Q:Polynomial)->P.cross(Q).each(pair,begin
   local q:=pair[1];
   [mergeMaps(p[0],q[0],::+),p[1]*q[1]];
 end).canonicalForm;
-OPERATOR_MULT(P:Polynomial,x:NumericOrComplex)->P.map({[$p[0],$p[1]*x]}).canonicalForm;
+OPERATOR_MULT(P:Polynomial,x:Numeric)->P.map({[$p[0],$p[1]*x]}).canonicalForm;
 
 //*Returns all variables in P and their max. powers
 polyParameters(P:Polynomial)->P.getInner(0).each(pow,pow,|).group(0,{[$x[0],max($x[1],$y[1])]}).toMap;
-//*Returns true iff P has any complex coefficients
-hasComplexCoefficient(P:Polynomial)->P.getInner(1).each(coeff,coeff.isComplex,OR);
 
-polySummandToString(powers:IdentifierFreqMap,factor:NumericOrComplex)->
+polySummandToString(powers:IdentifierFreqMap,factor:Numeric)->
   powers.size=0
     ? factor.toString
     : begin
@@ -39,12 +35,9 @@ polySummandToString(powers:IdentifierFreqMap,factor:NumericOrComplex)->
          ? ''
          : factor = -1
            ? '-'
-           : factor.isComplex
-             ? format('(%s)*',factor)
-             : format('%s*'  ,factor))&
+           : format('%s*'  ,factor))&
         powers.each(pow,"{$0}{$1=1 ? '' : '^'&$1}".format@pow).join("*");
       end;
-
 
 private collapseSyntaxTree(t:List(3))->begin
   local LHS     :=t[0];
@@ -52,32 +45,31 @@ private collapseSyntaxTree(t:List(3))->begin
   local RHS     :=t[2];
   LHS.isList(3) ? LHS:=LHS.collapseSyntaxTree : void;
   RHS.isList(3) ? RHS:=RHS.collapseSyntaxTree : void;
-  LHS.isNumericOrComplex AND (LHS=0 AND operator='+' OR
+  LHS.isNumeric AND (LHS=0 AND operator='+' OR
                               LHS=1 AND operator='*')
   ? RHS :
-  RHS.isNumericOrComplex AND (RHS=0 AND operator='+' OR
-                              RHS=1 AND operator='*')
+  RHS.isNumeric AND (RHS=0 AND operator='+' OR
+                     RHS=1 AND operator='*')
   ? LHS :
-  LHS.isNumericOrComplex AND (LHS=0 AND operator='*') OR
-  RHS.isNumericOrComplex AND (RHS=0 AND operator='*')
+  LHS.isNumeric AND (LHS=0 AND operator='*') OR
+  RHS.isNumeric AND (RHS=0 AND operator='*')
   ? 0 :
   [LHS,operator,RHS];
 end;
 
-private syntaxTreeToString(t:List(3),forExpression:Boolean)->begin
+private syntaxTreeToString(t:List(3))->begin
   local LHS     :=t[0];
   local operator:=t[1];
   local RHS     :=t[2];
   format('%{$0?"(":""}s%{$1}s%{$0?")":""}s%{$2}s%{$3?"(":""}s%{$4}s%{$3?")":""}s',
-         (LHS.isList(3) AND LHS[1]='+' OR LHS.isComplex AND !forExpression) AND operator='*',
-         LHS.syntaxTreeToString(forExpression),
+         (LHS.isList(3) AND LHS[1]='+') AND operator='*',
+         LHS.syntaxTreeToString(),
          operator,
-         (RHS.isList(3) AND RHS[1]='+' OR RHS.isComplex AND !forExpression) AND operator='*',
-         RHS.syntaxTreeToString(forExpression));
+         (RHS.isList(3) AND RHS[1]='+') AND operator='*',
+         RHS.syntaxTreeToString());
 end;
-private syntaxTreeToString(x:Complex,false)->x.toString;
-private syntaxTreeToString(x:Complex,true )->x.toBuiltin.toString&'.toComplex';
-private syntaxTreeToString(x,forExpression:Boolean)->x;
+private syntaxTreeToString(x:Numeric)->x.toString;
+private syntaxTreeToString(x)->x;
 
 private simplify(P:Polynomial)->P.size=0 ? 0 : begin
   local ps:=P.polyParameters;
@@ -112,8 +104,7 @@ private simplify(P:Polynomial)->P.size=0 ? 0 : begin
     end;
 end;
 
-simplifiedForm(P:Polynomial,forExpression:Boolean)->P.simplify.collapseSyntaxTree.syntaxTreeToString(forExpression);
-
+simplifiedForm(P:Polynomial)->P.simplify.collapseSyntaxTree.syntaxTreeToString();
 
 toString(polynomial:Polynomial)->
   polynomial.size=0
@@ -136,7 +127,7 @@ D(P:Polynomial,variable:Identifier)->
    .canonicalForm;
 
 //*Replace all occurences of variable in P by substitute
-substitute(P:Polynomial,variable:Identifier,substitute:NumericOrComplex)->
+substitute(P:Polynomial,variable:Identifier,substitute:Numeric)->
   P.map({begin
            local powers:=$summand[0];
            local factor:=$summand[1];
@@ -200,13 +191,20 @@ interpolatingPolynomial(X:NumericList,Y:NumericList)->begin
     end,+);
 end;
 
+clearAnimation;
+[0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1].each(h,
+
 begin
-  plot(::math.sin,0,10,100);
-  local X:=[0..10]*0.1;
+  setOptions(["x0"=>-10,"x1"=>10,"y0"=>-1,"y1"=>1,"autoscaleX"=>false,"autoscaleY"=>false].toMap);
+  plot(::math.sin,-10,10,100);
+  local X:=[-9..9]*h;
   local Y:=sin(X);
   addPlot(X,Y,'.');
-  interpolatingPolynomial(X,Y).toExpression;
-end;
+  local int:=interpolatingPolynomial(X,Y);
+  int.substitute('x','$x').simplifiedForm.toExpression.addPlot(-10,10,1000);
+  print(int.toString);
+  addAnimationFrame;
+end);
 
 
 

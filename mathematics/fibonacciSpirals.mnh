@@ -22,7 +22,6 @@ highlight(m,x,y)->begin
   addPlot(FP[[0..FP.size-1] mod m = k],'1.2 . l black');
   postDisplay;
 end;
-//angleSortPerm(L:List)->L.pMap({arctan2($x[1],$x[0])}).sortPerm;
 
 USE customFormUtil;
 
@@ -59,17 +58,6 @@ main->begin
                           addAnimationFrame;
                         end);
                         animating:=true;
-                      end})]);
+                      end}),
+     newPlotDock]);
 end;
-
-//setOptions(['autoscaleFactor'=>1.0,'autoscaleX'=>false,'autoscaleY'=>false,'axisStyleX'=>0,'axisStyleY'=>0,'preserveAspect'=>true,
-//            'x0'=>-50,'x1'=>50,'y0'=>-50,'y1'=>50]);
-//clearAnimation;
-//fibonacciList.each(fib,begin
-//  plot;
-//  [0..fib-1].each(f,
-//    FP[[0..FP.size-1] mod fib=f].addPlot('red'));
-//  FP.addPlot(". black 0.5");
-//  addAnimationFrame;
-//end);
-//

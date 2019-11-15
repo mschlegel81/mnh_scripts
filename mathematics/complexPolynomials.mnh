@@ -80,6 +80,3 @@ replaceParameterByValue(P:Polynomial,parameter:String,value)->
     end})
    .canonicalForm;
 
-
-
-

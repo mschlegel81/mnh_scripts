@@ -1,0 +1,28 @@
+
+
+f(k)->begin
+  local X:=[1..k-1];
+  [X,powMod(X,2,k)].transpose/k;
+end;
+
+
+//begin
+//  clearAnimation;
+//  local samples:=([2..1000]).pEach(k,[factorize(k),f(k)]);
+//  local factors:=samples.getInner(0);
+//        samples:=samples.getInner(1);
+//  primes(17).each(discriminator,
+//  begin
+//    local plotGroups:=group(samples,factors.map({discriminator in $factors}),::|);
+//    plot   (plotGroups[false],'. 0.5 RGB0,0,1,0.5');
+//    addPlot(plotGroups[true ],'. 0.5 RGB1,0,0,0.5');
+//    drawTextAbsolute(0,1,'factor: '&discriminator,'TL');
+//    addAnimationFrame;
+//  end);
+//end;
+
+begin
+  setOptions(["preserveAspect"=>false,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
+  [2..2000].pEach(k,f(k),|).plot('. 0.3 RGB0,0,0,0.15');
+  //plot.renderToFile('C:\dev\mnh5\plot.png',1920,1080);
+end;

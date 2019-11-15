@@ -1,10 +1,3 @@
-safeLog(i:Int)->begin
-  local r:=i.digits(2).size;
-  r<500
-  ? ln(i)
-  : ln(i.shiftRight(r-500))+ln(2)*(r-500);
-end;
-
 main->begin
   [10..1].each(i,print('Waiting for timer calibration ',i) orElse sleep(1));
 //  local S:=[];
@@ -12,10 +5,9 @@ main->begin
   local timeout:=3600;
   while(time<timeout,begin
     local dt:=-time;
-    F.agg(+); F.agg(+); F.agg(+); F.agg(+); F.agg(+); F.agg(+); F.agg(+); F.agg(+); F.agg(+);
     F:=F.tail|F.agg(+);
     dt+=time;
-    print(round(safeLog(F[1])/ln(2)),',',dt*100);
+    print(ln(F[1])/ln(2),',',dt);
   end);
 
   //setOptions(["preserveAspect"=>false,"logscaleX"=>true,"logscaleY"=>true].toMap);

@@ -62,11 +62,28 @@ logServeStats->
       print('| Time ',formatTime(systime));
       print('| Uptime ',formatTime('hh:nn:ss',time/(24*60*60)));
       print('+---------------------------------- - - -');
+      local list:=
       serveStatistics
         .map({$x[0]|$x[1]})
-        .sort(2)
-        .each(entry,print('Request: ',entry[0]),
-                    printf(" served:\t%s\ttimes\n\t%s\tseconds (total)\n\t%s\tseconds (average)",entry[1],entry[2],entry[2]/entry[1]));
+        .sort(2);
+      local totScale:=100/list.getInner(2).max;
+      local avgScale:=100/(list.getInner(2)/list.getInner(1)).max;
+      local timeLines:=[];
+
+      list:=
+      list.each(entry,
+         begin
+           timeLines|=[[entry[2]         ,'s (tot)',"#".repeat(round(entry[2]         *totScale))],
+                       [entry[2]/entry[1],'s (avg)',"#".repeat(round(entry[2]/entry[1]*avgScale))]];
+           format("\nRequest %s\n      x %s",entry[0],entry[1]);
+         end);
+      timeLines:=timeLines.map({$x.join("\t")}).join("\n").formatTabs;
+
+      list.each(l,
+        print(l),
+        print(timeLines[2*index]),
+        print(timeLines[2*index+1]));
+
       serveStatistics.size>100
       ? serveStatistics:=[].toMap
       : void;
@@ -79,7 +96,7 @@ serve(M)->begin
   try(::servePath,[path.extractPath,path.extractParameters],
   {begin
      warn('Unhandled path: ',path);
-     warn($0);
+     $messages.map({'    '&$x.join("\t")}).join("\n").print;
      redirectTo(START_PAGE);
    end});
   serveTime+=time;
@@ -88,6 +105,7 @@ serve(M)->begin
 end;
 
 main->begin
+  assertUniqueInstance;
   local logCpuUsage:={
   begin
     cpuUsageHistory|=exec('wmic',['path','Win32_PerfFormattedData_PerfOS_Processor','get','Name,','PercentProcessorTime'])[0]
@@ -109,6 +127,7 @@ main->begin
       assert((SERVE_AT_SOCKET+=1)<=65535,'No valid socket found for IP ',SERVE_AT_IP);
     end}));
   end;
+  loggingRunner.ensureServer;
   print(systime.formatTime,' - server is up at ',SERVE_AT_IP&':'&SERVE_AT_SOCKET);
   while(!restartScheduled,begin
     logCpuUsage();
@@ -128,5 +147,3 @@ end;
 
 @after
 restart->execAsync(executor,[myPath]);
-
-

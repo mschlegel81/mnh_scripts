@@ -39,6 +39,11 @@ servePath('/processes/kill',parameters:Map)->begin
   redirectTo('/processes');
 end;
 
+niceBoxGlyphs(s:String)->
+  s.replace('|','&#9474;')
+   .replace('\--','&#9492;&#9472;&#9472;')
+   .replace('+--','&#9500;&#9472;&#9472;');
+
 servePath('/processes',parameters:Map)->begin
   local PM:=getProcessMap;
 
@@ -58,12 +63,13 @@ servePath('/processes',parameters:Map)->begin
 
   roots.each(r,recurse('',index+1=roots.size,r));
   result:=[['Caption'.tag('b'),'PID'.tag('b'),'','Command Line'.tag('b')]]|
-          result.map({[tag($x[0].copy(3),'code'),
+          result.map({[tag($x[0].copy(3).niceBoxGlyphs,'code'),
                        $x[1],
                        htmlLink(tag('kill','b'),encodeRequest('','processes/kill',['index'=>$x[1]].toMap)),
                        tag($x[2],'code')]});
 
   htmlPage('Processes',
+    getHeadLinks&
     tag('Processes','h2')&
     htmlTable(result),
     false).wrapTextInHttp;

@@ -86,7 +86,7 @@ end;
 servePath((ENQUEUE_PAGE),parameters:Map)->
   htmlPage('Enqueue task',
   '<FORM name="myForm">'&
-  htmlLink('<<<'.htmlClean,START_PAGE)&
+  getHeadLinks&
   getQueuedSection(false)&
   tag(
   tag('Enqueue task','h2')&htmlTable(
@@ -142,8 +142,6 @@ private addToPrevious(script,parameters)->begin
 end;
 
 enqueueTask(script,parameters)->begin
-  queued|=[[systime,script,parameters]];
-  addToPrevious(script,parameters);
-  writeDataStores;
+  queued|=[[systime,script,parameters.toString]];
+  addToPrevious(script,parameters.toString);
 end;
-

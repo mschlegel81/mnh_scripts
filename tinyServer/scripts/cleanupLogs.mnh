@@ -1,0 +1,15 @@
+USE '../server/tinyServer_config.mnh','../server/loggingRunner.mnh';
+
+main('list')->begin
+  local logsInHistory:=taskHistory.getInner(0).map(::getLogName).expandedFileName;
+  allFiles(LOG_FOLDER).expandedFileName
+                      .filter({!($i in logsInHistory)})
+                      .fileInfo
+                      .map({[$f['path'],$f['time'],$f['size']]})
+                      .sort(1)
+                      .map({[$f[0],$f[1].formatTime,$f[2]]})
+                      .{printf("%s\t%s\t%s\tbytes",$x.getInner(0),$x.getInner(1),$x.getInner(2)) orElse $x.getInner(0)};
+end;
+
+main('delete')->main('list').map(::deleteFile);
+

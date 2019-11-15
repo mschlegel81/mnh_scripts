@@ -55,7 +55,7 @@ htmlClean(text:String)->
 text.replace(['&'  ,'"'   ,"'"   ,'<' ,'>'],
          '&'&['amp','quot','apos','lt','gt']&';');
 
-mutable headLinks:=[];
+mutable headLinks:=[htmlLink(htmlClean('<<<'),START_PAGE)];
 
 private mutable fileServed:=[].toMap;
 serveFile(filename:String)->
@@ -74,3 +74,4 @@ fileExists(filename) ? begin
 end : void;
 
 memoized getHeadLinks->headLinks.join("&nbsp;&nbsp;").tag('div');
+

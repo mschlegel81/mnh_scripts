@@ -1,28 +1,41 @@
-
-
-f(k)->begin
+#!C:\bin\mnh.exe -headless
+f(k,xRes:Int,yRes:Int)->begin
   local X:=[1..k-1];
-  [X,powMod(X,2,k)].transpose/k;
+//  [round(X/k*xRes) ,round(powMod(X,2,k)/k*yRes)].transpose;
+  round(X/k*(xRes-1))+xRes*
+  round(powMod(X,2,k)/k*(yRes-1));
 end;
 
 
-//begin
-//  clearAnimation;
-//  local samples:=([2..1000]).pEach(k,[factorize(k),f(k)]);
-//  local factors:=samples.getInner(0);
-//        samples:=samples.getInner(1);
-//  primes(17).each(discriminator,
-//  begin
-//    local plotGroups:=group(samples,factors.map({discriminator in $factors}),::|);
-//    plot   (plotGroups[false],'. 0.5 RGB0,0,1,0.5');
-//    addPlot(plotGroups[true ],'. 0.5 RGB1,0,0,0.5');
-//    drawTextAbsolute(0,1,'factor: '&discriminator,'TL');
-//    addAnimationFrame;
-//  end);
-//end;
 
-begin
+main(xres,yres,quality)->begin
+  local xRes:=xres.toInt;    assert(0<xRes<9999);
+  local yRes:=yres.toInt;    assert(0<yRes<9999);
+  local maxK:=quality.toInt; assert(2<maxK     );
+
+  local sampleCount:=[0..xRes*yRes-1]*0;
+
+  print('Computing samples');
   setOptions(["preserveAspect"=>false,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
-  [2..2000].pEach(k,f(k),|).plot('. 0.3 RGB0,0,0,0.15');
-  //plot.renderToFile('C:\dev\mnh5\plot.png',1920,1080);
+  [2..maxK].futureMap({f($k,xRes,yRes)}).each(sampleGroup,sampleGroup.each(i,sampleCount[i]+=1));
+  sampleCount:=sampleCount.pEach(s,s=0 ? void : divMod(index,xRes)|s);
+  print('Sample density: ');
+  local maxDens:=sampleCount.getInner(2).elementFrequency;
+  maxDens.sort.map(::print);
+  maxDens:=maxDens.getInner(0).max;
+  plot();
+  [maxDens..1].each(cutoff,sampleCount.each(s,s[2]>cutoff ? s[[0,1]] : void)).addPlot('. 0.1 RGB0,0,0,0.2');
+
+
+
+//  [2..maxK].pEach(k,f(k,xRes,yRes),|).plot('. 0.1 RGB0,0,0,0.2');
+//  print('Rendering plot to internal image');
+//  renderPlotToCurrentImage(xRes,yRes);
+//  executeWorkflow(['normalize','lagrangeDiff:0.05,0.05','normalize'],
+//                  '-', //source is current image
+//                  changeFileExt(myPath,'_q'&maxK&'_'&xRes&'x'&yRes&'.png'),::print);
 end;
+
+
+
+main(1920,1080,1000);

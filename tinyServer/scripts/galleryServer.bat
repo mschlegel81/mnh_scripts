@@ -1,0 +1,1 @@
+C:\bin\mnh.exe D:\dev\art.bin\galleryServer.mnh 192.168.1.100:24000

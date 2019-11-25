@@ -47,10 +47,10 @@ end;
 private isCpuAlmostIdle->(cpuUsageHistory.size>0) AND (cpuUsageHistory.trailing(SAMPLES_FOR_WORKLOAD_CHECK).getInner(1)<START_WHEN_WORKLOAD_BELOW).agg(AND);
 //--------------------------------------------------------------------------:CPU Usage
 private getStatusSection->tag(
-  ('Status').tag('h2')&htmlTable(
+  ('Status').tag('h2')&htmlTable([[htmlTable(
   [['Date:'  .tag('b'),formatTime('dd.mm.yyyy',      systime),''                ,htmlLink('restart server','restart')],
    ['Time:'  .tag('b'),formatTime('hh:nn:ss',        systime),''                ,htmlLink('show server log','showLog')],
-   ['Uptime:'.tag('b'),formatTime('hh:nn:ss',time/(24*60*60))]]),'div')&getCpuDiagram.join("<br>").tag('code');
+   ['Uptime:'.tag('b'),formatTime('hh:nn:ss',time/(24*60*60))]]),getCpuDiagram]]),'div');
 
 servePath((START_PAGE),parameters:Map)->htmlPage('Server Overview',getHeadLinks&getStatusSection&getQueuedSection(true)&getHistorySection,true).wrapTextInHttp;
 servePath('/restart',parameters:Map)->begin
@@ -81,7 +81,8 @@ logServeStats->
       local list:=
       serveStatistics
         .map({$x[0]|$x[1]})
-        .sort(2);
+        .sort(2)
+        .trailing(5);
       local totScale:=100/list.getInner(2).max;
       local avgScale:=100/(list.getInner(2)/list.getInner(1)).max;
       local timeLines:=[];
@@ -100,9 +101,7 @@ logServeStats->
         print(timeLines[2*index]),
         print(timeLines[2*index+1]));
 
-      serveStatistics.size>100
-      ? serveStatistics:=[].toMap
-      : void;
+      serveStatistics:=[].toMap;
     end;
 
 serve(M)->begin

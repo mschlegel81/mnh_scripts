@@ -1,1 +1,0 @@
-type D:\dev\mnh5\build.log

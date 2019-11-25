@@ -1,0 +1,10 @@
+main->begin
+  local numberOfBits:=7;
+  while(time<1200,begin
+    numberOfBits+=1;
+    local r:=(2^numberOfBits-2)+intRandom(2^(numberOfBits-2));
+    local L:=[0..100].each(dr,time(::isPrime,[r+dr])['time']).sort;
+    print(numberOfBits,',',L[[0,10,20,30,40,50,60,70,80,90,100]].join(','));
+  end);
+end;
+

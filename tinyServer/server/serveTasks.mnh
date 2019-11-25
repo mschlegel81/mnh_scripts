@@ -1,4 +1,4 @@
-USE loggingRunner,tinyServer_html,tinyServer_config,javascriptUtils;
+USE loggingRunner,tinyServer_html,tinyServer_config,javascriptUtils,generators;
 
 datastore queued  :=[];
 datastore previous:=[];
@@ -83,7 +83,10 @@ servePath('/addTask',parameters:Map)->begin
   redirectTo(ENQUEUE_PAGE);
 end;
 
-servePath((ENQUEUE_PAGE),parameters:Map)->
+servePath((ENQUEUE_PAGE),parameters:Map)->begin
+  local prevMap:=previous;
+  prevMap:=prevMap.getInner(1).group(prevMap.getInner(0));
+
   htmlPage('Enqueue task',
   '<FORM name="myForm">'&
   getHeadLinks&
@@ -91,22 +94,22 @@ servePath((ENQUEUE_PAGE),parameters:Map)->
   tag(
   tag('Enqueue task','h2')&htmlTable(
     filesInScriptFolder
-    .each(script,[script.tag('code'),
-             htmlLink('use','enqueue?scriptName='&script),
-             htmlLink('show script', encodeRequest('','displayFile',['filename'=>script.fullScriptName].toMap))]))&
+    .each(script,htmlLink(script.tag('code'),encodeRequest('','displayFile',['filename'=>script.fullScriptName].toMap)),
+                 htmlLink(tag('[customize]','b'),'enqueue?scriptName='&script)&
+                 ((prevMap[script] orElse []).each(par,
+                   '<br>',
+                   htmlLink(trim(par)='' ? '&lt;no parameters&gt;' : tag(par,'code'),
+                            encodeRequest('','addTask',['scriptName'=>script,'cmdLineParameters'=>par].toMap)),&))
+                 )
+    .chunkIterator(4).toList)&
   jsHiddenInputFields(parameters).join&
   (parameters['scriptName'] orElse '----')&
   jsTextInputField('cmdLineParameters','',parameters,100)
   ,'div')&
-  (parameters['scriptName'].isVoid ? void : '<br>'&htmlLink('enqueue task',http.encodeRequest('','addTask',parameters)))&
-  tag(
-  tag('Rerun previous','h2')&
-  previous.filter({$x[0]!=SPECIAL_TASK_RESTART AND fileExists(fullScriptName($x[0]))})
-       .map({htmlLink($x.join(' ').tag('code'),encodeRequest('','addTask',['scriptName'=>$x[0],'cmdLineParameters'=>$x[1]].toMap))})
-       .join("<br>")
-   ,'div')
+  (parameters['scriptName'].isVoid ? void : '<br>'&htmlLink('enqueue task',http.encodeRequest('','addTask',parameters)))
   &'</FORM>'
   ,false).wrapTextInHttp;
+end;
 
 servePath('/forceStart',parameters:Map)->begin
   local indexToStart:=parameters['index'];
@@ -144,4 +147,10 @@ end;
 enqueueTask(script,parameters)->begin
   queued|=[[systime,script,parameters.toString]];
   addToPrevious(script,parameters.toString);
+end;
+
+begin
+  local prevMap:=previous;
+  prevMap:=prevMap.getInner(1).group(prevMap.getInner(0));
+
 end;

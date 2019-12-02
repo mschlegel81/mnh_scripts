@@ -1,0 +1,169 @@
+rangeWithout(kMax:Int,toSkip=0   )->[1..kMax];
+rangeWithout(kMax:Int,toSkip=kMax)->[0..kMax-1];
+rangeWithout(kMax:Int,toSkip     )->[0..toSkip-1,toSkip+1..kMax];
+
+pointRadii_naive(P:List)->P.each(p,P[rangeWithout(P.size-1,index)].each(q,euklideanNorm(p-q),min));
+
+pointRadii_recursive(points:List,splitIndex)->
+  points.size<50
+  ? pointRadii_naive(points)
+  : begin
+      local oneDim    :=points.getInner(splitIndex);
+      local splitValue:=oneDim.sort[points.size div 2];
+      local mask      :=oneDim<splitValue;
+      local part0     :=future(::pointRadii_recursive,[points[ mask],(splitIndex+1) mod (points.head.size)]);
+      local part1     :=pointRadii_recursive(points[!mask],(splitIndex+1) mod (points.head.size));
+      local bMask     :=abs(oneDim-splitValue)<max(part1.max,(part0:=part0()).max);
+      local partB     :=pointRadii_recursive(points[bMask],(splitIndex+1) mod (points.head.size));
+      [indexOf( mask),part0].transpose.toMap.mergeMaps(
+      [indexOf(!mask),part1].transpose.toMap,::min).mergeMaps(
+      [indexOf(bMask),partB].transpose.toMap,::min)
+      .sort(0).getInner(1);
+    end;
+
+randomPointList(count>1,numberOfDimensions)->[1..count].map({random(numberOfDimensions)});
+
+validate(P:List) ->begin
+  local A:=P.pointRadii_naive;
+  local B:=P.pointRadii_recursive(0);
+  assert(A==B);
+end;
+
+memoized FP->begin
+  local FIBFAK:=2*pi/sqr((sqrt(5)-1)/2);
+  local i:=[0..5000];
+  [cos(FIBFAK*i),sin(FIBFAK*i)].transpose*sqrt(i);
+end;
+
+gabrielGraph(P:List)->begin
+  local spheres:=
+  [P.size-1..1].pEach(i,
+  [0..i-1].each(j,begin
+    local pq:=P[[i,j]];
+    local sc:=pq.agg(+)/2;
+    local sr:=pq.agg(-).euklideanNorm/2;
+    P.each(q,q in pq ? void : euklideanNorm(q-sc)<sr,OR)
+    ? void
+    : [sc,sr,[i,j]];
+  end),|);
+  spheres;
+end;
+
+testGabriel->begin
+  local P:=randomPointList(100,2);//.map({$x*[1,0.5]});
+//  local P:=FP.head(100);
+  local splitValue:=P.getInner(0).sort[P.size div 2];
+  local PL:=P.filter({$x[0]<=splitValue});
+  local PR:=P.filter({$x[0]> splitValue});
+  local t0:=time;
+  local G:=gabrielGraph(P);
+  print(time-t0);
+  G.getInner(2).each(i,P[i[0]],P[i[1]],[Nan,Nan]).plot('RGB0,1,0 1.5');
+
+  t0:=time;
+  local GL:=gabrielGraph(PL);
+  local GR:=gabrielGraph(PR);
+  print(time-t0);
+
+  GL.getInner(2).each(i,PL[i[0]],PL[i[1]],[Nan,Nan]).addPlot('blue 2');
+//  GL.each(c,c[0]-c[1],c[0]+c[1]).addPlot('ellipse 1 RGB0,0,1,0.5');
+
+  GR.getInner(2).each(i,PR[i[0]],PR[i[1]],[Nan,Nan]).addPlot('red 2');
+//  GR.each(c,c[0]-c[1],c[0]+c[1]).addPlot('ellipse 1 RGB0,0.5,0,0.5');
+  addPlot([[splitValue,0],[splitValue,1]],'l 2 black');
+  PL.addPlot('blue 1.5 .');
+  PR.addPlot('red 1.5 .');
+  P.addPlot('RGB1,1,1 1 .');
+
+//  PL.each(p,begin
+//    local k:=index;
+//    local r:=GL.map({k in $g[2] ? $g[1] : void}).max*2;
+//    [p-r,p+r];
+//  end,|).addPlot('ellipse blue');
+//
+//  PR.each(p,begin
+//    local k:=index;
+//    local r:=GR.map({k in $g[2] ? $g[1] : void}).max*2;
+//    [p-r,p+r];
+//  end,|).addPlot('ellipse red');
+
+  //local mx:=PL.each(p,begin
+  //  local k:=index;
+  //  local r:=GL.map({k in $g[2] ? $g[1] : void}).max*2;
+  //  (p[0]+r)-splitValue;
+  //end,max)|
+  //(
+  //PR.each(p,begin
+  //  local k:=index;
+  //  local r:=GR.map({k in $g[2] ? $g[1] : void}).max*2;
+  //  splitValue-(p[0]-r);
+  //end,max));
+  setOptions(["axisStyleX"=>2,"axisStyleY"=>2].toMap);
+  //mx:=mx.max;
+end;
+
+//gabrielGraph(P:List)->begin
+//  local spheres:=
+//  [P.size-1..1].pEach(i,
+//  [0..i-1].each(j,begin
+//    local pq:=P[[i,j]];
+//    local sc:=pq.agg(+)/2;
+//    local sr:=pq.agg(-).euklideanNorm/2;
+//    P.each(q,q in pq ? void : euklideanNorm(q-sc)<sr,OR)
+//    ? void
+//    : [sc,sr,[i,j]];
+//  end),|);
+//  spheres;
+//end;
+//
+
+gabrielGraph_beta(P:List)->begin
+  local spheres:=
+  [P.size-1..1].pEach(i,
+  [i-1..0].each(j,begin
+    local pq:=P[[i,j]];
+    local sc:=pq.agg(+)/2;
+    local sr:=pq.agg(-).euklideanNorm/2;
+    P.each(q,q in pq ? void : euklideanNorm(q-sc)<sr,OR)
+    ? void
+    : [sc,sr,[i,j]];
+  end),|);
+  spheres;
+end;
+
+
+begin
+  local P:=randomPointList(100,2);
+  //local P:=FP.head(200);
+  setOptions(["x0"=>P.getInner(0).min-0.01,"x1"=>P.getInner(0).max+0.01,
+              "y0"=>P.getInner(1).min-0.01,"y1"=>P.getInner(1).max+0.01,"autoscaleX"=>false,"autoscaleY"=>false].toMap);
+
+
+    //Construct a line through a random point and the point furthest away from this
+  local n:=P[0];
+  n:=P[P.pMap({euklideanNorm($p-n)}).sortPerm.trailing]-n;
+  n/=n.euklideanNorm;
+  //Order points accoring to the inner product of this vector and it's coordinate
+  P:=P[P.pMap({($p*n).agg(+)}).sortPerm];
+  local n2:=n.reverseList*[1,-1];
+//  n2/=n2.euklideanNorm;
+
+  local reference:=gabrielGraph(P).getInner(2).each(i,P[i[0]],P[i[1]],[Nan,Nan]);
+  local prevG:=[];
+  clearAnimation;
+  [2..P.size].each(s,begin
+    plot(reference,'red');
+    local G:=gabrielGraph_beta(P.head(s));
+    G.getInner(2).each(i,P[i[0]],P[i[1]],[Nan,Nan]).addPlot('black 1.5');
+    P.addPlot('black 1.5 .');
+    P.addPlot('RGB1,1,1 1 .');
+    addPlot([(P[s-1]*n).agg(+)*n+n2,
+             (P[s-1]*n).agg(+)*n-n2],'black l 2');
+    G.minus(prevG).each(c,c[0]-c[1],c[0]+c[1]).addPlot('ellipse 1 f orange');
+    prevG:=G;
+    addAnimationFrame;
+  end);
+end;
+
+
+

@@ -30,10 +30,9 @@ table {
 }
 th, td {
   padding: 3px;
-  text-align: left;
   border-bottom: 1px solid #555555;
 }
-tr:hover {background-color:#444444;}
+.hoverCol:hover {background-color:#444444;}
 h2 {
   font-style: inherit;
   font-size: 200%;
@@ -43,12 +42,14 @@ h2 {
   width:95%;
   background-color:#333333;
 }
+.right   { text-align: right; }
 </style>
 </head>
 <body>~&body&'</body>';
 
 tag(content,t)->format('<%s>%s</%s>',t,content,t);
-htmlTable(L:List)->'<table>'&join('<tr>'&L.map({join('<td>'&$row&'</td>')})&'</tr>')&'</table>';
+htmlTable(L:List)->'<table>'&join('<tr class = "hoverCol">'&L.map({join('<td>'&$row&'</td>')})&'</tr>')&'</table>';
+htmlOuterTable(L:List)->'<table>'&join('<tr>'&L.map({join('<td>'&$row&'</td>')})&'</tr>')&'</table>';
 htmlLink(linkText:String,linkTarget:String)->'<a href="'&linkTarget&'">'&linkText&'</a>';
 redirectTo(path)->wrapTextInHttp('<html><head><meta http-equiv="Refresh" content="0; url='&path&'"/></head><body></body></html>');
 htmlClean(text:String)->

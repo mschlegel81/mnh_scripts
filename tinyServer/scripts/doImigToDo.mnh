@@ -1,0 +1,33 @@
+#!C:\bin\mnh.exe -silent -headless
+tprint(...)->print@(formatTime('hh:nn.ss ',systime)|...);
+logBusyScript->extractFileDirectory(myPath)&'/logBusy.mnh';
+
+private processOneToDo->begin
+  local todo:=myPath.extractFileDirectory.allFiles('*.todo').head;
+  isVoid(todo) OR (todo==[])
+  ? false
+  : begin
+      print('+-',todo.clean(['-'],'-'),'-+');
+      print('| ',todo                 ,' |');
+      print('+-',todo.clean(['-'],'-'),'-+');
+      todo.extractFileDirectory.changeDirectory;
+      fileExists(logBusyScript) ? runScript(logBusyScript,['Periodic task: IMIG-Jobbing']) : void;
+      executeWorkflow(todo.fileLines,1,1,'-',::tprint);
+      deleteFile(todo);
+      fileExists(logBusyScript) ? runScript(logBusyScript,['nothing']) : void;
+      true;
+    end;
+end;
+
+
+//*Executes one todo
+main->assertUniqueInstance orElse processOneToDo;
+
+//*Executes all todos
+main('all')->assertUniqueInstance orElse while(processOneToDo,void);
+
+//*List todos
+main('list')->myPath.extractFileDirectory.allFiles('*.todo').map(::print);
+
+@SuppressUnusedWarning
+ensureInstance->isIpcServerRunning ? void : executor.execAsync([myPath,'all']);

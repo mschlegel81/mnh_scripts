@@ -28,34 +28,34 @@ getQueuedSection(withLink:Boolean)->
   tag(
   tag('Queue'&(withLink ? '    '&htmlLink('(+)','enqueue') : void), 'h2')&
   htmlTable(
-  [['Enqueued at','','Script','Parameters'].map({$x.tag('b')})] |
+  [['Enqueued at','','Script'].map({$x.tag('b')})] |
     queued.each(x,[formatTime('yyyy/mm/dd hh:nn:ss',x[0]),
                    htmlLink('remove','dequeue?index='&index),
-                   x[1].tag('code'),
-                   x[2].tag('code'),
+                   x[1].tag('code')&(x[2].trim=='' ? '' : '<br>'&tag('   '&x[2],'code')),
                    htmlLink('force start','forceStart?index='&index),
                    index=0 ? '' :
                    htmlLink('move to front','moveToFront?index='&index)])),'div');
 
 getHistorySection->begin
   local report:=getTaskReport;
-  local fmtT:={formatTime('yyyy/mm/dd hh:nn:ss',$0)};
+  local fmtT:={'<class="right">'&formatTime(floor($0)==floor(systime) ? 'hh:nn:ss' : 'yyyy/mm/dd hh:nn:ss',$0)&"</class>"};
   tag(
   tag('History','h2')&
-  htmlTable([['#','Started','Script','Parameters','Log','Status',''].map({$x.tag('b')})]|
+  htmlTable([['#','Started','Script','Log','Status'].map({$x.tag('b')})]|
     report.each(r,
       [r['index'],
        fmtT(r[STARTTIME]),
-       tag(r[SCRIPT].extractFileName,'code'),
-       tag(r[PARAMETERS],'code'),
+       tag(r[SCRIPT].extractFileName,'code')&(trim(r[PARAMETERS])==''
+                                              ? ''
+                                              : '<br>'& tag('   '&r[PARAMETERS],'code')),
        r[FILESTATS]==[0.0,-1] ? '- log missing -' : htmlLink(getLogName(r['index']).extractFileName,
                                                        encodeRequest('','displayFile',['filename'=>getLogName(r['index'])].toMap)),
-       r[RUNNING]
+       (r[RUNNING]
        ? tag('running ','b')
          & ((r[KILLREQUESTED] orElse false)
             ? tag('kill reqested','i')
             : htmlLink('kill',encodeRequest('','kill',['index'=>r['index']].toMap)))
-       : ((r[KILLREQUESTED] orElse false) ? 'killed' : r[FINISHED] ? 'finished' :  'cancelled'),
+       : ((r[KILLREQUESTED] orElse false) ? 'killed' : r[FINISHED] ? 'finished' :  'cancelled'))&'<br>'&
        fmtT(r[FINISHTIME] orElse systime)])
    ),'div');
 end;
@@ -92,7 +92,7 @@ servePath((ENQUEUE_PAGE),parameters:Map)->begin
   getHeadLinks&
   getQueuedSection(false)&
   tag(
-  tag('Enqueue task','h2')&htmlTable(
+  tag('Enqueue task','h2')&htmlOuterTable(
     filesInScriptFolder
     .each(script,htmlLink(script.tag('code'),encodeRequest('','displayFile',['filename'=>script.fullScriptName].toMap)),
                  htmlLink(tag('[customize]','b'),'enqueue?scriptName='&script)&

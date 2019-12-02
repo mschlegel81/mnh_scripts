@@ -9,6 +9,9 @@ robocopy N:\dev D:\dev *.7z /MIR /NP /LEV:1 /FFT /COPY:DT
 robocopy N:\dev\art.bin D:\dev\art.bin /MIR /COPY:DT
 robocopy N:\dev\mnh5 D:\dev\mnh5 /MIR /NP /FFT /COPY:DT 
 
+robocopy D:\dev D:\backup\dev *.7z /NP /LEV:1 /FFT /COPY:DT
+robocopy D:\dev\art.bin D:\backup\dev\art.bin /MIR /COPY:DT
+
 rem robocopy D:\dokumente\Sylwia N:\Sylwia /FFT /S
 rem robocopy N:\Sylwia D:\dokumente\Sylwia /FFT /S
 rem robocopy D:\dokumente\Martin N:\Martin /FFT /S
@@ -36,3 +39,6 @@ rem rmdir /S /Q Sudoku3
 rem "c:\Program Files\7-Zip\7z.exe" x -y Sudoku3.7z
 rem rmdir /S /Q web
 rem "c:\Program Files\7-Zip\7z.exe" x -y web.7z
+demos\inputs\inputs.mnh
+cd mnh5
+make.mnh status

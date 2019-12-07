@@ -1,0 +1,51 @@
+#!C:\bin\mnh.exe -headless
+plotResidues(samplesTotal)->begin
+  local k:=1;
+  local buffer:=[];
+  local sampled:=0;
+  while(buffer.size+sampled<samplesTotal,begin
+    local range:=[1..(k+=1)-1];
+    buffer|=transpose([range,powMod(range,2,k)]/k);
+    buffer.size>1E6
+    ? begin
+        addPlot(buffer,'RGB0,0,0,0.1 . 0.25');
+        sampled+=buffer.size;
+        buffer:=[];
+      end
+    : void;
+  end);
+  buffer.size>0
+  ? addPlot(buffer,'RGB0,0,0,0.1 . 0.25')
+  : void;
+end;
+
+shorten(x:IntList(2))->x div gcd@x;
+curveSplit(x0:IntList(2),x1:IntList(2))->begin
+  local middle:=shorten(x0+x1);
+  [[x0,middle],[middle,x1]];
+end;
+
+memoized
+curves(0  )->[[[0,1],[1,1]]];
+curves(i>0)->curves(i-1).each(c,curveSplit@c,|);
+
+drawable(x0:IntList(2),x1:IntList(2),heightFactor)->begin
+   local z0:=x0.agg(/);
+   local z1:=x1.agg(/);
+   local p:=[0..100]/100*(z1-z0)+z0;
+   [p,(z1-z0)/4*heightFactor-heightFactor*sqr(p-(z0+z1)/2)/(z1-z0)]
+   .transpose
+   .map({$p[1]>1 ? [Nan,Nan] : $p});
+end;
+
+drawableOfLevel  (i,heightFactor)->curves(i).each(c,drawable(c[0],c[1],heightFactor),|);
+drawableUpToLevel(i,heightFactor)->[0..i].pEach(level,drawableOfLevel(level,heightFactor),[[Nan,Nan]],|);
+
+main(xRes,yRes)->begin
+  local xr:=xRes.toInt; assert(xr>100);
+  local yr:=yRes.toInt; assert(yr>100);
+  setOptions(["x0"=>0,"y0"=>0,"preserveAspect"=>false,"autoscaleX"=>false,"autoscaleY"=>false,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
+  plotResidues(10000000);
+  [1..50].each(height,drawableUpToLevel(8,height).addPlot('RGB1,0,0,0.2'));
+  renderToFile(changeFileExt(myPath,'_'&xr&'x'&yr&'.png'),xr,yr);
+end;

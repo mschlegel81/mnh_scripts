@@ -1,4 +1,4 @@
- xRes:=20;
+xRes:=20;
 yRes:=20;
 xy(i)->[i mod xRes,i div xRes];
 
@@ -11,16 +11,16 @@ xy(i)->[i mod xRes,i div xRes];
 //  .map({$q[0]+$q[1]*xRes});
 //end;
 
-memoized horEdgeSources->[0..xRes-1].map({[0,0,0]});
+memoized horEdgeSources(v)->[0..xRes-1].map({5*[v,0,1-v]});
 hLine(L:List,index)->L[[index*xRes..index*xRes+xRes-1]];
 
 heatOnly(L:List)->L.map({[0,$x[1],0]});
 
 diffusiveFlow(L:List(xRes*yRes))->begin
   //downward:
-  local FY:=(horEdgeSources-L.head(xRes)).heatOnly|
+  local FY:=(horEdgeSources(0)-L.head(xRes))|
             (L.leading(xRes)-L.tail(xRes))|
-            (L.trailing(xRes)-horEdgeSources).heatOnly;
+            (L.trailing(xRes)-horEdgeSources(1));
   FY:=FY.leading(xRes)-FY.tail(xRes);
   local FX:=[0..yRes-1].each(iy,begin
                local row:=L.hLine(iy);
@@ -29,12 +29,14 @@ diffusiveFlow(L:List(xRes*yRes))->begin
                      [row.trailing-[0,0,0]].heatOnly;
                row.leading-row.tail;
             end,|)+FY;
-  FX.pMap({$x*[0,0.1,0.5]});
+  FX;
 end;
 
 
+REACTION_SPEED:=5;
+
 burnDiff(L:List(xRes*yRes))->L.diffusiveFlow
-                            +L.pMap({max(0,$x[1]*$x[2]-0.1)*$x[0]*[-1,1,-1]});
+                            +L.pMap({max(0,$x[1]-0.1)*sqr($x[0])*$x[2]*[-REACTION_SPEED,REACTION_SPEED,-REACTION_SPEED]});
 anyReaction(L:List)->L.each(x,x[1]*x[2]>0.1 AND x[0]>0,OR);
 
 plotBurn(L:List(xRes*yRes))->
@@ -44,7 +46,7 @@ plotBurn(L:List(xRes*yRes))->
       local p:=xy(index);
       p:=[p,p+1];
       local rgb:=[sample[1].min(1),(sample[1]-1).min(1).max(0),(sample[0]*sample[2]).min(1)];
-      addPlot(p,'box RGB'&(rgb.join(",")));
+      addPlot(p,'box 0 fs RGB'&(rgb.join(",")));
     end);
     display;
   end;
@@ -54,12 +56,11 @@ USE rungeKutta;
 
 
 begin
-  local data:=[0..xRes*yRes-1].each(i,i+i<xRes*yRes ? [1,0,0.1] : [0,0,1]);
+  local data:=[0..xRes*yRes-1].each(i,i+i<xRes*yRes ? [1,0,1] : [1,0,1]);
 //  data[xRes div 2+
 //   xRes*(yRes div 4),1]:=5;
-  data[xRes*(yRes div 2-1)]:=[5,10,5];
-
-//  ([0..xRes-1]+(xRes div 10*yRes)).each(i,data[i]:=[100,0]);
+  data[xRes*(yRes div 2-1)+5]:=[1,1,1];
+  setOptions(["axisStyleX"=>0,"axisStyleY"=>0].toMap);
   local int:=integrator(HEUN_EULER,::burnDiff,0.1,1E-3);
   local counter:=0;
   clearAnimation;

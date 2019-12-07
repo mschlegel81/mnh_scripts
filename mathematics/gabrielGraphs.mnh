@@ -132,8 +132,10 @@ gabrielGraph_beta(P:List)->begin
 end;
 
 
+
+
 begin
-  local P:=randomPointList(100,2);
+  local P:=randomPointList(70,2);
   //local P:=FP.head(200);
   setOptions(["x0"=>P.getInner(0).min-0.01,"x1"=>P.getInner(0).max+0.01,
               "y0"=>P.getInner(1).min-0.01,"y1"=>P.getInner(1).max+0.01,"autoscaleX"=>false,"autoscaleY"=>false].toMap);
@@ -148,17 +150,17 @@ begin
   local n2:=n.reverseList*[1,-1];
 //  n2/=n2.euklideanNorm;
 
-  local reference:=gabrielGraph(P).getInner(2).each(i,P[i[0]],P[i[1]],[Nan,Nan]);
+//  local reference:=gabrielGraph(P).getInner(2).each(i,P[i[0]],P[i[1]],[Nan,Nan]);
   local prevG:=[];
   clearAnimation;
   [2..P.size].each(s,begin
-    plot(reference,'red');
-    local G:=gabrielGraph_beta(P.head(s));
-    G.getInner(2).each(i,P[i[0]],P[i[1]],[Nan,Nan]).addPlot('black 1.5');
+//    plot(reference,'red');
+    local G:=gabrielGraph(P.head(s));
+    G.getInner(2).each(i,P[i[0]],P[i[1]],[Nan,Nan]).plot('black 1.5');
     P.addPlot('black 1.5 .');
     P.addPlot('RGB1,1,1 1 .');
     addPlot([(P[s-1]*n).agg(+)*n+n2,
-             (P[s-1]*n).agg(+)*n-n2],'black l 2');
+             (P[s-1]*n).agg(+)*n-n2],'black l 0.5');
     G.minus(prevG).each(c,c[0]-c[1],c[0]+c[1]).addPlot('ellipse 1 f orange');
     prevG:=G;
     addAnimationFrame;

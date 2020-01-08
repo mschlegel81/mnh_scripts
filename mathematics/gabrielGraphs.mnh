@@ -132,11 +132,9 @@ gabrielGraph_beta(P:List)->begin
 end;
 
 
-
-
 begin
-  local P:=randomPointList(70,2);
-  //local P:=FP.head(200);
+  local P:=randomPointList(100,2);
+//  local P:=FP.head(200);
   setOptions(["x0"=>P.getInner(0).min-0.01,"x1"=>P.getInner(0).max+0.01,
               "y0"=>P.getInner(1).min-0.01,"y1"=>P.getInner(1).max+0.01,"autoscaleX"=>false,"autoscaleY"=>false].toMap);
 
@@ -166,6 +164,4 @@ begin
     addAnimationFrame;
   end);
 end;
-
-
 

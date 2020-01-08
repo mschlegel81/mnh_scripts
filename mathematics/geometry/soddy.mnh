@@ -226,20 +226,23 @@ defaultInitialState->initialSoddy @(param3Sym(2).head);
 
 
 begin
-  local radiusLimit:=0.01;
+  local radiusLimit:=0.003;
   clearAnimation;
-  param3Sym(50).pEach(param,begin
+  param3Sym(50).each(p,[index,p])
+  .futureMap({begin
+    local index:=$p[0];
+    local param:=$p[1];
     local t0:=time;
     local circles:=soddyIteration(initialSoddy@param,radiusLimit,false).tail;
+    circles:=plottableNestedGasket([[0,0],1].toCircle,circles,radiusLimit);
     print('Frame #',index,' prepared in ',time-t0,'seconds');
     circles;
-  end)
-  .{print('Done preparing at ',time) orElse $0}
+  end})
   .each(circles,begin
     print('Rendering frame #',index);
     setOptions(['axisStyleX'=>0,'axisStyleY'=>0]);
     plot([[-1,-1],[1,1]],'RGB0.8,0,0 fs e');
-    plottableNestedGasket([[0,0],1].toCircle,circles,radiusLimit).addPlotCircleList;
+    circles.addPlotCircleList;
     addAnimationFrame;
   end);
 end;

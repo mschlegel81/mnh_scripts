@@ -1,0 +1,16 @@
+plain script;
+USE statistics_new;
+
+memoized farey(1)->[[0,1],[1,1]];
+farey(k)->begin
+  local S:=farey(k-1);
+  pFilter([0..S.size-2].pEach(i,S[i],S[[i,i+1]].agg(+))|S.trailing(1),{$x[1]<=k});
+end;
+
+addPlotHierarchy(level)->farey(level).pMap({[$x.agg(/),$x[1]/level]}).addPlot('black . 0.5');
+
+setOptions(["preserveAspect"=>false,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
+[1..100].map(::addPlotHierarchy);
+
+//setOptions(["preserveAspect"=>false].toMap);
+//[1..100].each(i,farey(i),|).pMap({$x.agg(/)}).approxDensity(500).plot('red 2 b');

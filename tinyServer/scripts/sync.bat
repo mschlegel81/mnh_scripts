@@ -22,13 +22,13 @@ D:
 cd dev 
 rem rmdir /S /Q 3rd_party
 rem "c:\Program Files\7-Zip\7z.exe" x -y 3rd_party.7z
-rem rmdir /S /Q art.source
-rem "c:\Program Files\7-Zip\7z.exe" x -y art.source.7z
+rmdir /S /Q art.source
+"c:\Program Files\7-Zip\7z.exe" x -y art.source.7z
 rem del /Q checkstyle*
 rem "c:\Program Files\7-Zip\7z.exe" x -y dev.7z
 rem "c:\Program Files\7-Zip\7z.exe" x -y mnh5.7z
-rem rmdir /S /Q mnh_scripts
-rem "c:\Program Files\7-Zip\7z.exe" x -y mnh_scripts.7z
+rmdir /S /Q mnh_scripts
+"c:\Program Files\7-Zip\7z.exe" x -y mnh_scripts.7z
 rem rmdir /S /Q retrospective
 rem "c:\Program Files\7-Zip\7z.exe" x -y retrospective.7z
 rem rmdir /S /Q git
@@ -39,6 +39,6 @@ rem rmdir /S /Q Sudoku3
 rem "c:\Program Files\7-Zip\7z.exe" x -y Sudoku3.7z
 rem rmdir /S /Q web
 rem "c:\Program Files\7-Zip\7z.exe" x -y web.7z
-demos\inputs\inputs.mnh
 cd mnh5
+demos\inputs\inputs.mnh
 make.mnh status

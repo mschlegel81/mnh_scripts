@@ -52,7 +52,12 @@ begin
      ? void
      : begin
          local lastLines:=fileExists(pathToLog) ? fileLineIterator(pathToLog).trailing(5) : [];
-         local finishTime:=parseTime(DATE_TIME_FORMAT, lastLines.filter({$line.matches('^\| Run finished at '&DATE_TIME_FORMAT_PATTERN)}).copy(18,DATE_TIME_FORMAT.length))[0] orElse current[STARTTIME];
+         local finishTime:=parseTime(DATE_TIME_FORMAT, lastLines.filter({$line.matches('^\| Run finished at '&DATE_TIME_FORMAT_PATTERN)}).copy(18,DATE_TIME_FORMAT.length))[0];
+         finishTime.isVoid
+         ? fileExists(pathToLog)
+           ? finishTime:=fileStats[0]
+           : finishTime:=current[STARTTIME]
+         : void;
          local runIsFinished:=lastLines.trailing==FINAL_LINE;
          current[RUNNING         ]:=running AND !runIsFinished;
          current[FILESTATS       ]:=fileStats;

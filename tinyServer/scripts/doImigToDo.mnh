@@ -27,7 +27,7 @@ main->assertUniqueInstance orElse processOneToDo;
 main('all')->assertUniqueInstance orElse while(processOneToDo,void);
 
 //*List todos
-main('list')->myPath.extractFileDirectory.allFiles('*.todo').map(::print);
+main('list')->myPath.extractFileDirectory.allFiles('*.todo').map({print($filename,"\n  ...",$filename.fileLines.trailing)});
 
 @SuppressUnusedWarning
 ensureInstance->isIpcServerRunning ? void : executor.execAsync([myPath,'all']);

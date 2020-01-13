@@ -4,12 +4,12 @@ private listOf(value,count>=1)->[1..count].each(i,value);
 private Kolakoski_1_2(len)->begin
   local K:=[1,2];
   while(K.size<len,
-    K:=K.pEach(runLength,
-               listOf((index and 1)+1,runLength),|));
+    K:=K.each(runLength,
+              listOf((index and 1)+1,runLength),|));
   K.head(len);
 end;
 @SuppressUnusedWarning=all
-A000002->listIterator(Kolakoski_1_2(10000));
+A000002->Kolakoski_1_2(10000).toIteratableExpression;
 A000005->rangeGenerator(1).lazyMap({$n<=1 ? 1 : factorize($n).subSets.map({$x.agg(*)}).size+1});
 A000006->primeGenerator.sqrt.floor;
 A000007->ord(rangeGenerator(0)=0);
@@ -38,10 +38,9 @@ private DivisorFunction(1)->1;
 private DivisorFunction(n:Int)->factorize(n).subSets.map({$0.agg(*) orElse 1}).agg(+);
 A000203->rangeGenerator(1).lazyMap(::DivisorFunction);
 
-USE generators;
 //for A003459:-------------------------------------------------
 private isPermutablePrime(p:Int)->(p.digits).permutations.each(d,d.composeDigits.factorize.size=1,AND);
-A003459->listIterator(primes(991)).filter(::isPermutablePrime);
+A003459->primes(991).toIteratableExpression.filter(::isPermutablePrime);
 //-------------------------------------------------------------
 @SuppressUnusedWarning
 USE palindromes,
@@ -74,11 +73,11 @@ A052294->rangeGenerator(1).filter(::isPernicious);
 USE smithNumbers;
 A006753->rangeGenerator(1).filter(::isSmithNumber);
 USE thueMorseSequence;
-A010060->listIterator(thueMorseSequence(10000).ord);
+A010060->toIteratableExpression(thueMorseSequence(10000).ord);
 USE truncatablePrimes;
-A024785->listIterator(leftTruncatablePrimes (1000000));
-A024770->listIterator(rightTruncatablePrimes(1000000));
-A020994->listIterator(leftTruncatablePrimes (1000000).intersect(rightTruncatablePrimes(1000000)).sort);
+A024785->toIteratableExpression(leftTruncatablePrimes (1000000));
+A024770->toIteratableExpression(rightTruncatablePrimes(1000000));
+A020994->toIteratableExpression(leftTruncatablePrimes (1000000).intersect(rightTruncatablePrimes(1000000)).sort);
 A007947->rangeGenerator(1).lazyMap({$n.factorize.unique.agg(*)});
 
 USE vampire;
@@ -102,7 +101,7 @@ A023690->rangeGenerator(0).filter({$x.hammingWeight=8});
 A023691->rangeGenerator(0).filter({$x.hammingWeight=9});
 
 USE perfectPowers;
-A001597->perfectPowers(10^6).listIterator;
+A001597->perfectPowers(10^6).toIteratableExpression;
 
 USE harshad;
 A005349->rangeGenerator(1).filter(::isHarshadNumber);

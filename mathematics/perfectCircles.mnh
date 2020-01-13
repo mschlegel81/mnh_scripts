@@ -44,7 +44,65 @@ plotCircles(k,zoom,rotate)->begin
       (J-I[0]).each(j,centers[j]-radii[j],
                       centers[j]+radii[j]).addPlot(style);
     end);
- // centers.each(center,center-radii[index],center+radii[index]).addPlot('ellipse black');
+  centers.each(center,center-radii[index],center+radii[index]).addPlot('ellipse black');
+end;
+
+USE moebius;
+plotCircles(k,m:MoebiusTransformationParameters)->begin
+  local boundingBox:=void;
+  local lowerRadiusThreshold:=void;
+  begin
+    local low:=m.transform([0,0]);
+    local high:=0.25*(m.transform([ 1E6,0])+
+                      m.transform([-1E6,0])+
+                      m.transform([0, 1E6])+
+                      m.transform([0,-1E6]));
+    note('Projected zero: ',low);
+    note('Projected inf : ',high);
+    boundingBox:=[[min(low[0],high[0])-1E-6,min(low[1],high[1])-1E-6],
+                  [max(low[0],high[0])+1E-6,max(low[1],high[1])+1E-6]];
+    low :=boundingBox[0];
+    high:=boundingBox[1];
+    boundingBox:=(high-low)*0.1;
+    low-=boundingBox;
+    high+=boundingBox;
+    setOptions([['x0',low[0]],['x1',high[0]],['autoscaleX',false],['axisStyleX',0],['logscaleX',false],
+                ['y0',low[1]],['y1',high[1]],['autoscaleY',false],['axisStyleY',0],['logscaleY',false],
+                ['preserveAspect',true]]);
+    //delta, assuming 1:1 aspect
+    boundingBox:=(high-low).max*2;
+    lowerRadiusThreshold:=1E-4*boundingBox;
+    low:=(high+low)*0.5;
+    boundingBox:=[low-boundingBox,low+boundingBox];
+  end;
+
+  local par:=findSolution(k);
+  par[0]<1 ? par[0]:=1/par[0] : void;
+
+  local r0:=rad0(par);
+  local C:=[-100*k..
+             100*k].pMap({begin
+    local scale:=par[0]^$i;
+    local circle:=m.transformCircle(scale*[cos(par[1]*$i),
+                                           sin(par[1]*$i)],
+                                    r0*scale);
+    circle[0,0]>=boundingBox[0,0] AND
+    circle[0,0]<=boundingBox[1,0] AND
+    circle[0,1]>=boundingBox[0,1] AND
+    circle[0,1]<=boundingBox[1,1] AND
+    !(isNan(circle[1]) OR isInfinite(circle[1])) AND
+    circle[1]>lowerRadiusThreshold
+    ? [(($i mod k)+k) mod k in [0,4,k-4] ? 0 : 1, circle]
+    : void;
+  end});
+  plot();
+//  C.getInner(1).each(c,c[0]-c[1],c[0]+c[1]).plot('ellipse');
+
+  C.getInner(1).group(C.getInner(0)).each(colorGroup,begin
+    local style:='ellipse fs 0 HUE'&(colorGroup[0]*0.15);
+    colorGroup[1].each(c,c[0]-c[1],c[0]+c[1]).addPlot(style);
+  end);
+
 end;
 
 //*Creates and displays an animation
@@ -70,4 +128,15 @@ begin
                  index=0 ? display : void);
 end;
 
+//begin
+//
+//  (10^([-20..20]/20)).each(p,begin
+//    plotCircles(50,[[1,0],[0,-0.5],[p,0],[1,0]].toMoebiusTransformationParameters);
+//    addAnimationFrame;
+//    postDisplay;
+//  end);
+//end;
+
+plotCircles(50,[[1,0],[0,-0.5],[1,0],[1,0]].toMoebiusTransformationParameters);
+//plotCircles(50,[[1,0],[0,0],[0,0],[1,0]].toMoebiusTransformationParameters);
 

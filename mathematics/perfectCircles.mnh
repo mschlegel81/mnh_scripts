@@ -79,12 +79,17 @@ plotCircles(k,m:MoebiusTransformationParameters)->begin
   local par:=findSolution(k);
   par[0]<1 ? par[0]:=1/par[0] : void;
 
+  //r0*scale     < Y
+  //   par[0] ^i < Y/ r0
+  //ln(par[0])*i < Y/ r0
+  //           i < Y/(r0*ln(par[0]))
+
   local r0:=rad0(par);
   local C:=[-100*k..
-             100*k].pMap({begin
+             10*k].pMap({begin
     local scale:=par[0]^$i;
-    local circle:=m.transformCircle(scale*[cos(par[1]*$i),
-                                           sin(par[1]*$i)],
+    local circle:=m.transformCircle2(scale*[cos(par[1]*$i),
+                                            sin(par[1]*$i)],
                                     r0*scale);
     circle[0,0]>=boundingBox[0,0] AND
     circle[0,0]<=boundingBox[1,0] AND
@@ -92,14 +97,15 @@ plotCircles(k,m:MoebiusTransformationParameters)->begin
     circle[0,1]<=boundingBox[1,1] AND
     !(isNan(circle[1]) OR isInfinite(circle[1])) AND
     circle[1]>lowerRadiusThreshold
-    ? [(($i mod k)+k) mod k in [0,4,k-4] ? 0 : 1, circle]
+    ? print(scale*[cos(par[1]*$i),sin(par[1]*$i)],',',r0*scale,'->',circle) orElse
+      [(($i mod k)+k) mod k in [0,4,k-4] ? 0 : 1, circle]
     : void;
   end});
   plot();
 //  C.getInner(1).each(c,c[0]-c[1],c[0]+c[1]).plot('ellipse');
 
   C.getInner(1).group(C.getInner(0)).each(colorGroup,begin
-    local style:='ellipse fs 0 HUE'&(colorGroup[0]*0.15);
+    local style:='ellipse f HUE'&(colorGroup[0]*0.15);
     colorGroup[1].each(c,c[0]-c[1],c[0]+c[1]).addPlot(style);
   end);
 
@@ -137,6 +143,26 @@ end;
 //  end);
 //end;
 
-plotCircles(50,[[1,0],[0,-0.5],[1,0],[1,0]].toMoebiusTransformationParameters);
-//plotCircles(50,[[1,0],[0,0],[0,0],[1,0]].toMoebiusTransformationParameters);
+begin
+  local P0:=[[1,0],[0,0],[0,0],[1,0]];
+  local P1:=[[1,0],[0,-0.5],[1,0],[1,0]];
+  map([0..100]/100,{(P0*(1-$t)+P1*$t).toMoebiusTransformationParameters})
+  .each(m,plotCircles(12,m),addAnimationFrame);
+  void;
+end;
+
+
+//begin
+//  setOptions(["logscaleY"=>true].toMap);
+//  local par:=findSolution(5);
+//  local r0:=rad0(par);
+//  local data:=
+//  [-1000..1000].pEach(i,begin
+//    local scale:=par[0]^i;
+//    local r:=[i,r0*scale,T1.transformCircle(scale*[cos(par[1]*i),sin(par[1]*i)],r0*scale)[1],T1.transformCircle2(scale*[cos(par[1]*i),sin(par[1]*i)],r0*scale)[1]];
+//    (r.isNan or r.isInfinite).agg(OR) ? void : r;
+//  end);
+//  plot   (data.getInner(0),data.getInner(2));
+//  addPlot(data.getInner(0),data.getInner(3));
+//end;
 

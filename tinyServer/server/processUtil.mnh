@@ -13,6 +13,7 @@ exec('wmic',['process','get','Caption,ParentProcessId,ProcessId'])
 .each(g,g[0]=>g[1].map({$x[[0,2]]}))
 .toMap;
 
+@SuppressUnusedWarning=all
 processesStaredByMe->getProcessMap[mnhInfo['PID']].filter({$x[0]!='conhost.exe'});
 
 allProcessesStartedByMe->begin

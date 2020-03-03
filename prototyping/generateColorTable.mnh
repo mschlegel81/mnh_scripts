@@ -1,0 +1,158 @@
+subjectiveWeights:=[0.2126,0.7152,0.0722];
+
+randomWeightedColor->random(3)*subjectiveWeights;
+
+rgbToXyz(rgb:NumericList(3))->begin
+  [(rgb*[0.49,0.31,0.2]).agg(+),
+   (rgb*[0.17697,0.8124,0.01063]).agg(+),
+   (rgb*[0.0,0.01,0.99]).agg(+)]/0.17697;
+end;
+
+initial:=
+[[0,0,0],
+ [1,1,1],
+ [0,0,1],
+ [0,1,0],
+ [1,0,0],
+ [1,1,0],
+ [1,0,1],
+ [0,1,1]].map({$x*subjectiveWeights});
+
+printResult(x)->print(round(x/subjectiveWeights,3));
+
+xyzDist(rgb1:NumericList(3),rgb2:NumericList(3))->euklideanNorm(rgb1.rgbToXyz-rgb2.rgbToXyz);
+
+throwDarts->begin
+  local tab:=[[0,0,0],
+              [1,1,1],
+              [0,0,1],
+              [0,1,0],
+              [1,0,0],
+              [1,1,0],
+              [1,0,1],
+              [0,1,1]];
+  local acceptAt:=xyzDist(tab.trailing,tab.head);
+  while(tab.size<256,begin
+     local x:=random(3);
+    tab.each(y,xyzDist(x,y)>acceptAt,AND)
+    ? begin
+        print(x);
+        tab|=[x];
+      end
+    : acceptAt*=0.99999;
+  end);
+  tab.map(::printResult);
+  tab;
+end;
+
+hsvColor(h,s,v)->begin
+  local hue:=h-floor(h);
+  local hi:=floor(hue*6); hue:=hue*6-hi;
+  local p:=v*(1-s        );
+  local q:=v*(1-s*   hue );
+  local t:=v*(1-s*(1-hue));
+  hi=1 ? [q,v,p] :
+  hi=2 ? [p,v,t] :
+  hi=3 ? [p,q,v] :
+  hi=4 ? [t,p,v] :
+  hi=5 ? [v,p,q] :
+         [v,t,p];
+end;
+
+scramble(L)->L[L.size.random.sortPerm];
+hsvColorSet(hueDenominator=3,sat,val)->([0..2]                         ).map({hsvColor($x/hueDenominator,sat,val)});
+hsvColorSet(hueDenominator  ,sat,val)->([0..hueDenominator div 2-1]*2+1).map({hsvColor($x/hueDenominator,sat,val)});
+
+colorsByLevel(l)->begin
+  cross([0..2^l],[0..2^l],[0..2^l]).filter({(($x and 1)=1).agg(OR)})/2^l;
+end.scramble;
+
+//distanceToPrevious(newColor,oldList)->oldList.each(old,euklideanNorm((old-newColor)*subjectiveWeights),min);
+distanceToPrevious(newColor,oldList)->oldList.each(old,euklideanNorm(old.rgbToXyz-newColor.rgbToXyz),min);
+
+sortByDistance(old,new)->begin
+  local dMin:=new.map({old.each(o,euklideanNorm($0-o),min)});
+  new[sortPerm(dMin).reverseList];
+end;
+
+simpleBipartition->begin
+  local colors:=[[0,0,0],
+            [1,1,1],
+            [0,0,1],
+            [0,1,0],
+            [1,0,0],
+            [1,1,0],
+            [1,0,1],
+            [0,1,1]];
+  local candidates:=scramble(colorsByLevel(1)|colorsByLevel(2)|colorsByLevel(3)|colorsByLevel(4));
+  while(colors.size<256,begin
+    local nextIdx:=candidates.pMap({$L.distanceToPrevious(colors)}).argMax;
+    print(candidates[nextIdx]);
+    colors||=candidates[nextIdx];
+    candidates[nextIdx]:=void;
+  end);
+  clearPrint;
+  colors;
+end;
+
+
+USE generators;
+
+hueSorted->begin
+  //16 Grey levels -> 4*60 remaining
+  local greys    :=([0.. 99]/100).map({hsvColor(0,0,$v)});
+  local saturated:=([0.. 99]/100).map({hsvColor($h,1,1)});
+  local darker   :=([0.. 99]/100).map({hsvColor($h,1,0.5)});
+  local lighter  :=([0.. 99]/100).map({hsvColor($h,0.5,1)});
+  local mixed    :=([0.. 99]/100).map({hsvColor($h,0.5,0.5)});
+  local candidates:=scramble( greys | saturated | darker | lighter | mixed);
+  local colors:=[[0,0,0],
+ [1,1,1],
+ [0,0,1],
+ [0,1,0],
+ [1,0,0],
+ [1,1,0],
+ [1,0,1],
+ [0,1,1]];
+  while(colors.size<256,begin
+    local nextIdx:=candidates.pMap({$L.distanceToPrevious(colors)}).argMax;
+    print(candidates[nextIdx]);
+    colors||=candidates[nextIdx];
+    candidates[nextIdx]:=void;
+  end);
+  clearPrint;
+  colors;
+end;
+
+boundsSorted->begin
+  local colors:=[[0,0,0],
+                 [1,1,1],
+                 [0,0,1],
+                 [0,1,0],
+                 [1,0,0],
+                 [1,1,0],
+                 [1,0,1],
+                 [0,1,1]];
+  local candidates:=cross([0..6],[0..8],[0..6]).filter({($x=0 or $x=[6,8,6]).agg(OR)}).map({$x/[6,8,6]}).minus(colors).toList.scramble;
+  while(colors.size<256,begin
+    local nextIdx:=candidates.pMap({$L.distanceToPrevious(colors)}).argMax;
+    print(candidates[nextIdx]);
+    colors||=candidates[nextIdx];
+    candidates[nextIdx]:=void;
+  end);
+  clearPrint;
+  colors;
+end;
+
+//boundsSorted.map({join(['(',$x.join(','),'),'])}).chunkIterator(8).map({$x.join.print});
+
+
+//simpleBipartition.map({join(['(',$x.join(','),'),'])}).chunkIterator(8).map({$x.join.print});
+//hueSorted.map({join(['(',$x.join(','),'),'])}).chunkIterator(8).map({$x.join.print});
+
+
+throwDarts.map({join(['(',$x.join(','),'),'])}).chunkIterator(8).map({$x.join.print});
+
+
+
+

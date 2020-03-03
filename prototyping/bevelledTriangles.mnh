@@ -1,0 +1,60 @@
+
+A:=[0,0];
+B:=[1,0];
+C:=[1,0.5];
+D:=[0,1];
+
+borderWidth:=0.4;
+
+shiftEdge(a,b)->begin
+  local d:=b-a;
+  d:=[-d[1],d[0]];
+  d*=borderWidth/d.euklideanNorm;
+  [a+d,b+d];
+end;
+
+edgeCut(a,b,c,d)->begin
+  local X:=b-a;
+  local Y:=d-c;
+  local Z:=c-a;
+  local u:=(Z[0]*Y[1]-Y[0]*Z[1])/(X[0]*Y[1]-Y[0]*X[1]);
+  a+(b-a)*u;
+end;
+
+orientation(a,b,c)->begin
+  local x:=b-a;
+  local y:=c-a;
+  x[0]*y[1]-
+  x[1]*y[0];
+end;
+
+curry isInside(A,B,C,D,p)->(orientation(A,B,p)>=0) AND
+                           (orientation(B,C,p)>=0) AND
+                           (orientation(C,D,p)>=0) AND
+                           (orientation(D,A,p)>=0);
+
+begin
+  plot([A,B,C,D,A],'polygon f');
+
+  local ABs:=shiftEdge(A,B);
+  local BCs:=shiftEdge(B,C);
+  local CDs:=shiftEdge(C,D);
+  local DAs:=shiftEdge(D,A);
+
+  local A_:=edgeCut(ABs[0],ABs[1],DAs[0],DAs[1]);
+  local B_:=edgeCut(ABs[0],ABs[1],BCs[0],BCs[1]);
+  local C_:=edgeCut(CDs[0],CDs[1],BCs[0],BCs[1]);
+  local D_:=edgeCut(CDs[0],CDs[1],DAs[0],DAs[1]);
+
+  local tmp:=edgeCut(A,A_,B,B_);
+  euklideanNorm(tmp-A)<euklideanNorm(A_-A) ? A_:=tmp : void;
+  euklideanNorm(tmp-B)<euklideanNorm(B_-B) ? B_:=tmp : void;
+  tmp:=edgeCut(A,A_,D,D_);
+  euklideanNorm(tmp-A)<euklideanNorm(A_-A) ? A_:=tmp : void;
+  euklideanNorm(tmp-D)<euklideanNorm(D_-D) ? D_:=tmp : void;
+
+
+  [A,A_,B_,B,B_,C_,C,C_,D_,D,D_,A_];
+end.addPlot('red 2 . l');
+
+

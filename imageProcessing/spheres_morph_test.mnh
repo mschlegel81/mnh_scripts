@@ -1,5 +1,7 @@
 
-wf(t)->'Circle spiral[centerx:0.5;centery:0;zoom:0.1;rotation:0;circleShift:5;mb_a:1,0;mb_b:0,0;mb_c:%{$0}s,0;mb_d:1,0;style:white_spheres]'.format(t);
+wf(t)->'Circle spiral[centerx:0.5;centery:0;zoom:0.3;rotation:0;circleShift:20;mb_a:1,0;mb_b:0,0;mb_c:1,0;mb_d:%{cos(2*pi*$0)}s,%{sin(2*pi*$0)}s;style:col1_s]'.format(t);
 
 
-main->[0..100].map({[wf($i/100)].executeWorkflow(1920,1080,myPath.changeFileExt(format('_%3.3d.jpg',$i)),::print)});
+main->[0..100].map({[wf($i/100)].executeWorkflow(800,800,myPath.changeFileExt(format('_%3.3d.png',$i)),::print)});
+
+wf(0).print;

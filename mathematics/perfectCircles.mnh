@@ -85,8 +85,8 @@ plotCircles(k,m:MoebiusTransformationParameters)->begin
   //           i < Y/(r0*ln(par[0]))
 
   local r0:=rad0(par);
-  local C:=[-100*k..
-             10*k].pMap({begin
+  local C:=[-1000..
+             round(ln(1E10)/ln(par[1]/max(1,r0)))].pMap({begin
     local scale:=par[0]^$i;
     local circle:=m.transformCircle2(scale*[cos(par[1]*$i),
                                             sin(par[1]*$i)],
@@ -134,35 +134,39 @@ begin
                  index=0 ? display : void);
 end;
 
-//begin
-//
-//  (10^([-20..20]/20)).each(p,begin
-//    plotCircles(50,[[1,0],[0,-0.5],[p,0],[1,0]].toMoebiusTransformationParameters);
-//    addAnimationFrame;
-//    postDisplay;
-//  end);
-//end;
-
-begin
-  local P0:=[[1,0],[0,0],[0,0],[1,0]];
-  local P1:=[[1,0],[0,-0.5],[1,0],[1,0]];
-  map([0..100]/100,{(P0*(1-$t)+P1*$t).toMoebiusTransformationParameters})
-  .each(m,plotCircles(12,m),addAnimationFrame);
-  void;
+transformation(spiralIndex:Int,
+               shiftByIndex:Int,
+               fixedPoint1:NumericList(2),
+               fixedPoint2:NumericList(2))->begin
+  local par:=findSolution(spiralIndex);
+  print(center(par,0));
+  print(center(par,shiftByIndex));
+  transformationBy3Points(fixedPoint1,fixedPoint1,
+                          fixedPoint2,fixedPoint2,
+                          center(par,0),center(par,shiftByIndex));
 end;
 
+transformation(spiralIndex:Int,
+               shiftByIndex:Int)->
+  [findSolution(spiralIndex).center(shiftByIndex),[0,0],[0,0],[1,0]].toMoebiusTransformationParameters;
 
-//begin
-//  setOptions(["logscaleY"=>true].toMap);
-//  local par:=findSolution(5);
-//  local r0:=rad0(par);
-//  local data:=
-//  [-1000..1000].pEach(i,begin
-//    local scale:=par[0]^i;
-//    local r:=[i,r0*scale,T1.transformCircle(scale*[cos(par[1]*i),sin(par[1]*i)],r0*scale)[1],T1.transformCircle2(scale*[cos(par[1]*i),sin(par[1]*i)],r0*scale)[1]];
-//    (r.isNan or r.isInfinite).agg(OR) ? void : r;
-//  end);
-//  plot   (data.getInner(0),data.getInner(2));
-//  addPlot(data.getInner(0),data.getInner(3));
-//end;
+animateTransformation(spiralIndex:Int,
+                      shiftByIndex:Int,
+                      numberOfSteps>1)->begin
+  local par:=findSolution(spiralIndex);
+
+  map(([0..numberOfSteps-1]/(numberOfSteps-1)*shiftByIndex),
+    {[par.center($x),[0,0],[0,0],[1,0]].toMoebiusTransformationParameters});
+end;
+
+//[[1,0],[0,0],[1,0],[1,0]].toMoebiusTransformationParameters.transform
+//(transformation(7,1,[0,0],[1E10,0])).normalizedMoebiusParameters;
+//
+
+
+transformation(7,1,[0,0],[1E10,0]).normalizedMoebiusParameters;
+transformation(7,1).normalizedMoebiusParameters;
+animateTransformation(7,1,21).map({[[1,0],[0,0],[1,0],[1,0]].toMoebiusTransformationParameters.transform($p).toBuiltin});
+
+
 

@@ -65,10 +65,10 @@ private memoized sevenZipExe->
 private IDFormat:='A%6.6d';
 
 private info(numericId:Int)->
-  ['ID'=>IDFormat.format(numericId),
-   'Name'=>names[numericId] orElse '- not found -',
-   'Sequence'=>sequences[numericId] orElse [],
-   'Info'=>classify(sequences[numericId] orElse []),
+  ['ID'      => IDFormat.format(numericId),
+   'Name'    => names[numericId] orElse '- not found -',
+   'Sequence'=> sequences[numericId] orElse [],
+   'Info'    => classify(sequences[numericId] orElse []),
    implementationOf(numericId).isVoid ? void :
    ('genClass'=>implementationOf(numericId).map(::toString))
    ].toMap;
@@ -134,10 +134,10 @@ private memoized serve_('download',...)->begin
   respond('Updating data - old: ',typeOf(names));
   local idAndRest  :={[$s.copy(1,6).softCast,$s.copy(8,$s.length)]};
   local idAndSeries:={[$s.copy(1,6).softCast,$s.copy(8,$s.length).split(',').softCast.filter(::isInt)]};
-//local namesMap :=future(::getData,['https://oeis.org/names.gz'   ,{$line.matches('^A\d{6} ') ? idAndRest($line)   : void}]);
-  local namesMap :=         getData( 'https://oeis.org/names.gz'   ,{$line.matches('^A\d{6} ') ? idAndRest($line)   : void});
+  local namesMap :=future(::getData,['https://oeis.org/names.gz'   ,{$line.matches('^A\d{6} ') ? idAndRest($line)   : void}]);
+  //local namesMap :=         getData( 'https://oeis.org/names.gz'   ,{$line.matches('^A\d{6} ') ? idAndRest($line)   : void});
   local seriesMap:=         getData( 'https://oeis.org/stripped.gz',{$line.matches('^A\d{6} ') ? idAndSeries($line) : void});
-//  namesMap:=namesMap(); //resolve future
+  namesMap:=namesMap(); //resolve future
   respond('Files parsed - ',seriesMap.size,'/',namesMap.size,' entries');
   local maxSeries:=max(namesMap.getInner(0).max,seriesMap.getInner(0).max);
   respond('Updating names list of ',maxSeries,' relevant entries');
@@ -151,7 +151,8 @@ end; //downloadData
 
 private serve_('id'     ,...)->map(...,{$s.clean(['0'..'9'],'').softCast}).filter(::isInt).pMap(::info);
 private serve_('details',...)->map(...,{$s.clean(['0'..'9'],'').softCast}).filter(::isInt).fetchDetails;
-private serve_('name'   ,...)->... .each(pattern,names.matches(pattern),or).indexOf.pMap(::info);
+private serve_('name'   ,...)->
+  ... .each(pattern,names.matches(pattern),or).indexOf.map(::info);
 
 private mutable SEQ_AS_STRING:=void;
 private synchronized getSeqAsString->SEQ_AS_STRING orElse begin

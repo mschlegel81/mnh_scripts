@@ -309,9 +309,9 @@ fibonacciTesselation->begin
 end;
 
 
-//[::t0,::t1,::t2,::t3,::t4,::t5,::fishbone].each(f,plot(),drawTesselation(f),addAnimationFrame).flatten;
-//[::t0,::t1,::t2,::t3,::t4,::t5,::fishbone].map(::checkTesselation);
+[::t0,::t1,::t2,::t3,::t4,::t5,::fishbone].each(f,plot(),drawTesselation(f),addAnimationFrame).flatten;
+[::t0,::t1,::t2,::t3,::t4,::t5,::fishbone].map(::checkTesselation);
 //
 //clearAnimation;
 
-fibonacciTesselation;
+

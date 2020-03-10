@@ -164,9 +164,17 @@ end;
 //
 
 
-transformation(7,1,[0,0],[1E10,0]).normalizedMoebiusParameters;
-transformation(7,1).normalizedMoebiusParameters;
-animateTransformation(7,1,21).map({[[1,0],[0,0],[1,0],[1,0]].toMoebiusTransformationParameters.transform($p).toBuiltin});
+//transformation(7,1,[0,0],[1E10,0]).normalizedMoebiusParameters;
+//transformation(7,1).normalizedMoebiusParameters;
+//animateTransformation(7,1,21).map({[[1,0],[0,0],[1,0],[1,0]].toMoebiusTransformationParameters.transform($p).toBuiltin});
+
+
+zoomRotate(spiralIndex:Int,
+           shiftByIndex:Int)->begin
+  local c:=findSolution(spiralIndex).center(shiftByIndex);
+  ['zoom'=>c.euklideanNorm,
+   'angle'=>arctan2(c[1],c[0])*180/pi ].toMap;
+end;
 
 
 

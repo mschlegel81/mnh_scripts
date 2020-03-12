@@ -1,33 +1,54 @@
-#!C:\bin\mnh.exe -silent -headless
-tprint(...)->print@(formatTime('hh:nn.ss ',systime)|...);
-logBusyScript->extractFileDirectory(myPath)&'/logBusy.mnh';
+#!C:\bin\mnh.exe -silent -headless -out ?.log(1)
+private mutable allTodos:=myPath.extractFileDirectory.allFiles('*.todo').systemSpecificFilename.sort;
+private synchronized nextTodo->begin
+  local result:=allTodos.head;
+  allTodos:=allTodos.tail;
+  result;
+end;
 
-private processOneToDo->begin
-  local todo:=myPath.extractFileDirectory.allFiles('*.todo').head;
+private processOneToDo(printMethod:Expression(1))->begin
+  local todo:=nextTodo;
   isVoid(todo) OR (todo==[])
   ? false
   : begin
-      print('+-',todo.clean(['-'],'-'),'-+');
-      print('| ',todo                 ,' |');
-      print('+-',todo.clean(['-'],'-'),'-+');
-      todo.extractFileDirectory.changeDirectory;
-      fileExists(logBusyScript) ? runScript(logBusyScript,['Periodic task: IMIG-Jobbing']) : void;
-      executeWorkflow(todo.fileLines,1,1,'-',::tprint);
-      deleteFile(todo);
-      fileExists(logBusyScript) ? runScript(logBusyScript,['nothing']) : void;
+      printMethod('+-'&todo.clean(['-'],'-')&'-+');
+      printMethod('| '&todo                 &' |');
+      printMethod('+-'&todo.clean(['-'],'-')&'-+');
+      executeTodo(todo,printMethod);
       true;
     end;
 end;
 
-
-//*Executes one todo
-main->assertUniqueInstance orElse processOneToDo;
-
-//*Executes all todos
-main('all')->assertUniqueInstance orElse while(processOneToDo,void);
+printMethod(i)->{print('(CPU ',i,') ',$0)};
 
 //*List todos
-main('list')->myPath.extractFileDirectory.allFiles('*.todo').map({print($filename,"\n  ...",$filename.fileLines.trailing)});
+main('list')->allTodos
+              .futureMap({["\t",$filename,"\n\t...",$filename.fileLines.trailing].join})
+              .each(entry,print('(',index+1,') ',entry));
+
+//*Process todos
+//*  [n] (any integer) : number of todos to process (default=1)
+//*  all               : process all todos
+//*  parallel          : process todos in parallel
+main(...)->begin
+  local workInParallel:=false;
+  local processAll:=false;
+  local limit:=1;
+  (...).each(parameter,
+    parameter='parallel'     ? begin workInParallel:=true; limit:=(limit=1 ? mnhInfo['configured_cpus'] : limit); end :
+    parameter='all'          ? processAll:=true :
+    parameter.softCast.isInt ? limit:=parameter.softCast :
+    parameter='-h'           ? return print(helpOnMain) :
+    print(helpOnMain) orElse
+    fail('Unknown parameter: ',parameter));
+  processAll ? void : allTodos:=allTodos.head(limit);
+
+  print('Processing ',allTodos.size,' todos ',workInParallel ? 'in parallel' : void);
+  assertUniqueInstance;
+  workInParallel
+  ? [1..mnhInfo['configured_cpus']].map(::printMethod).futureMap({while(processOneToDo($pm))}).toList
+  :                                                               while(processOneToDo(::print),void);
+end;
 
 @SuppressUnusedWarning
 ensureInstance->isIpcServerRunning ? void : executor.execAsync([myPath,'all']);

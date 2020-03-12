@@ -22,10 +22,10 @@ D:
 cd dev 
 rem rmdir /S /Q 3rd_party
 rem "c:\Program Files\7-Zip\7z.exe" x -y 3rd_party.7z
-rmdir /S /Q art.source
-"c:\Program Files\7-Zip\7z.exe" x -y art.source.7z
-rem del /Q checkstyle*
-rem "c:\Program Files\7-Zip\7z.exe" x -y dev.7z
+rem rmdir /S /Q art.source
+rem "c:\Program Files\7-Zip\7z.exe" x -y art.source.7z
+del /Q checkstyle*
+"c:\Program Files\7-Zip\7z.exe" x -y dev.7z
 rem "c:\Program Files\7-Zip\7z.exe" x -y mnh5.7z
 rmdir /S /Q mnh_scripts
 "c:\Program Files\7-Zip\7z.exe" x -y mnh_scripts.7z

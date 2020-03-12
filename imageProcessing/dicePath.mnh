@@ -1,0 +1,22 @@
+traverse(L:IntList)->begin
+  local i:=0;
+  while(true,i+L[i]>=L.size ? return i : i+=L[i]);
+  fail;
+end;
+
+diceSeries(count>1,sides>1)->begin
+  local dice:=intRandom(sides,count)+1;
+  local final:=traverse(dice);
+  [1..sides].minus([dice[0]]).map({traverse($start|dice.tail)=final}).trueCount/(sides-1);
+end;
+
+sampleSeries(count,sides,samples)->begin
+  [1..samples].pEach(sample,diceSeries(count,sides),+)/samples;
+end;
+
+setOptions(["preserveAspect"=>false].toMap);
+[2..40].each(count,[count,sampleSeries(count, 6,10000)]).plot;
+[2..40].each(count,[count,sampleSeries(count,10,10000)]).addPlot;
+
+
+

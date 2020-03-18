@@ -3,24 +3,25 @@
 QUANTIZE_TAB:=[0,0.5,0.95,1];
 
 PERMUTATIONS:=
-[[4,0,1,5,6,2,3,7,11,15,14,10,9,13,12,8],
- [5,4,0,1,2,3,7,6,10,11,15,14,13,12,8,9]]
+[[0,1,5,6,2,3,7,     11,15,14,10, 9,13,12,8,    4],
+ [0,1    ,2,3,7,6,10,11,15,14,      13,12,8,9,5,4]]
 .each(basePermutation,basePermutation,basePermutation.reverseList)
-.each(p,p,p.tail( 1)|p.head( 1)
-         ,p.tail( 2)|p.head( 2)
-         ,p.tail( 3)|p.head( 3)
-         ,p.tail( 4)|p.head( 4)
-         ,p.tail( 5)|p.head( 5)
-         ,p.tail( 6)|p.head( 6)
-         ,p.tail( 7)|p.head( 7)
-         ,p.tail( 8)|p.head( 8)
-         ,p.tail( 9)|p.head( 9)
-         ,p.tail(10)|p.head(10)
-         ,p.tail(11)|p.head(11)
-         ,p.tail(12)|p.head(12)
-         ,p.tail(13)|p.head(13)
-         ,p.tail(14)|p.head(14)
-         ,p.tail(15)|p.head(15));
+.each(p,p//,p.tail( 1)|p.head( 1)
+         //,p.tail( 2)|p.head( 2)
+         //,p.tail( 3)|p.head( 3)
+         //,p.tail( 4)|p.head( 4)
+         //,p.tail( 5)|p.head( 5)
+         //,p.tail( 6)|p.head( 6)
+         //,p.tail( 7)|p.head( 7)
+        // ,p.tail( 8)|p.head( 8)
+         //,p.tail( 9)|p.head( 9)
+         //,p.tail(10)|p.head(10)
+         //,p.tail(11)|p.head(11)
+         //,p.tail(12)|p.head(12)
+         //,p.tail(13)|p.head(13)
+         //,p.tail(14)|p.head(14)
+         //,p.tail(15)|p.head(15)
+         );
 
 nearestColor(c)->QUANTIZE_TAB[ argMin(abs(c-QUANTIZE_TAB))];
 
@@ -37,9 +38,9 @@ end;
 ditherErrorGroups->begin
   local c:=random(16);
   group([0..PERMUTATIONS.size-1],
-        PERMUTATIONS.each(p,c[p].ditherError.round(4)))
-  .getInner(1)
-  .getInner(0);
+        PERMUTATIONS.each(p,c[p].ditherError.round(4)));
+//  .getInner(1)
+//  .getInner(0);
 end;
 
 PAIRS:=cross([0..PERMUTATIONS.size-1],[0..PERMUTATIONS.size-1]).filter({$x.agg(<)});
@@ -50,7 +51,10 @@ PAIRS:=cross([0..PERMUTATIONS.size-1],[0..PERMUTATIONS.size-1]).filter({$x.agg(<
 //  PAIRS.each(p,[euklideanNorm(errors[p[0]]-errors[p[1]]),p]).sort;
 //end;
 
-[0..999].pEach(q,ditherErrorGroups,aggregator({$x.union($y)})).size;
+//[0..999].pEach(q,ditherErrorGroups,aggregator({$x.union($y)})).size;
+
+ditherErrorGroups;
 
 //errorDistances;
 
+PERMUTATIONS;

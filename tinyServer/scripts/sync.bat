@@ -7,7 +7,7 @@ rem robocopy "N:\Martin\TmForever\Tracks\Challenges\My Challenges" "C:\users\sch
 
 robocopy N:\dev D:\dev *.7z /MIR /NP /LEV:1 /FFT /COPY:DT
 robocopy N:\dev\art.bin D:\dev\art.bin /MIR /COPY:DT
-robocopy N:\dev\mnh5 D:\dev\mnh5 /MIR /NP /FFT /COPY:DT 
+robocopy N:\dev\mnh5 D:\dev\mnh5 /S /NP /FFT /COPY:DT /XO
 
 robocopy D:\dev D:\backup\dev *.7z /NP /LEV:1 /FFT /COPY:DT
 robocopy D:\dev\art.bin D:\backup\dev\art.bin /MIR /COPY:DT
@@ -27,8 +27,8 @@ rem "c:\Program Files\7-Zip\7z.exe" x -y art.source.7z
 del /Q checkstyle*
 "c:\Program Files\7-Zip\7z.exe" x -y dev.7z
 rem "c:\Program Files\7-Zip\7z.exe" x -y mnh5.7z
-rmdir /S /Q mnh_scripts
-"c:\Program Files\7-Zip\7z.exe" x -y mnh_scripts.7z
+rem rmdir /S /Q mnh_scripts
+rem "c:\Program Files\7-Zip\7z.exe" x -y mnh_scripts.7z
 rem rmdir /S /Q retrospective
 rem "c:\Program Files\7-Zip\7z.exe" x -y retrospective.7z
 rem rmdir /S /Q git

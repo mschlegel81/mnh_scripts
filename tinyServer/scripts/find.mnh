@@ -1,0 +1,2 @@
+//*Find all files matching the given pattern
+main(pattern)->driveInfo.getInner(0).pEach(drive,allFiles(drive&':',pattern).map(::print));

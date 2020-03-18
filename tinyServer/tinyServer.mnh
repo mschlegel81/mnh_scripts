@@ -1,8 +1,5 @@
 #!C:\bin\mnh.exe -GUI -quiet +out ?.log(1)
-USE tinyServer_html,tinyServer_config,loggingRunner,serveTasks,serveProcesses;
-
-@SuppressUnusedWarning
-USE serveFiles;
+USE tinyServer_html,tinyServer_config,loggingRunner,serveTasks,serveProcesses,serveFiles;
 
 private LOG_NAME:=changeFileExt(myPath,'.log');
 //CPU Usage:--------------------------------------------------------------------------

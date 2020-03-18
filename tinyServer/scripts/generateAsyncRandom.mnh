@@ -1,23 +1,15 @@
-trueRandom->begin
-  local randArray:=runScript('<temp>',['main->[0..255].each(i,async(::print,[i])).map({$f()});'],[]).pMap({$x[0]=='printline' ? $x[2].softCast : void});
-  local prev:=randArray.head;
-  randArray:=randArray.tail[randArray.tail<>randArray.leading+1];
-  randArray.each(r,prev:=prev*31+r and 255);
+CHUNK_SIZE:=64;
+printSomethingRandom->runScript('<temp>',
+          ['main->[0..63].map({async({intRandom(256,256).map(::print) orElse 1})}).map({while(isVoid($x()))});'],
+          [],
+          0)
+  .pMap({$x[0]=='printline' ? softCast($x[2]) : void})
+  .{([0..$L.size div CHUNK_SIZE-1]*CHUNK_SIZE).pEach(i,format('%2.2x',$L[[i..i+CHUNK_SIZE-1]]).join.print)};
+
+main->printSomethingRandom;
+
+main(timeOutInSeconds)->begin
+  local timeOut:=timeOutInSeconds.toReal;
+  while(time<timeOut,
+    printSomethingRandom);
 end;
-
-trueRandomStream->begin
-  local buffer:=trueRandom();
-save;
-  while(buffer.size<64,buffer|=trueRandom());
-  [buffer.head(64).composeDigits(256),buffer:=buffer.tail(64)][0];
-end;
-
-main(numberOfSeconds)->begin
-  local timeout:=numberOfSeconds.toReal;
-  print('Printing out 512 bit random numbers for ',timeout,' seconds');
-  while(time<timeout,print(trueRandomStream()));
-end;
-
-
-
-

@@ -1,0 +1,46 @@
+table8x8x4:=
+cross([0..7]/7,
+      [0..7]/7,
+      [0..3]/3);
+
+
+
+drawTable(tab:List)->begin
+  local Q:=sqrt(tab.size).ceil-1;
+
+  [[0..Q].cross([0..Q]).head(tab.size),tab]
+  .transpose
+  .map({addPlot([$x[0],$x[0]+1],'box fs 0 RGB'&$x[1].join(","))});
+end;
+
+
+BASE2:=[[0,0,0],[1,1,1]];
+
+BASE4:=[[0,0,0],[1,1,1],[1,0,1],[0,1,0]];
+
+BASE16:=[[0,0,0],[1,1,1],[1,0,1],[0,1,0],
+         [1,0,0],[0,0,1],[1,1,0],[0,1,1],
+         [3/4,3/4,3/4],[1,1,1]/2,[1,0,1]/2,[0,1,0]/2,
+         [1,0,0]/2,[0,0,1]/2,[1,1,0]/2,[0,1,1]/2];
+cDist(a,b)->euklideanNorm((a-b)*[0.2126,0.7152,0.0722]);
+
+begin
+  local trueGreys:=map([0..16]/16,{[$x,$x,$x]});
+  local candidates:=table8x8x4.union(trueGreys).minus(BASE16).toList;
+  local tab:=BASE4;
+  while(tab.size<16,begin
+    print(tab.size);
+    tab||=BASE16.pEach(newCol,tab.each(oldCol,[cDist(newCol,oldCol),newCol],min),max)[1];
+  end);
+  while(tab.size<256,begin
+    print(tab.size);
+    local newOne:=candidates.pEach(newCol,tab.each(oldCol,[cDist(newCol,oldCol),newCol],min),max)[1];
+    tab||=newOne;
+    candidates:=candidates.minus([newOne]);
+  end);
+
+  tab:=tab.map({round($x*255)});
+  tab.each(c,printDirect('(',c.join(","),'),'),index mod 8=7 ? print : void);
+  tab/255;
+end.drawTable;
+

@@ -1,10 +1,10 @@
-CHUNK_SIZE:=64;
+CHUNK_SIZE:=128;
 printSomethingRandom->runScript('<temp>',
           ['main->[0..63].map({async({intRandom(256,256).map(::print) orElse 1})}).map({while(isVoid($x()))});'],
           [],
           0)
-  .pMap({$x[0]=='printline' ? softCast($x[2]) : void})
-  .{([0..$L.size div CHUNK_SIZE-1]*CHUNK_SIZE).pEach(i,format('%2.2x',$L[[i..i+CHUNK_SIZE-1]]).join.print)};
+  .map({$x[0]=='printline' ? softCast($x[2]) : void})
+  .{([0..$L.size div CHUNK_SIZE-1]*CHUNK_SIZE).pEach(i,chars[$L[[i..i+CHUNK_SIZE-1]]].join.base92encode.print)};
 
 main->printSomethingRandom;
 
@@ -13,3 +13,4 @@ main(timeOutInSeconds)->begin
   while(time<timeOut,
     printSomethingRandom);
 end;
+

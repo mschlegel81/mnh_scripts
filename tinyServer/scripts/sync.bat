@@ -8,6 +8,7 @@ rem robocopy "N:\Martin\TmForever\Tracks\Challenges\My Challenges" "C:\users\sch
 robocopy N:\dev D:\dev *.7z /MIR /NP /LEV:1 /FFT /COPY:DT
 robocopy N:\dev\art.bin D:\dev\art.bin /MIR /COPY:DT
 robocopy N:\dev\mnh5 D:\dev\mnh5 /S /NP /FFT /COPY:DT /XO
+robocopy N:\dev\retrospective D:\dev\retrospective /S /NP /FFT /COPY:DT /XO
 
 robocopy D:\dev D:\backup\dev *.7z /NP /LEV:1 /FFT /COPY:DT
 robocopy D:\dev\art.bin D:\backup\dev\art.bin /MIR /COPY:DT

@@ -1,0 +1,33 @@
+#!C:\bin\mnh.exe -GUI
+pointOnCircle(phi)->[cos(phi),sin(phi)];
+
+factorPlottable(modulus:Int,factor)->begin
+  local A:=[0..modulus-1];
+  transpose([A,A*factor]/modulus*2*pi)
+    .each(phi,pointOnCircle(phi[0]),
+              pointOnCircle(phi[1]),
+              [Nan,Nan]);
+end;
+
+renderFrame(plottableData:List)->begin
+  setOptions(["axisStyleX"=>0,"axisStyleY"=>0].toMap);
+  plot([[-1,-1],[1,1]],'black ellipse');
+  plottableData.addPlot('black line');
+  addAnimationFrame;
+  postDisplay;
+end;
+
+main->begin
+  local modulus:=255;
+  clearAnimation(true);
+  plot();
+  drawTextAbsolute(0.5,0.5,"Check 'animate' to start\nUse the tray icon to quit the animation");
+  setOptions(["axisStyleX"=>0,"axisStyleY"=>0].toMap);
+  addAnimationFrame;
+  display;
+  rangeGenerator(0)
+    .futureMap({factorPlottable(modulus,$index/50)})
+    .map(::renderFrame);
+end;
+
+

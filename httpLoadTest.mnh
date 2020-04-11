@@ -1,0 +1,36 @@
+ipAndPort:='127.0.0.1:5050';
+
+summandPairs:=[1..30].
+        cross([1..30]).map({$x.join('+')});
+
+requestSumOfPair(pair)->begin
+  local resultAndTiming:=time(::httpGet,[encodeRequest('http://'+ipAndPort,'compute',['calc'=>pair].toMap)]);
+  [resultAndTiming['result','body'],
+   resultAndTiming['time']];
+end;
+
+main->begin
+  startHttpServer(ipAndPort,{interpret($payload['request','path'].extractParameters['calc'] orElse '0',[]).toString.wrapTextInHttp},0);
+  local startTime:=time;
+  local expectedBodies:=summandPairs.map({$x.interpret.toString});
+  local calcTimePerEntry:=(time-startTime)/summandPairs.size;
+
+  print('Starting requests');
+  startTime:=time;
+  local resultsViaHttp:=summandPairs.pMap(::requestSumOfPair);
+  print('Done in ',local elapsedTime:=time-startTime);
+  local times   :=resultsViaHttp.getInner(1)-calcTimePerEntry;
+  resultsViaHttp:=resultsViaHttp.getInner(0);
+
+  print('Overall speed: ',summandPairs.size/elapsedTime,' requests/second');
+  print('               ',elapsedTime/summandPairs.size*1000,' ms/request');
+  printf('Request time min: %7.2f ms',1000*times.min);
+  printf('          median: %7.2f ms',1000*times.sort[resultsViaHttp.size div 2]);
+  printf('             max: %7.2f ms',1000*times.max);
+  print('Valid: ',resultsViaHttp==expectedBodies);
+
+  isGuiStarted ? begin
+    setOptions(["preserveAspect"=>false].toMap);
+    times.plot('red . l');
+  end : void;
+end;

@@ -60,6 +60,8 @@ servePath('/restart',parameters:Map)->begin
   redirectTo(START_PAGE);
 end;
 
+servePath('/ping',parameters:Map)->wrapTextInHttp('pong');
+
 servePath('/showLog',parameters:Map)->begin
   logServeStats;
   redirectTo(encodeRequest('','displayFile',['filename'=>LOG_NAME].toMap));

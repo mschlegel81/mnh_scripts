@@ -86,7 +86,7 @@ logServeStats->
       serveStatistics
         .map({$x[0]|$x[1]})
         .sort(2)
-        .trailing(5);
+        .trailing(10);
       local totScale:=100/list.getInner(2).max;
       local avgScale:=100/(list.getInner(2)/list.getInner(1)).max;
       local timeLines:=[];
@@ -104,8 +104,6 @@ logServeStats->
         print(l),
         print(timeLines[2*index]),
         print(timeLines[2*index+1]));
-
-      serveStatistics:=[].toMap;
     end;
 
 serve(M)->begin
@@ -119,6 +117,7 @@ serve(M)->begin
      redirectTo(START_PAGE);
    end});
   serveTime+=time;
+  path:=path.extractPath;
   serveStatistics[path]:=(serveStatistics[path] orElse [0,0])+[1,serveTime];
   response orElse redirectTo(START_PAGE);
 end;
@@ -165,4 +164,8 @@ main->begin
 end;
 
 @after
-restart->execAsync(executor,[myPath]);
+restart->begin
+  local path:=format('http://%s:%s',SERVE_AT_IP,SERVE_AT_SOCKET);
+  while(httpGet(path)['code']<>0);
+  execAsync(executor,[myPath]);
+end;

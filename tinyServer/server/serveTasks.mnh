@@ -85,6 +85,18 @@ end;
 
 servePath((ENQUEUE_PAGE),parameters:Map)->begin
   local prevMap:=previous;
+  local selectedScript:=parameters['scriptName'];
+  local scriptParameters:=parameters['cmdLineParameters'];
+
+  !(selectedScript  .isVoid) AND
+  !(scriptParameters.isVoid)
+  ? begin
+      enqueueTask(selectedScript,
+                  scriptParameters);
+      return redirectTo(ENQUEUE_PAGE);
+    end
+  : void;
+
   prevMap:=prevMap.getInner(1).group(prevMap.getInner(0));
 
   htmlPage('Enqueue task',
@@ -94,17 +106,23 @@ servePath((ENQUEUE_PAGE),parameters:Map)->begin
   tag(
   tag('Enqueue task','h2')&htmlOuterTable(
     filesInScriptFolder
-    .each(script,htmlLink(script.tag('code'),encodeRequest('','displayFile',['filename'=>script.fullScriptName].toMap)),
-                 htmlLink(tag('[customize]','b'),'enqueue?scriptName='&script)&
-                 ((prevMap[script] orElse []).each(par,
-                   '<br>',
-                   htmlLink(trim(par)='' ? '&lt;no parameters&gt;' : tag(par,'code'),
-                            encodeRequest('','addTask',['scriptName'=>script,'cmdLineParameters'=>par].toMap)),&))
-                 )
-    .chunkIterator(4).toList)&
-  jsHiddenInputFields(parameters).join&
-  (parameters['scriptName'] orElse '----')&
-  jsTextInputField('cmdLineParameters','',parameters,100)
+    .each(script,[htmlLink(script.tag('code'),encodeRequest('','displayFile',['filename'=>script.fullScriptName].toMap)),
+                  htmlLink(tag('[customize]','b'),'enqueue?scriptName='&script),
+                  script==selectedScript
+                  ? begin
+                      ((prevMap[script] orElse []).each(par,
+                        htmlLink(trim(par)='' ? '&lt;no parameters&gt;' : tag(par,'code'),
+                                 encodeRequest('','addTask',['scriptName'=>script,'cmdLineParameters'=>par].toMap)),
+                        '<br>',&))&
+                      jsTextInputField('cmdLineParameters','',parameters,100);
+                    end
+                  : begin
+                      local par:=prevMap[script,0] orElse '';
+                      htmlLink(trim(par)='' ? '&lt;no parameters&gt;' : tag(par,'code'),
+                               encodeRequest('','addTask',['scriptName'=>script,'cmdLineParameters'=>par].toMap));
+                    end]
+                 ))&
+  jsHiddenInputFields(parameters).join
   ,'div')&
   (parameters['scriptName'].isVoid ? void : '<br>'&htmlLink('enqueue task',http.encodeRequest('','addTask',parameters)))
   &'</FORM>'
@@ -135,6 +153,7 @@ servePath('/moveToFront',parameters:Map)->begin
   : void;
   redirectTo(START_PAGE);
 end;
+
 private addToPrevious(script,parameters)->begin
   previous:=[[script,parameters]]|previous;
   previous.size>1

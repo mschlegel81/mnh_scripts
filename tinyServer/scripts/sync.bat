@@ -1,14 +1,11 @@
 chcp 65001
-rem robocopy N:\server D:\server /LEV:1 /MIR /NP /FFT /COPY:DT -XF *.log
-rem robocopy N:\server\scripts D:\server\scripts /MIR /NP /FFT /COPY:DT -XF *.log
-rem robocopy N:\server\server D:\server\server /MIR /NP /FFT /COPY:DT -XF *.log
-
 rem robocopy "N:\Martin\TmForever\Tracks\Challenges\My Challenges" "C:\users\schlegel\Documents\TmForever\Tracks\Challenges\My Challenges" /FFT /S
 
 robocopy N:\dev D:\dev *.7z /MIR /NP /LEV:1 /FFT /COPY:DT
 robocopy N:\dev\art.bin D:\dev\art.bin /MIR /COPY:DT
 robocopy N:\dev\mnh5 D:\dev\mnh5 /S /NP /FFT /COPY:DT /XO
-robocopy N:\dev\retrospective D:\dev\retrospective /S /NP /FFT /COPY:DT /XO
+rem robocopy N:\dev\retrospective D:\dev\retrospective /S /NP /FFT /COPY:DT /XO
+robocopy N:\dev\retrospective D:\dev\retrospective /FFT /MIR /COPY:DT
 
 robocopy D:\dev D:\backup\dev *.7z /NP /LEV:1 /FFT /COPY:DT
 robocopy D:\dev\art.bin D:\backup\dev\art.bin /MIR /COPY:DT
@@ -30,8 +27,6 @@ del /Q checkstyle*
 rem "c:\Program Files\7-Zip\7z.exe" x -y mnh5.7z
 rem rmdir /S /Q mnh_scripts
 rem "c:\Program Files\7-Zip\7z.exe" x -y mnh_scripts.7z
-rem rmdir /S /Q retrospective
-rem "c:\Program Files\7-Zip\7z.exe" x -y retrospective.7z
 rem rmdir /S /Q git
 rem "c:\Program Files\7-Zip\7z.exe" x -y git.7z
 rem rmdir /S /Q graveyard
@@ -40,6 +35,6 @@ rem rmdir /S /Q Sudoku3
 rem "c:\Program Files\7-Zip\7z.exe" x -y Sudoku3.7z
 rem rmdir /S /Q web
 rem "c:\Program Files\7-Zip\7z.exe" x -y web.7z
-cd mnh5
-demos\inputs\inputs.mnh
-make.mnh status
+rem cd mnh5
+rem demos\inputs\inputs.mnh
+rem make.mnh status

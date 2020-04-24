@@ -1,4 +1,17 @@
-#!C:\bin\mnh.exe -silent -headless -out ?.log(1)
+#!C:\bin\mnh.exe -silent -headless
+KILL_SWITCH_NAME:=changeFileExt(myPath,'.killswitch');
+
+private killSwitchExists->begin
+  local switchFoundBefore:=false;
+save;
+  fileExists(KILL_SWITCH_NAME)
+  ? begin
+      deleteFile(KILL_SWITCH_NAME);
+      switchFoundBefore:=true;
+    end
+  : switchFoundBefore;
+end;
+
 private mutable allTodos:=myPath.extractFileDirectory.allFiles('*.todo').systemSpecificFilename.sort;
 private synchronized nextTodo->begin
   local result:=allTodos.head;
@@ -15,11 +28,17 @@ private processOneToDo(printMethod:Expression(1))->begin
       printMethod('| '&todo                 &' |');
       printMethod('+-'&todo.clean(['-'],'-')&'-+');
       executeTodo(todo,printMethod);
-      true;
+      !killSwitchExists;
     end;
 end;
 
 printMethod(i)->{print('(CPU ',i,') ',$0)};
+
+//*Create kill switch - takes effect after evaluation
+main('kill')->isIpcServerRunning ? begin
+  writeFile(KILL_SWITCH_NAME,' ');
+  print(KILL_SWITCH_NAME,' created');
+end : warn('There is no instance running to kill');
 
 //*List todos
 main('list')->allTodos

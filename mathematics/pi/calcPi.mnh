@@ -74,5 +74,3 @@ main('for',numberOfSeconds)->begin
   local timeout:=time+numberOfSeconds.toInt;
   calculate({time<timeout ? void : true},true);
 end;
-
-

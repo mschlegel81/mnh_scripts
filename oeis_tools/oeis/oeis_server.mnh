@@ -245,8 +245,8 @@ end;
 private serve_('class')->implemented.mergeMaps(foundImplementations,::orElse).map({$x[1,1]}).elementFrequency.map({$x.join("\t")}).join("\n");
 private serve_('class',className)->
   implemented.mergeMaps(foundImplementations,::orElse)
-    .pMap({$entry[1,1]==className ? $entry[0] : void})
-    .sort.pMap(::info);
+    .map({$entry[1,1]==className ? $entry[0] : void})
+    .sort.map(::info);
 
 private mutable timeout:=time+600;
 private synchronized resetTimeout()->begin
@@ -303,4 +303,3 @@ main()->begin
   while(serving OR time<timeout,sleep(1));
   print("\nIPC Server stopped. ",ipcId);
 end;
-

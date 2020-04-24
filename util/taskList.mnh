@@ -1,3 +1,4 @@
+#!C:\bin\mnh.exe -GUI -pauseOnError
 USE customFormUtil,GUI;
 
 plain datastore tasks:=[];
@@ -6,6 +7,4 @@ main->showDialog('Aufgaben',[newEdit.withCaption('Neue Aufgabe:').withAction({ta
     [0..30].each(i,newButton.withCaption({tasks[i] orElse ''})
                             .withAction({tasks[i]:=void})
                             .withEnabledRule({i<tasks.size})));
-
-
 // Task | periodisch | Deadline | alarm vorher

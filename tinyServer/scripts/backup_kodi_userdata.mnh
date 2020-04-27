@@ -1,0 +1,20 @@
+KODI_FOLDER:="C:/users/schlegel/AppData/Roaming/Kodi";
+SEVEN_ZIP_PATH:='c:\Program Files\7-Zip\7z.exe';
+DEST_PATH:='D:\backup\kodi.7z';
+
+main->begin
+  deleteFile(DEST_PATH);
+  changeDirectory(KODI_FOLDER.extractFileDirectory);
+  local relativeKodiFolder:=KODI_FOLDER.extractFileName;
+
+  print('Updating ',DEST_PATH,' based on files in ',KODI_FOLDER);
+  local fileList:=allFiles(relativeKodiFolder);
+  local archive:=fileList.map({!matches($filename,'/Thumbnails') AND
+                               !matches($filename,'kodi_crashlog') AND
+                               !matches($filename,'kodi_stacktrace')});
+  printf("  %s",fileList[archive]);
+  print('Now executing ',SEVEN_ZIP_PATH);
+  writeFileLines(local list:='kodi_backup.lst'.systemSpecificFilename,fileList[archive],#10#13);
+  SEVEN_ZIP_PATH.teeExec(['a','-mx9','-mmt1','-bd',DEST_PATH,'@'&list],::print);
+  deleteFile(list);
+end;

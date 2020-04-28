@@ -1,43 +1,45 @@
-circlePoint(a)->[cos(a),sin(a)];
+USE downhillSimplex;
 
-//f(x)->euklideanNorm(circlePoint(x)-[1,0]);
-//plot   (::f            ,0,2*pi,100,'red 2');
-//addPlot({f(1.1*$x)/1.1},0,2*pi,100,'blue 2');
+
+centerInitialState(radii:NumericList)->begin
+  local sum:=0;
+  local angles:=radii.each(r,sum+=r);
+  local circumference:=radii.agg(+)/pi;
+  (angles*2*pi/angles.trailing).each(phi,circumference*[cos(phi),sin(phi)]);
+end;
+
+centerErrorFunction(radii:NumericList)->begin
+  [0..radii.size-1].each(i,
+    'sqr(euklideanNorm($v[[%s,%s]]-$v[[%s,%s]])-%s)'
+      .format(2*i,
+              2*i+1,
+              2*((i+1) mod radii.size),
+              2*((i+1) mod radii.size)+1,
+              radii[i]+radii[(i+1) mod radii.size])
+      .toExpression,
+  +);
+end;
+
+optimizedGearCenters(radii:NumericList)->begin
+  local flat:=downhillSimplex(centerErrorFunction(radii),centerInitialState(radii).flatten,0.01,1E-7)[1];
+  [0..radii.size-1].map({flat[2*$i+[0,1]]});
+end;
 
 TOOTH_OFFSET:=0.15;
 
-gearToothPoints(radius,angle,center:NumericList(2))->begin
-  local teeth:=round(radius*6);
-  local a:=2*pi/teeth;
-  ([0..teeth]-0.25).each(i,[cos(angle+a*i),
-                            sin(angle+a*i)]).*(radius).map({$x+center});
-end;
-
-fixGearPoint(prevRadius,prevAngle,prevCenter:NumericList(2),
-             currRadius,          currCenter:NumericList(2))->begin
-  local currAngle:=0;
-  local prevPoints:=    gearToothPoints(prevRadius,prevAngle,prevCenter);
-  local minDist:={cross(gearToothPoints(currRadius,$newAngle,currCenter),prevPoints).map({$x.agg(-).euklideanNorm}).min};
-  local currDist:=minDist(currAngle);
-  (2*pi/(currRadius*6)*2^[0..-20]).each(step,begin
-    local newDist:=minDist(currAngle+step);
-    newDist>currDist
-    ? begin
-        currAngle+=step;
-        currDist:=newDist;
-      end
-    : begin
-        newDist:=minDist(currAngle-step);
-        newDist>currDist
-        ? begin
-            currAngle-=step;
-            currDist:=newDist;
-          end
-        : void;
-      end;
+nodgesErrorFunction(radii:NumericList,centers:List)->{begin
+  local P:=
+  $vector.each(angle,begin
+      local radius:=radii[index];
+      local teeth:=round(radius*6);
+      local center:=centers[index];
+      local a:=2*pi/teeth;
+      ([0..teeth]-0.25-((index and 1)*0.5))
+        .each(i,[cos(angle+a*i),
+                 sin(angle+a*i)]).*(radius+TOOTH_OFFSET*0.5).map({$x+center});
   end);
-  currAngle;
-end;
+  P[[1..P.size-1,0]].each(p,cross(p,P[index]).each(pair,pair.agg(-).euklideanNorm,min).sqr,+);
+end};
 
 gear(radius,angle,center:NumericList(2))->begin
   local teeth:=round(radius*6);
@@ -54,30 +56,11 @@ gear(radius,angle,center:NumericList(2))->begin
 end;
 
 
-begin
-  local radii:=(intRandom(6,12)+1);
-  local distances:=((radii.tail|radii.head)+radii);
-  local normalizedTargetDistances:=distances/distances.agg(+);
-  //First guess for angles will be correct if all radii are equal
-  local angles:=[0..radii.size].each(k,distances.head(k).agg(+) orElse 0);
-        angles:=angles.leading*2*pi/angles.trailing;
-  [1..100].each(step,begin
-    //Compute position of points on unit circle
-    local points:=angles.map(::circlePoint); points|=points[[0]];
-    //Compute relative distances of points on unit circle
-    local D:=(points.tail-points.leading).map(::euklideanNorm); D/=D.agg(+);
-    //Error is difference to normalizedTargetDistances
-    local E:=D-normalizedTargetDistances;
-    //Fix the distance with the largest absolute error
-    local fixIdx:=E.abs.argMax;
-    angles[fixIdx]+=E[fixIdx]*6;
-    void;
-  end);
-  //Gear centers are now fixed:
-  local gearCenters:=angles.each(a,circlePoint(a))*distances[0]/euklideanNorm(circlePoint(angles[1])-circlePoint(angles[0]));
-  //Gear speeds are inversely prortional to the gear radius
+main->begin
+  local radii:=intRandom(7,8)+1;
+  local gearCenters:=optimizedGearCenters(radii);
+  local rot:=downhillSimplex(nodgesErrorFunction(radii,gearCenters),radii*0,0.1,1E-6)[1];
   local speed:=2*pi/6/50/radii*(-1^[0..radii.size-1]);
-
   begin
     local xy:=gearCenters.each(c,c-radii[index]-TOOTH_OFFSET,
                                  c+radii[index]+TOOTH_OFFSET);
@@ -95,22 +78,15 @@ begin
      'x1'=>xy.getInner(0).max,
      'y0'=>xy.getInner(1).min,
      'y1'=>xy.getInner(1).max].toMap);
-   end;
+  end;
 
-   local rot:=radii.map({0});
-   [1..rot.size-1].each(k,begin
-     rot[k]:=fixGearPoint(radii[k-1],rot[k-1],gearCenters[k-1],
-                          radii[k],           gearCenters[k]);
-   end);
-
-
-//  clearAnimation;
   [0..49].each(frame,begin
     plot();
-    gearCenters.each(gearCenter,gear           (radii[index],speed[index]*frame+rot[index],gearCenter).addPlot('black 2'));
+    gearCenters.each(gearCenter,gear(radii[index],speed[index]*frame+rot[index],gearCenter).addPlot('black f polygon'));
     addAnimationFrame;
     void;
   end);
 
 end;
+
 

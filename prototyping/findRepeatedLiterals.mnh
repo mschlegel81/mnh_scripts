@@ -1,0 +1,45 @@
+
+repeatingSequences(L:List)->begin
+  local result:=L.elementFrequency.filter({$x[1]>1});
+//  local subListSize:=1;
+//  local sizeBefore:=0;
+//  local timeout:=time+10;
+//  while(time<timeout AND sizeBefore!=result.size,begin
+//    sizeBefore:=result.size;
+//    note(result.size,' repeats of length <= ',subListSize,' (found in ',time,')');
+//    subListSize+=1;
+//    result:=result.mergeMaps(
+//      [0..L.size-1-subListSize]
+//        .map({L[[$i..$i+subListSize-1]]})
+//        .elementFrequency
+//        .filter({$x[1]>1}),
+//      ::orElse);
+//  end);
+  result;
+end;
+
+dependenciesOf(filename:String)->begin
+  local inspectionResult:=inspect(filename,editorContent(filename));
+  filename |
+  (getInner(inspectionResult['uses'] orElse [],1)|
+   getInner(inspectionResult['includes'] orElse [],1)).unique.each(usedScript,dependenciesOf(usedScript),|);
+end;
+
+commonTokens(filename:String)->begin
+  local allTokens:=dependenciesOf(filename)
+          .unique
+          .each(n,join(editorContent(n) orElse fileLines(n),"\n")
+                    .tokenSplit('MNH')
+                    .map(::trim)
+                    .filter({$s<>''}),
+                  |);
+  repeatingSequences(allTokens);
+end;
+
+
+commonTokens('C:\dev\mnh5\make.mnh').map({begin
+  local stringForm:=$x[0].join(' ');
+  [stringForm, $x[1], $x[1] * stringForm.length];
+end}).sort(2);
+
+

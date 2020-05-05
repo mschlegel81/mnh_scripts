@@ -1,6 +1,5 @@
 USE downhillSimplex;
 
-
 centerInitialState(radii:NumericList)->begin
   local sum:=0;
   local angles:=radii.each(r,sum+=r);
@@ -56,10 +55,12 @@ gear(radius,angle,center:NumericList(2))->begin
 end;
 
 
-main->begin
-  local radii:=intRandom(7,8)+1;
+main(numberOfGears)->begin
+  local intCount:=numberOfGears.toInt;
+  assert(intCount>2);
+  local radii:=intRandom(7,intCount)+1;
   local gearCenters:=optimizedGearCenters(radii);
-  local rot:=downhillSimplex(nodgesErrorFunction(radii,gearCenters),radii*0,0.1,1E-6)[1];
+  local rot:=downhillSimplex(nodgesErrorFunction(radii,gearCenters),radii*0,0.01,1E-7)[1];
   local speed:=2*pi/6/50/radii*(-1^[0..radii.size-1]);
   begin
     local xy:=gearCenters.each(c,c-radii[index]-TOOTH_OFFSET,

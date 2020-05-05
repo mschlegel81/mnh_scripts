@@ -101,9 +101,6 @@ SYM_POINTS:=
  [ 0.437924241691321,-0.341892083815193]]; //4/5:
 //addPlot(SYM_POINTS,'.');
 
-mandelbrotRealBoundary(2000,500).plot('polygon fs 0.5 orange');
-approximateMandelbrot(10);
-
 replaceFixPointPlot(x,y)->begin
   local z:=[0,0];
   local c:=[x,y];
@@ -114,7 +111,7 @@ replaceFixPointPlot(x,y)->begin
 end;
 
 USE customFormUtil;
-begin
+main->begin
 ['autoscaleFactor'=>1.0,
  'autoscaleX'=>false,
  'autoscaleY'=>false,
@@ -128,6 +125,9 @@ begin
  'x1'=>0.5,
  'y0'=>-1.0,
  'y1'=>1.0].toMap.setOptions;
+
+  mandelbrotRealBoundary(2000,500).plot('polygon fs 0.5 orange');
+  approximateMandelbrot(10);
 
   addPlot([[0,0],[0,0]]);
 

@@ -1,5 +1,5 @@
 SERVE_AT_IP:='127.0.0.1';
-mutable SERVE_AT_SOCKET   :=23000;
+SERVE_AT_SOCKET           :=23000;
 MAX_HISTORY_SIZE          :=50;
 LOG_FOLDER                :='logs';
 private SCRIPT_FOLDER     :='scripts';
@@ -8,6 +8,8 @@ SAMPLES_FOR_WORKLOAD_CHECK:=10;
 
 START_PAGE:='/index';
 ENQUEUE_PAGE:='/enqueue';
+
+tPrint(...)->formatTime('hh:mm:ss.zzz ',systime).print@(...);
 
 getLogName(index)->format('%s/log%s.txt',LOG_FOLDER,index);
 fullScriptName(filename)->format('%s/%s',SCRIPT_FOLDER,filename);

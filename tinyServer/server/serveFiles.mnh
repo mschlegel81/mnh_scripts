@@ -5,8 +5,8 @@ DISPLAYABLES:=['.log','.mnh','.cpp','.c','.h','.hh','.css','.diff','.html','.ini
 
 private FAVICON_PATH:=myPath.extractFileDirectory&'/favicon.ico';
 
-@SuppressUnusedWarning
-servePath('/favicon.ico',parameters)->begin
+@SuppressUnusedParameterWarning
+favicon(parameters)->begin
   local response:=
     fileExists(FAVICON_PATH)
     ? wrapTextInHttp(fileContents(FAVICON_PATH),200,['Content-type:'=>'image/x-icon','Cache-Control:'=>'max-age=3600'].toMap)
@@ -15,7 +15,7 @@ save;
   response;
 end;
 
-servePath('/downloadFile',parameters:Map)->begin
+downloadFile(parameters:Map)->begin
   local filename:=parameters['filename'];
   filename.isString AND fileExists(filename)
   ?  wrapTextInHttp(fileContents(filename),200,
@@ -24,7 +24,7 @@ servePath('/downloadFile',parameters:Map)->begin
   : void;
 end;
 
-servePath('/files',parameters:Map)->begin
+serveFileList(parameters:Map)->begin
   local root:=parameters['root'] orElse myPath.extractFileDirectory.extractFileDirectory;
   htmlPage('Files',
   '<FORM name="myForm">' &

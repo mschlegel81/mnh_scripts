@@ -32,10 +32,11 @@ private logTaskStarted(taskIndex:Int,scriptName:String,scriptParameters:String)-
      RUNNING         =>true,
      FINISHED        =>false,
      STARTTIME       =>systime].toMap;
-    note('Created task #',taskIndex,': ',taskHistory[taskIndex]);
+     tPrint('Started task #',taskIndex,': ',scriptName,' ',scriptParameters.join(" "));
   end;
 
 setKillRequest(taskIndex)->taskHistory[taskIndex].isVoid ? void : begin
+  tPrint('Setting kill flag for task #',taskIndex,': ',taskHistory[taskIndex,SCRIPT],' ',taskHistory[taskIndex,PARAMETERS].join(" "));
   taskHistory[taskIndex,KILLREQUESTED]:=true;
 end;
 
@@ -79,7 +80,8 @@ begin
   report;
 end;
 
-ensureServer->isIpcServerRunning(IPC_ID) ? void :
+isLoggingRunnerIpcServerRunning->IPC_ID.isIpcServerRunning;
+ensureServer->isLoggingRunnerIpcServerRunning ? void :
   begin
     startIpcServer(IPC_ID,{postScriptRunning($X)});
     while(!isIpcServerRunning(IPC_ID),sleep(0.001));
@@ -155,7 +157,7 @@ private ON_STARTUP:=begin
   taskHistory.getInner(0).each(taskIndex,
   taskHistory[taskIndex,HEARTBEATTIMEOUT]:=0);
   taskHistory.getInner(0).filter({!fileExists(getLogName($i)) AND taskHistory[$i,STARTTIME]<systime-1}).each(taskIndex,
-  note('Dropping task #',taskIndex,' from history because there is no log');
+  tPrint('Dropping task #',taskIndex,' from history because there is no log');
   taskHistory[taskIndex]:=void);
   void;
 end;

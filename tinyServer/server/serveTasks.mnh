@@ -1,4 +1,4 @@
-USE loggingRunner,tinyServer_html,tinyServer_config,javascriptUtils,generators;
+USE loggingRunner,tinyServer_html,tinyServer_config,javascriptUtils;
 
 datastore queued  :=[];
 datastore previous:=[];
@@ -24,21 +24,25 @@ nextTaskIsRestart->
     end
   : false;
 
+private fmtT(pointInTime)->'<class="right">'&
+                               formatTime(floor(pointInTime)==floor(systime)
+                               ? 'hh:nn:ss'
+                               : 'yyyy/mm/dd hh:nn:ss',pointInTime)&"</class>";
+
 getQueuedSection(withLink:Boolean)->
   tag(
   tag('Queue'&(withLink ? '    '&htmlLink('(+)','enqueue') : void), 'h2')&
   htmlTable(
   [['Enqueued at','','Script'].map({$x.tag('b')})] |
-    queued.each(x,[formatTime('yyyy/mm/dd hh:nn:ss',x[0]),
-                   htmlLink('remove','dequeue?index='&index),
+    queued.each(x,[fmtT(x[0]),
+                   htmlLink('remove','dequeue?index='&index&'&mainView='&ord(withLink)),
                    x[1].tag('code')&(x[2].trim=='' ? '' : '<br>'&tag('   '&x[2],'code')),
-                   htmlLink('force start','forceStart?index='&index),
+                   htmlLink('force start','forceStart?taskHash='&hash(x)&'&mainView='&ord(withLink)),
                    index=0 ? '' :
-                   htmlLink('move to front','moveToFront?index='&index)])),'div');
+                   htmlLink('move to front','moveToFront?taskHash='&hash(x)&'&mainView='&ord(withLink))])),'div');
 
 getHistorySection->begin
   local report:=getTaskReport;
-  local fmtT:={'<class="right">'&formatTime(floor($0)==floor(systime) ? 'hh:nn:ss' : 'yyyy/mm/dd hh:nn:ss',$0)&"</class>"};
   tag(
   tag('History','h2')&
   htmlTable([['#','Started','Script','Log','Status'].map({$x.tag('b')})]|
@@ -60,30 +64,32 @@ getHistorySection->begin
    ),'div');
 end;
 
-@SuppressUnusedWarning=Used in tinyServer.mnh
-servePath('/kill',parameters:Map)->begin
+killTask(parameters:Map)->begin
   local indexToKill:=parameters['index'];
   indexToKill.isInt
   ? setKillRequest(indexToKill)
   : void;
-  redirectTo(START_PAGE);
+  redirectTo(parameters['mainView']=1 ? START_PAGE : ENQUEUE_PAGE);
 end;
 
-servePath('/dequeue',parameters:Map)->begin
+dequeueTask(parameters:Map)->begin
   local indexToDrop:=parameters['index'];
   indexToDrop.isInt
-  ? queued[indexToDrop]:=void
+  ? begin
+      tPrint('Dropping todo ',queued[indexToDrop,1],' ',queued[indexToDrop,2]);
+      queued[indexToDrop]:=void;
+    end
   : void;
-  redirectTo(START_PAGE);
+  redirectTo(parameters['mainView']=1 ? START_PAGE : ENQUEUE_PAGE);
 end;
 
-servePath('/addTask',parameters:Map)->begin
+addTask(parameters:Map)->begin
   enqueueTask(parameters['scriptName'],
               parameters['cmdLineParameters'] orElse '');
   redirectTo(ENQUEUE_PAGE);
 end;
 
-servePath((ENQUEUE_PAGE),parameters:Map)->begin
+enqueuePage(parameters:Map)->begin
   local prevMap:=previous;
   local selectedScript:=parameters['scriptName'];
   local scriptParameters:=parameters['cmdLineParameters'];
@@ -129,29 +135,33 @@ servePath((ENQUEUE_PAGE),parameters:Map)->begin
   ,false).wrapTextInHttp;
 end;
 
-servePath('/forceStart',parameters:Map)->begin
-  local indexToStart:=parameters['index'];
-  isInt(indexToStart) AND (0<=indexToStart<queued.size)
+forceStart(parameters:Map)->begin
+  local taskHash:=parameters['taskHash'];
+  local taskIndex:=queued.each(q,q.hash==taskHash ?index : void,head);
+  isInt(taskIndex) AND (0<=taskIndex<queued.size)
   ? begin
-      indexToStart=0
+      tPrint('Force start...');
+      taskIndex=0
       ? void
-      : queued:=queued[indexToStart|filter([0..queued.size-1],{$x<>indexToStart})];
+      : queued:=queued[taskIndex|filter([0..queued.size-1],{$x<>taskIndex})];
       queued.size>0 AND queued[0,1]==SPECIAL_TASK_RESTART
       ? void
       : startExecution@getNextTask;
     end
   : void;
-  redirectTo(START_PAGE);
+  redirectTo(parameters['mainView']=1 ? START_PAGE : ENQUEUE_PAGE);
 end;
 
-servePath('/moveToFront',parameters:Map)->begin
-  local indexToStart:=parameters['index'];
-  isInt(indexToStart) AND (0<indexToStart<queued.size)
+moveToFront(parameters:Map)->begin
+  local taskHash:=parameters['taskHash'];
+  local taskIndex:=queued.each(q,q.hash==taskHash ?index : void,head);
+  isInt(taskIndex) AND (0<taskIndex<queued.size)
   ? begin
-      queued:=queued[indexToStart|filter([0..queued.size-1],{$x<>indexToStart})];
+      tPrint('Moving task to front: ',queued[taskIndex]);
+      queued:=queued[taskIndex|filter([0..queued.size-1],{$x<>taskIndex})];
     end
   : void;
-  redirectTo(START_PAGE);
+   redirectTo(parameters['mainView']=1 ? START_PAGE : ENQUEUE_PAGE);
 end;
 
 private addToPrevious(script,parameters)->begin
@@ -164,12 +174,8 @@ private addToPrevious(script,parameters)->begin
 end;
 
 enqueueTask(script,parameters)->begin
+  tPrint('Planned new task ',script,' ',parameters.toString);
   queued|=[[systime,script,parameters.toString]];
   addToPrevious(script,parameters.toString);
 end;
 
-begin
-  local prevMap:=previous;
-  prevMap:=prevMap.getInner(1).group(prevMap.getInner(0));
-
-end;

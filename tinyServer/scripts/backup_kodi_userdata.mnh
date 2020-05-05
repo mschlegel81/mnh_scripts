@@ -2,8 +2,10 @@ KODI_FOLDER:="C:/users/schlegel/AppData/Roaming/Kodi";
 SEVEN_ZIP_PATH:='c:\Program Files\7-Zip\7z.exe';
 DEST_PATH:='D:\backup\kodi.7z';
 
+datastore savedHash:=0;
+
 main->begin
-  deleteFile(DEST_PATH);
+  assertUniqueInstance;
   changeDirectory(KODI_FOLDER.extractFileDirectory);
   local relativeKodiFolder:=KODI_FOLDER.extractFileName;
 
@@ -12,9 +14,18 @@ main->begin
   local archive:=fileList.map({!matches($filename,'/Thumbnails') AND
                                !matches($filename,'kodi_crashlog') AND
                                !matches($filename,'kodi_stacktrace')});
-  printf("  %s",fileList[archive]);
-  print('Now executing ',SEVEN_ZIP_PATH);
-  writeFileLines(local list:='kodi_backup.lst'.systemSpecificFilename,fileList[archive],#10#13);
-  SEVEN_ZIP_PATH.teeExec(['a','-mx9','-mmt1','-bd',DEST_PATH,'@'&list],::print);
-  deleteFile(list);
+  fileList:=fileList[archive];
+  printf("  %s",fileList);
+  local currentHash:=fileList.pEach(f,f.fileContents.sha256,+);
+  printf(' The current hash is %x',currentHash);
+  currentHash==savedHash
+  ? print('Not updating the zip because the hash is unchanged')
+  : begin
+      deleteFile(DEST_PATH);
+      print('Now executing ',SEVEN_ZIP_PATH);
+      writeFileLines(local list:='kodi_backup.lst'.systemSpecificFilename,fileList,#10#13);
+      SEVEN_ZIP_PATH.teeExec(['a','-mx9','-mmt1','-bd',DEST_PATH,'@'&list],::print);
+      deleteFile(list);
+      savedHash:=currentHash;
+    end;
 end;

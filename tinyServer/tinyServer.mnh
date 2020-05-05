@@ -1,52 +1,12 @@
 #!C:\bin\mnh.exe -GUI -quiet +out ?.log(1)
-USE tinyServer_html,tinyServer_config,loggingRunner,serveTasks;
+USE tinyServer_html,tinyServer_config,loggingRunner,serveTasks,cpuUsage;
 
 @SuppressUnusedWarning
 USE serveProcesses,serveFiles;
 
 private LOG_NAME:=changeFileExt(myPath,'.log');
-//CPU Usage:--------------------------------------------------------------------------
-mutable cpuUsageHistory:=[];
-
-private getCpuDiagram->begin
-  local shownFor:=[];
-  local lastResult:='';
-save;
-  cpuUsageHistory==shownFor
-  ? lastResult
-  : begin
-      local x0:=cpuUsageHistory.getInner(0).min orElse 0;
-      local x1:=cpuUsageHistory.getInner(0).max orElse 1;
-
-      shownFor:=cpuUsageHistory;
-      setOptions(["preserveAspect"=>false,"autoscaleX"=>false,"autoscaleY"=>false,
-                  "axisStyleX"=>0,"axisStyleY"=>0,
-                  "x0"=>x0,"x1"=>x1,
-                  "y0"=>0,
-                  "y1"=>100].toMap);
-      plot([[x0,0],  [x1,100]],'GREY0.13 fs box');
-      cpuUsageHistory.size>0
-      ? addPlot(cpuUsageHistory.getInner(0),cpuUsageHistory.getInner(1),'GREY0.5 f')
-      : warn('Not plotting history');
-      addPlot([[x0,START_WHEN_WORKLOAD_BELOW],[x1,START_WHEN_WORKLOAD_BELOW]],'GREY0.5');
-      begin
-        local i0:=ceil (x0*(24*60));
-        local i1:=floor(x1*(24*60));
-        i1>=i0 ? ([i0..i1]/(24*60)).each(x,[x,0],[x,100],[Nan,Nan]).addPlot('GREY0.5 0.5')
-               : void;
-        i0      :=ceil (x0*(24*6));
-        i1      :=floor(x1*(24*6));
-        i1>=i0 ? ([i0..i1]/(24*6)).each(x,[x,0],[x,100],[Nan,Nan]).addPlot('GREY0.5 1.5')
-               : void;
-      end;
-      drawTextAbsolute(0,0.5,'CPU',80,'L','Century Gothic',[0.2,0.2,0.2]);
-      lastResult:= format('<img src="data:image/png;base64,%s" />',renderToString(500,100).base64encode);
-    end;
-end;
-
 private uptimeFormat:='{floor($0/3600)}:%{floor($0/60) mod 60}2.2d:%{floor($0) mod 60}2.2d';
 
-private isCpuAlmostIdle->(cpuUsageHistory.size>0) AND (cpuUsageHistory.trailing(SAMPLES_FOR_WORKLOAD_CHECK).getInner(1)<START_WHEN_WORKLOAD_BELOW).agg(AND);
 //--------------------------------------------------------------------------:CPU Usage
 private getStatusSection->tag(
   ('Status').tag('h2')&htmlOuterTable(
@@ -54,99 +14,116 @@ private getStatusSection->tag(
    ['Time:'  .tag('b'),formatTime('hh:nn:ss',        systime),''                ,htmlLink('show server log','showLog')],
    ['Uptime:'.tag('b'),format(uptimeFormat,time)]])&getCpuDiagram,'div');
 
-servePath((START_PAGE),parameters:Map)->htmlPage('Server Overview',getHeadLinks&getStatusSection&getQueuedSection(true)&getHistorySection,true).wrapTextInHttp;
-servePath('/restart',parameters:Map)->begin
+@SuppressUnusedParameterWarning
+startPage(parameters:Map)->htmlPage('Server Overview',getHeadLinks&getStatusSection&getQueuedSection(true)&getHistorySection,true).wrapTextInHttp;
+
+@SuppressUnusedParameterWarning
+restartPage(parameters:Map)->begin
   enqueueTask(SPECIAL_TASK_RESTART,'');
   redirectTo(START_PAGE);
 end;
 
-servePath('/ping',parameters:Map)->wrapTextInHttp('pong');
-
-servePath('/showLog',parameters:Map)->begin
-  logServeStats;
-  redirectTo(encodeRequest('','displayFile',['filename'=>LOG_NAME].toMap));
-end;
-
-servePath('/displayFile',parameters:Map)->begin
-  local filename:=parameters['filename'];
-  (isString(filename) AND fileExists(filename)
-   ? serveFile(filename)
-   : void) orElse redirectTo(START_PAGE);
-end;
+@SuppressUnusedParameterWarning
+ping(parameters:Map)->wrapTextInHttp('pong');
 
 mutable serveStatistics:=[].toMap;
 
 logServeStats->
-    begin
-      print('+---------------------------------- - - -');
-      print('| Time ',formatTime(systime));
-      print('| Uptime ',formatTime('hh:nn:ss',time/(24*60*60)));
-      print('+---------------------------------- - - -');
-      local list:=
-      serveStatistics
-        .map({$x[0]|$x[1]})
-        .sort(2)
-        .trailing(10);
-      local totScale:=100/list.getInner(2).max;
-      local avgScale:=100/(list.getInner(2)/list.getInner(1)).max;
-      local timeLines:=[];
+  begin
+    print('+---------------------------------- - - -');
+    print('| Time ',formatTime(systime));
+    print('| Uptime ',formatTime('hh:nn:ss',time/(24*60*60)));
+    print('+---------------------------------- - - -');
+    local list:=
+    serveStatistics
+      .map({$x[0]|$x[1]})
+      .sort(2)
+      .trailing(10);
+    local totScale:=100/list.getInner(2).max;
+    local avgScale:=100/(list.getInner(2)/list.getInner(1)).max;
+    local timeLines:=[];
 
-      list:=
-      list.each(entry,
-         begin
-           timeLines|=[[entry[2]         ,'s (tot)',"#".repeat(round(entry[2]         *totScale))],
-                       [entry[2]/entry[1],'s (avg)',"#".repeat(round(entry[2]/entry[1]*avgScale))]];
-           format("\nRequest %s\n      x %s",entry[0],entry[1]);
-         end);
-      timeLines:=timeLines.map({$x.join("\t")}).join("\n").formatTabs;
+    list:=
+    list.each(entry,
+       begin
+         timeLines|=[[entry[2]         ,'s (tot)',"#".repeat(round(entry[2]         *totScale))],
+                     [entry[2]/entry[1],'s (avg)',"#".repeat(round(entry[2]/entry[1]*avgScale))]];
+         format("\nRequest %s\n      x %s",entry[0],entry[1]);
+       end);
+    timeLines:=timeLines.map({$x.join("\t")}).join("\n").formatTabs;
 
-      list.each(l,
-        print(l),
-        print(timeLines[2*index]),
-        print(timeLines[2*index+1]));
-    end;
+    list.each(l,
+      print(l),
+      print(timeLines[2*index]),
+      print(timeLines[2*index+1]));
+  end;
+
+PAGE_MAP:=[
+  START_PAGE     => ::startPage,
+  '/'            => ::startPage,
+  ''             => ::startPage,
+  '/restart'     => ::restartPage,
+  '/ping'        => ::ping,
+  '/favicon.ico' => ::favicon,
+  '/showlog' =>
+    {begin
+       isMap($0);
+       logServeStats;
+       redirectTo(encodeRequest('','displayFile',['filename'=>LOG_NAME].toMap));
+     end},
+//File related:------------------------------
+  '/displayfile'=>
+    {begin
+       local filename:=$p['filename'];
+       (isString(filename) AND fileExists(filename)
+        ? serveFile(filename)
+        : void) orElse redirectTo(START_PAGE);
+     end},
+  '/downloadfile'=> ::downloadFile,
+  '/files'       => ::serveFileList,
+//Task related:------------------------------
+  ENQUEUE_PAGE   => ::enqueuePage,
+  '/kill'        => ::killTask,
+  '/dequeue'     => ::dequeueTask,
+  '/addtask'     => ::addTask,
+  '/forcestart'  => ::forceStart,
+  '/movetofront' => ::moveToFront,
+//Process related:---------------------------
+  '/processes/kill' => ::killProcess,
+  '/processes'      => ::processesPage
+  ].toMap;
+
 
 serve(M)->begin
   local path:=M['request','path'];
+  local parameters:=path.extractParameters;
+        path      :=path.extractPath.lower;
   local serveTime:=-time;
-  local response:=
-  try(::servePath,[path.extractPath,path.extractParameters],
+
+  local serveRoutine:=PAGE_MAP[path];
+  serveRoutine.isVoid
+  ? tPrint('Unhandled path: ',path) orElse return redirectTo(START_PAGE)
+  : void;
+  local response:= //log info and redirect to start page
+  try(serveRoutine,[parameters],
   {begin
-     warn('Unhandled path: ',path);
+     tPrint('Unhandled path: ',path);
      $messages.map({'    '&$x.join("\t")}).join("\n").print;
      redirectTo(START_PAGE);
    end});
   serveTime+=time;
-  path:=path.extractPath;
   serveStatistics[path]:=(serveStatistics[path] orElse [0,0])+[1,serveTime];
-  response orElse redirectTo(START_PAGE);
+  response orElse fail;
 end;
 
 main->begin
   assertUniqueInstance;
-  local logCpuUsage:={
-  begin
-    cpuUsageHistory||=[systime,exec('wmic',['path','Win32_PerfFormattedData_PerfOS_Processor','get','Name,','PercentProcessorTime'])[0]
-                              .tail.filter({$x!=''}).map({$line.trim.replace('  ',' ').split(' ').softCast}).toMap['_Total'] orElse -1];
-    cpuUsageHistory.size>1000
-    ? cpuUsageHistory:=cpuUsageHistory.tail
-    : void;
-  end};
   local sinceLastTaskStart:=0;
   local restartScheduled:=false;
-  begin
-    local serverIsUp:=false;
-    while(!serverIsUp,{begin
-      startHttpServer(SERVE_AT_IP&':'&SERVE_AT_SOCKET,::serve,-1);
-      serverIsUp:=true;
-    end}.try({
-    begin
-      print('Failed to start server at ',SERVE_AT_IP,':',SERVE_AT_SOCKET,' - trying next');
-      assert((SERVE_AT_SOCKET+=1)<=65535,'No valid socket found for IP ',SERVE_AT_IP);
-    end}));
-  end;
+  startHttpServer(SERVE_AT_IP&':'&SERVE_AT_SOCKET,::serve,-1);
   loggingRunner.ensureServer;
-  print(systime.formatTime,' - server is up at ',SERVE_AT_IP&':'&SERVE_AT_SOCKET);
+  tPrint('server is up at ',SERVE_AT_IP&':'&SERVE_AT_SOCKET);
+
   while(!restartScheduled,begin
     logCpuUsage();
     nextTaskIsRestart
@@ -165,7 +142,11 @@ end;
 
 @after
 restart->begin
-  local path:=format('http://%s:%s',SERVE_AT_IP,SERVE_AT_SOCKET);
-  while(httpGet(path)['code']<>0);
-  execAsync(executor,[myPath]);
+  tPrint('Performing restart');
+  local ipcIsUpAgain:=false;
+  while(!ipcIsUpAgain,begin
+    execAsync(executor,[myPath]);
+    sleep(1);
+    ipcIsUpAgain:=isLoggingRunnerIpcServerRunning;
+  end);
 end;

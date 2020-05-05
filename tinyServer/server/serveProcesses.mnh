@@ -30,8 +30,7 @@ private isProcessChildOfAnyOther(processMap:Map, PID:Int)->begin
   pPID != PID AND !isVoid(processMap[pPID]);
 end;
 
-@SuppressUnusedWarning
-servePath('/processes/kill',parameters:Map)->begin
+killProcess(parameters:Map)->begin
   local PID:=parameters['index'];
   PID.isInt
   ? begin stopProcess(PID); sleep(1); end
@@ -44,7 +43,8 @@ niceBoxGlyphs(s:String)->
    .replace('\--','&#9492;&#9472;&#9472;')
    .replace('+--','&#9500;&#9472;&#9472;');
 
-servePath('/processes',parameters:Map)->begin
+@SuppressUnusedParameterWarning
+processesPage(parameters:Map)->begin
   local PM:=getProcessMap;
 
   local ordered:=PM.getInner(0).sort;

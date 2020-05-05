@@ -3,8 +3,6 @@ USE rungeKutta;
 
 PERSISTENT:=true;
 
-//makeAttractiveForce(neutralRange,amplitude)->[amplitude/2,'*((2-',2*neutralRange,'/$x)*ord($x<',neutralRange,')+(1-sqr(2-',1/neutralRange,'*$x))*ord(',neutralRange,'<$x<',3*neutralRange,'))'].toExpression;
-//makeRepulsiveForce (neutralRange,amplitude)->[amplitude/2,'* (2-',2*neutralRange,'/$x)*ord($x<',neutralRange,')'                                                                              ].toExpression;
 makeAttractiveForce(neutralRange,amplitude)->[ amplitude*10.124,'*(cos($x*',pi/2/neutralRange,')+1)*ord($x<',2*neutralRange,')*(',  neutralRange,'/$x-sqr(',neutralRange,'/$x))'].toExpression;
 makeRepulsiveForce (neutralRange,amplitude)->[-amplitude*10.124,'*(cos($x*',pi/2/neutralRange,')+1)*ord($x<',2*neutralRange,                       ')*sqr(',neutralRange,'/$x)' ].toExpression;
 
@@ -36,9 +34,9 @@ SCENARIO_INIT:=
     end},
   SCENARIO_POLYMER=>
     {begin
-      absForce00:=makeRepulsiveForce(1,1);
+      absForce00:=makeRepulsiveForce(1/2,1);
       absForce11:=absForce00;
-      absForce01:=makeAttractiveForce(0.75,1);
+      absForce01:=makeAttractiveForce(0.75/2,1);
     end},
   SCENARIO_DIPOLES=>
     {begin
@@ -132,13 +130,13 @@ forcesOf(points:List,pairs:List,absForce:Expression(1))->begin
   [pairs.getInner(1), forces].transpose;
 end;
 
-attractToOrigin(points:List)->-0.02*points;
-dampingFactors(L:List)->-0.5*L;
+attractToOrigin(points:List)->-0.01*points;
+mutable globalDampingFactor:=0;
 
 D(system:List(2))->begin
   local points:=system[0];
   [system[1],points.attractToOrigin
-            +dampingFactors(system [1])
+            +globalDampingFactor*(system [1])
             +(forcesOf(points,PAIRS_00,absForce00)
              |forcesOf(points,PAIRS_11,absForce11)
              |forcesOf(points,PAIRS_01,absForce01)
@@ -271,6 +269,7 @@ calculate(setup:SimSetup,headless:Boolean)->begin
   postPlot();
   local replay:=[sys[0]];
   local stepCounter:=0;
+  globalDampingFactor:=stepCounter*-0.002;
   local stillStepCounter:=0;
   while(stepCounter<100 OR stillStepCounter<20,
   begin
@@ -284,6 +283,7 @@ calculate(setup:SimSetup,headless:Boolean)->begin
                          tolerance); //tolerance
       end
     : void;
+    globalDampingFactor:=stepCounter*-0.002;
     local velocity:=sys.maxVelocity;
     sys:=sys.step;
     printf('%{$2}s step %{$0}s done in %{time-$1}7.3fs%{velocity>0.02?" ":"*"}s'&
@@ -295,7 +295,7 @@ calculate(setup:SimSetup,headless:Boolean)->begin
     replay|=[sys[0]];
   end);
   PERSISTENT
-  ? replays[setup]:=replay.*(1000).round.serialize.compress
+  ? replays[setup]:=replay.*(1000).round.serialize.compress(1)
   : print("//You can import this replay later:\n//begin replays[",setup,']:=',replay.*(1000).round.serialize.compress.escape,'; end;');
 end;
 
@@ -343,10 +343,11 @@ end;
 main('defaults')->main('headless',
   100,100,SCENARIO_NACL,
   100,100,SCENARIO_DIPOLES,
-  100,100,SCENARIO_DUST,
+//  100,100,SCENARIO_DUST,
   100,100,SCENARIO_PHOBIC,
   170, 30,SCENARIO_DUST,
   100,100,SCENARIO_HEX,
   100,100,SCENARIO_LAYERS,
   100,100,SCENARIO_POLYMER,
   20 ,  0,SCENARIO_SIMPLE);
+

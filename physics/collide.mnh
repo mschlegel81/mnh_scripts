@@ -1,57 +1,6 @@
-private ENABLE_PLOTTING:=$1.isVoid;
-private TIME_STEP_SIZE:=0.2;
-private DOWNWARD_ACCEL:=-0.1;
+USE collide_types,collide_initialState,collide_store;
 
-
-// p(t)=a+b*t+c/2*t^2
-// v(t)=  b  +c  *t
-// a(t)=      c
-// t:=0 -> c = DOWNWARD_ACCEL
-//         b = v
-//         a = p
-// -> p(t)     = p+v*t+DOWNWARD_ACCEL/2*t^2
-//    v(t_top) = v+DOWNWARD_ACCEL*t_top = 0
-// ->    t_top = -v/DOWNWARD_ACCEL
-//    p(t_top) = p+v*t_top+DOWNWARD_ACCEL/2*t_top^2
-
-private drawSys(sys:List)->begin
-  local C0:=cos([0..30]/30*2*pi);
-  local S0:=sin([0..30]/30*2*pi);
-  local drawCircle:={addPlot(C0+$xy[0],S0+$xy[1],'polygon fs HUE'&$col)};
-  local yHigh:=sys==[] ? void : max(12.,sys[0].getInner(1).max+1.);
-save;
-  ENABLE_PLOTTING ? void : return void;
-  //reset yHigh with sys=[]
-  sys==[]
-  ? begin
-      clearAnimation;
-      yHigh:=void;
-    end
-  : begin
-      local newHigh:=[sys[0].getInner(1),
-                      sys[1].getInner(1)].transpose.each(pv,
-                      begin
-                        local t_top:=max(0,-pv[1]/DOWNWARD_ACCEL);
-                        pv[0]+pv[1]*t_top+DOWNWARD_ACCEL/2*sqr(t_top);
-                      end,max)+1.;
-
-      yHigh:=yHigh.isVoid ? newHigh
-          : 0.95*yHigh+0.05*newHigh;
-      plot.setOptions([['x0',-1],['x1',11.],['y0',0],['y1',yHigh],
-      ['autoscaleX',false],
-      ['autoscaleY',false],
-      ['preserveAspect',true],
-      ['axisStyleX',0],
-      ['axisStyleY',0],
-      ['fontsize',6]].toMap);
-      plot([[-1,yHigh],[-1,0],[11.,0],[11.,yHigh]],'black line 2');
-      sys[0].each(p,drawCircle(p,index*2/(3*sys[0].size-3)));
-      addAnimationFrame;
-      postDisplay;
-    end;
-end;
-
-private hasWriteAccess:=begin
+private HAS_WRITE_ACCESS:=begin
   local MY_IPC_ID:=myPath+'1532';
   isIpcServerRunning(MY_IPC_ID)
   ? false
@@ -61,267 +10,294 @@ private hasWriteAccess:=begin
     end;
 end;
 
-private helpText('r')->'Randomly distributed balls';
-private initSys('r',count>=1)->begin
-  local P:=[[10*random,10]];
-  local topLayer:=10;
-  [2..count].each(c,begin
-    local q:=[10*random,topLayer];
-    while(P.each(p,(p-q).sqr.agg(+)<=4,OR),begin
-      topLayer+=0.01;
-      q:=[10*random,topLayer];
-    end);
-    P|=[q];
-  end);
-  [P,P.map({[random-0.5,random-0.5]})];
+EDGE_HIT       :=-1;
+POINT_HIT      :=-3;
+GEOMETRY_HITS:=[EDGE_HIT,POINT_HIT];
+
+//*Returns hit info: [hitTime,ballId,POINT_HIT,point]
+ballHitsPoint(point:Vector,ballId:Int,p:Vector,v:Vector)->begin
+  local dx:=p-point;
+  // |p+v*t - point|=1
+  // (p-point + v*t)^2=1
+  // (p-point)^2 + 2*(p-point)*(v*t) + (v*t)^2 = 1
+  (local xv:=(dx*v).agg(+))>=0.0 //ball is moving away from point
+  ? return void
+  : void;
+  (local xx:=(dx*dx).agg(+))<=1.0 //point is in ball?
+  ? return [0.0,ballId,POINT_HIT,point]
+  : void;
+  [(local a:=-xv/(local vv:=v.sqr.agg(+)))-sqrt(sqr(a)-(xx-1.)/vv),ballId,POINT_HIT,point];
 end;
 
-private helpText('s')->'Stacked balls; top ball shifted';
-private initSys('s',count>=1)->begin
-  local P:=[1..count].each(i,[i=count?5.01:5,2*i-1]);
-  [P,P.map({[0,0]})];
+//*Returns hit Info: [hitTime,ballId,EDGE_HIT,edge]
+ballHitsEdge(edge:EdgeSystem,ballId:Int,p:Vector,v:Vector)->begin
+  local tp:=edge[1]*(p-edge[2]);
+  -1<tp[1]<1 //is ball already intersecting or below ?
+    ? 0<=tp[0]<=1 //is ball above edge
+      ? [0.0,ballId,EDGE_HIT,edge]
+      : void
+    : (local vp:=edge[1]*v)[1]>=0 //is the ball moving away from the edge?
+      ? void
+      : begin
+          local tHit:=(1-tp[1])/vp[1];
+          tHit>0 AND 0<=tp[0]+vp[0]*tHit<=1 //will the ball be above the edge on hit time?
+          ? [tHit,ballId,EDGE_HIT,edge]
+          : void;
+        end;
 end;
 
-private helpText('t')->'Stacked balls; bottom ball shifted';
-private initSys('t',count>=1)->begin
-  local P:=[1..count].each(i,[index=0?5.01:5,2*i-1]);
-  [P,P.map({[0,0]})];
+ballHitsGeometry(geometryInfo:Geometry,ballId:Int,p:Vector,v:Vector,ballBox:BoundingBox)->
+  (geometryInfo['edges'].pEach(edgeInfo,edgeInfo[4].boundingBoxesIntersect(ballBox) ? ballHitsEdge (edgeInfo,ballId,p,v) : void)) |
+  (geometryInfo['nodes'].pEach(node    ,node       .pointIsInBox          (ballBox) ? ballHitsPoint(node    ,ballId,p,v) : void));
+
+resolveGeometryHit(kind=POINT_HIT,hitInfo,position,velocity)->begin
+  local dx:=position-hitInfo[3];
+  dx/=dx.sqr.agg(+).sqrt;
+  [(dx*1.00001+hitInfo[3]),
+   velocity+dx*1.5*abs((dx*velocity).agg(+))];
 end;
 
-private helpText('p')->'Inverted pyramid; 21 balls max';
-private initSys('p',count>=1)->begin
-  local P:=[0..5].each(i,[0..i].each(j,[5-i+2*j,7+sqrt(3)*i]),|).head(count);
-  [P,P.map({[0,0]})];
+resolveGeometryHit(kind=EDGE_HIT,hitInfo,position,velocity)->begin
+  local edgeSys:=hitInfo[3];
+  local tp:=edgeSys[1]*(position-edgeSys[2]);
+  local vp:=edgeSys[1]*velocity;
+  vp[1]:=0.5*abs(vp[1]);
+  tp[1]:=1.00001;
+  [edgeSys[0]*tp+edgeSys[2],
+   edgeSys[0]*vp];
 end;
-
-private helpText('q')->'Pyramid; 21 balls max';
-private initSys('q',count>=1)->begin
-  local P:=[0..5].each(i,[0..i].each(j,[5-i+2*j,-sqrt(3)*i]),|).head(count);
-  local yMin:=P.getInner(1).min-1;
-  [P.map({[$p[0],$p[1]-yMin]}),P.map({[0,0]})];
-end;
-
-private helpText('x')->'Criss-cross pattern';
-private initSys('x',count>=1)->begin
-  local P:=([1..6]*4-2).each(y,
-            [0.5,3.5,6.5,9.5].each(x,[x,y  ]),
-            [   2,  5,  8   ].each(x,[x,y+2]),|).head(count);
-  [P,P.map({[0,0]})];
-end;
-
-private helpText('a')->'Arch; balls aligned along a parabola';
-private fArch(x)->25-sqr(x-5);
-private initSys('a',count>=6)->begin
-  local nextX:={begin
-    local x:=$prevX+2;
-    local dx:=1;
-    while((dx*=0.5)>1E-6,
-    while((         x-dx -         $prevX )^2+
-          ($a*fArch(x-dx)-$a*fArch($prevX))^2>4,x-=dx));
-    x;
-  end};
-  local xRow:={begin (local x:=0)|([2..count].each(i,x:=x.nextX($a))); end};
-  local a:=0;
-
-  local da:=4;
-  while((da*=0.5)>1E-6,
-  while(xRow(a+da).trailing>10.0,a+=da));
-  print(a);
-  [xRow(a).map({[$x,1+a*fArch($x)]}),
-   [1..count].map({[0,0]})];
-end;
-
-//*Fallback
-private helpText(s:String)->'---';
-
-private SYSTEM_KINDS:=inspect['declares','initSys','subrules'].getInner('pattern').map({$pattern.tokenSplit.softCast.filter({$x in ['a'..'z']})}).flatten;
-
-//*When does ball with position p and velocity v hit the floor?
-private floorHitTime(p:NumericList(2),
-                     v:NumericList(2),j)->
-  p[1]<1 //Is position below floor?
-  ? [0,j,-1]
-  : v[1]>0 //Is the ball moving upward?
-    ? void
-    : begin
-        local r:=(1-p[1])/v[1];
-        r<0 ? void : [r,j,-1];
-      end;
-
-//*When does ball with position p and velocity v hit the wall?
-private wallHitTime(p:NumericList(2),
-                    v:NumericList(2),j)->
-  p[0]<0.   ? [0,j,-2] : //Inside left wall
-  p[0]>10.0 ? [0,j,-3] : //Inside right wall
-  v[0]>0
-  ? begin //Moving to the right; calculate right wall hit time
-      local r:=(10.0-p[0])/v[0];
-      r<0 ? void : [r,j,-3];
-    end
-  : begin //Movint to the left; calculate left wall hit time
-      local r:=(  -p[0])/v[0];
-      r<0 ? void : [r,j,-2];
-    end;
 
 //*When do balls with position delta dx and speed delta dv collide?
-private ballsCollide(dx:NumericList(2),
-                     dv:NumericList(2),
-                     i:Int,j:Int)->begin
+private ballsCollide(dx:Vector,
+                     dv:Vector,
+                     ballId1:Int,ballId2:Int)->begin
   (local xv:=(dx*dv).agg(+))>=0.0 //Are balls moving away from each other?
   ? return void
   : void;
   (local xx:=(dx*dx).agg(+))<=4.0 //All balls already intersecting?
-  ? return [0.0,i,j]
+  ? return [0.0,ballId1,ballId2]
   : void;
-  [(local a:=-xv/(local vv:=dv.sqr.agg(+)))-sqrt(sqr(a)-(xx-4.)/vv),i,j];
+  [(local a:=-xv/(local vv:=dv.sqr.agg(+)))-sqrt(sqr(a)-(xx-4.)/vv),ballId1,ballId2];
 end;
 
+movement(velocities)->velocities.each(v,v.sqr.agg(+),max).sqrt;
+
+prettyStatus(collisionCount,sliceCount,movement)->begin
+  local lineCounter:=0;
+save;
+  collisionCount=-1
+  ? return lineCounter:=sliceCount;
+  : void;
+  lineCounter mod 20=0
+  ? print('          step | collisions | time slices | max velocity')
+  : void;
+  printf('%9s %4s | %10s | %11s | %s',formatTime('hh:nn:ss ',systime),lineCounter+=1,collisionCount,sliceCount,movement);
+end;
+
+
 //*Evolve system of balls for a time step of dt
-private evolve(sys:List,dt)->begin
-  local dtRest:=dt; //Remaining time to integrate
-  local P:=sys[0];  //Positions
-  local V:=sys[1];  //Velocities
+private evolve(geometry,positions,velocities)->begin
+  local dtRest:=TIME_STEP_SIZE; //Remaining time to integrate
+  local P:=positions;
+  local V:=velocities.map({$v+[0.0,DOWNWARD_ACCEL*TIME_STEP_SIZE]});
+
+  local maxDv:=V.each(v,sqr(v[0]),sqr(v[1]),V.head(index).each(u,(v-u).sqr.agg(+),max),max).sqrt+1E-10;
   local minDt:=     //Find smallest time step based on pairwise velocity differences
-  begin
-    local maxDv:=V.each(v,sqr(v[0]),sqr(v[1]),V.head(index).each(u,(v-u).sqr.agg(+),max),max).sqrt+1E-10;
-    min(max(1E-3/maxDv,5E-4),dt);
-  end;
+    min(max(1E-3/maxDv,5E-6),TIME_STEP_SIZE);
 
   local collisionCount:=0;
   local sliceCount:=0;
+
   while(dtRest>0,begin
+    local ballBox:=P.pEach(p,boundingBoxOfBall(p,V[index],dtRest));
     sliceCount+=1;
     //Construct a list of collisions, sorted by time
     local collisions:=[0..P.size-1].pEach(j,
-    j==0 ? void : [0..j-1].pEach(i,ballsCollide(P[i]-P[j],V[i]-V[j],i,j)),
-    [floorHitTime (P[j],V[j],j)],
-    [wallHitTime  (P[j],V[j],j)],|).filter({$x[0]<=dtRest}).sort;
+      j=0
+      ? void
+      : [0..j-1].each(i,boundingBoxesIntersect(ballBox[i],ballBox[j])
+                        ? ballsCollide(P[i]-P[j],V[i]-V[j],i,j)
+                        : void),
+      ballHitsGeometry(geometry,j,P[j],V[j],ballBox[j]),|)
+    .pFilter({$x[0]<=dtRest}).sort;
     //Find collision time (or none)
     local collisionTime:=max(min(collisions.head[0] orElse 1E50,dtRest),minDt);
     //Filter collisions to be considered in this time slice
-    collisions:=collisions.filter({$x[0]<collisionTime+minDt});
+    collisions:=collisions.filter({$x[0]<=collisionTime+minDt});
     //Integrate positions
     P+=collisionTime*V;
     dtRest-=collisionTime;
     collisionCount+=collisions.size;
+
     //Resolve collisions
     collisions.each(collision,begin
       local i:=collision[1];
       local j:=collision[2];
-      //Resolve floor hit:
-      j=-1 ? begin V[i,1]:=-0.5*V[i,1]; P[i,1]:= 1.0; end :
-      //Resolve left wall hit:
-      j=-2 ? begin V[i,0]:=-0.5*V[i,0]; P[i,0]:= 0.0; end :
-      //Resolve right wall hit:
-      j=-3 ? begin V[i,0]:=-0.5*V[i,0]; P[i,0]:=10.0; end :
-      begin
-        //Resolve ball hit:
-        local dx:=P[i]-P[j];
-        local dn:=dx.sqr.agg(+).sqrt;
-        dx:=dx/dn;
-        //Negate differential velocity
-        local dv:=V[i]-V[j]; dv:=dx*(dx*dv).agg(+);
-        V[i]-=dv;
-        V[j]+=dv;
-        //move balls, so that they don't intersect anymore
-        local cx:=0.5*(P[i]+P[j]);
-        P[i]:=cx+dx;
-        P[j]:=cx-dx;
-      end;
-    end);
-    //Solve velocity for current time slice
-    V+=collisionTime*P.each(p,p[1]<=1.0 ? [0.0,0.0] : [0.0,DOWNWARD_ACCEL]);
-  end);
-  print('  ',collisionCount,'  ',sliceCount,'  ',V.each(v,v.sqr.agg(+),+));
-  [P,V];
-end;
-
-//*Are any balls effectively moving?
-private moving(sysHistory:List)->
-  sysHistory.size<20 OR
-  sysHistory.trailing(20)
-            .transpose.each(x,(x[19]-x[ 0]).sqr.agg(+)>5E-5 OR
-                              (x[19]-x[ 5]).sqr.agg(+)>5E-5 OR
-                              (x[19]-x[10]).sqr.agg(+)>5E-5 OR
-                              (x[19]-x[15]).sqr.agg(+)>5E-5,OR);
-
-private datastore calculatedCollisions:=[].toMap;
-
-private calculateOrReplayCollisions(init in SYSTEM_KINDS,systemSize>=1)->
-calculatedCollisions[[init,systemSize]].isVoid
-? begin
-    clearPrint;
-    print('Calculating system ',init,'/',systemSize);
-    local sys:=initSys(init,systemSize);
-    local positionHistory:=[sys[0]];
-    [].drawSys;
-    sys.drawSys;
-    local i:=0;
-    while(moving(positionHistory),
-    begin
-      printDirect("\r",i+=1);
-      sys:=sys.evolve(TIME_STEP_SIZE);
-      sys.drawSys;
-      positionHistory|=[sys[0]];
-    end);
-    calculatedCollisions[[init,systemSize]]:=positionHistory;
-    true;
-  end
-: begin
-    [].drawSys;
-    local lastP:=calculatedCollisions[[init,systemSize]].head;
-    calculatedCollisions[[init,systemSize]].each(p,begin
-      local v:=(p-lastP)/TIME_STEP_SIZE;
-      [lastP:=p,v].drawSys;
+      j in GEOMETRY_HITS
+      ? begin
+          local R:=resolveGeometryHit(collision[2],collision,P[i],V[i]);
+          P[i]:=R[0];
+          V[i]:=R[1];
+        end
+      : begin
+          //Resolve ball hit:
+          local dx:=P[i]-P[j];
+          local dn:=dx.sqr.agg(+).sqrt;
+          dx:=dx/dn;
+          //Negate differential velocity
+          local dv:=V[i]-V[j]; dv:=dx*(dx*dv).agg(+);
+          V[i]-=dv;
+          V[j]+=dv;
+          //move balls, so that they don't intersect anymore
+          local cx:=0.5*(P[i]+P[j]);
+          P[i]:=cx+(dx*=1.0001);
+          P[j]:=cx-dx;
+        end;
       void;
     end);
-    true;
-  end;
+  end);
+  prettyStatus(collisionCount,sliceCount,maxDv);
+  [geometry,P,V];
+end;
 
-//*Calculate without GUI
-main(sysKind in SYSTEM_KINDS,sysSize)->
-  hasWriteAccess
-  ? calculateOrReplayCollisions(sysKind,sysSize.toInt)
-  : fail('Cannot obtain exclusive write access');
+synchronized calculateSystemHeadless(  geometryName in (GEOMETRIES.getInner(0)),
+  ballPosName in (INITIAL_BALL_POSITIONS.getInner(0)),
+  numberOfBalls>=1)->begin
+  local name:=getInitialSystemName(geometryName,ballPosName,numberOfBalls);
+  local sys:=void;
+  canReplay(name)
+  ? canResumeCalculation(name)
+    ? begin
+        print('Resuming calculation of ',name);
+        sys:=resumeCalculation(name);
+        prettyStatus(-1,current.size-2,-1);
+      end
+    : return false
+  : begin
+      print('Calculating ',name);
+      sys:=getInitialSystem(geometryName,ballPosName,numberOfBalls);
+      storeInitial(sys[0],sys[1]);
+      prettyStatus(-1,-1,-1);
+    end;
+  local timeout:=time+60;
+  while(stillMoving AND time<timeout,
+    begin
+      sys:=evolve@sys;
+      storeStep(sys[1]);
+    end);
+  storeReplay(sys[2],name);
+  stillMoving
+  ? print('Calulation aborted after ',round(time+60-timeout,2),' seconds')
+  : print('Done calculating');
+  true;
+end;
+
+synchronized calculateOrReplaySystem(
+  geometryName in (GEOMETRIES.getInner(0)),
+  ballPosName in (INITIAL_BALL_POSITIONS.getInner(0)),
+  numberOfBalls>=1,
+  cancelRequested:Expression(0))->
+begin
+  local name:=getInitialSystemName(geometryName,ballPosName,numberOfBalls);
+  local sys:=void;
+  doReplay(name)
+  ? canResumeCalculation(name)
+    ? begin
+        print('Resuming calculation of ',name);
+        sys:=resumeCalculation(name);
+        prettyStatus(-1,current.size-2,-1);
+      end
+    : return true
+  : begin
+      print('Calculating ',name);
+      sys:=getInitialSystem(geometryName,ballPosName,numberOfBalls);
+      resetPlot;
+      clearAnimation;
+      storeInitial(sys[0],sys[1]);
+      prettyStatus(-1,-1,-1);
+      drawSystem@sys;
+      postDisplay;
+    end;
+  while(stillMoving AND !cancelRequested(),
+    begin
+      sys:=evolve@sys;
+      drawSystem@sys;
+      storeStep(sys[1]);
+    end);
+  !cancelRequested() OR ask("Calculation cancelled\nDo you want to store the replay?",['Yes','No'])=='Yes'
+  ? storeReplay(sys[2],name)
+  : void;
+  print('Done calculating');
+  true;
+end;
+
 
 USE customFormUtil;
 
 //*Interactive mode
 main->begin
-  local layout:='s';
+  local geometry:='simple';
+  local layout:='stacked';
   local ballCount:=6;
   local ballCountTxt:=ballCount.toString;
   local runningTask:=async({true});
+  local cancellingCalculation:=false;
   showDialog('Collide',[
-    newComboBox({calculatedCollisions.getInner(0).sort.map(::join)})
+    newComboBox({storedCollisions})
       .withCaption('Stored system')
       .withAction({begin
-                     layout:=$x.copy(0,1);
-                     ballCount:=$x.copy(1,100).softCast;
+                     local parts:=$x.split(',').trim;
+                     geometry :=parts[0];
+                     layout   :=parts[1];
+                     ballCount:=parts[2].softCast;
                      ballCountTxt:=ballCount.toString;
                    end}),
-    newComboBox(SYSTEM_KINDS)
-      .withCaption('Layout')
-      .bind('layout'),
-    newLabel.withCaption({helpText(layout)}),
+    newComboBox(GEOMETRIES.getInner(0).sort)
+      .withCaption('Geometry')
+      .bind(::geometry),
+    newComboBox(INITIAL_BALL_POSITIONS.getInner(0).sort)
+      .withCaption('Ball layout')
+      .bind(::layout),
     newEdit
       .withCaption('Number of balls')
-      .bind('ballCountTxt')
+      .bind(::ballCountTxt)
       .withActionOnChange({ballCount:=$txt.softCast}),
     newSplitPanel([
     newButton
-      .withCaption({calculatedCollisions[[layout,ballCount.softCast]].isVoid
+      .withCaption({collisions[getInitialSystemName(geometry,layout,ballCount)].isVoid
                     ? 'Calculate'
-                    : 'Replay'})
-      .withEnabledRule({!runningTask().isVoid AND layout in SYSTEM_KINDS AND ballCount.isInt AND ballCount>=6 AND
-         (hasWriteAccess OR !calculatedCollisions[[layout,ballCount.softCast]].isVoid)})
-      .withAction({runningTask:=async(::calculateOrReplayCollisions,[layout,ballCount])})],[
+                    : getInitialSystemName(geometry,layout,ballCount).canResumeCalculation
+                      ? 'Resume calculation'
+                      : 'Replay'})
+      .withEnabledRule({!runningTask().isVoid AND ballCount.isInt AND ballCount>=1 AND (HAS_WRITE_ACCESS OR !collisions[getInitialSystemName(geometry,layout,ballCount)].isVoid)})
+      .withAction({begin
+          cancellingCalculation:=false;
+          runningTask:=localAsync(::calculateOrReplaySystem,[geometry,layout,ballCount,{cancellingCalculation}]);
+        end})],[
     newButton
       .withCaption('Delete replay')
-      .withEnabledRule(hasWriteAccess ? {!runningTask().isVoid OR calculatedCollisions[[layout,ballCount.softCast]].isVoid} : false)
-      .withAction({calculatedCollisions[[layout,ballCount.softCast]]:=void})
+      .withEnabledRule({!collisions[getInitialSystemName(geometry,layout,ballCount)].isVoid AND HAS_WRITE_ACCESS})
+      .withAction({collisions[getInitialSystemName(geometry,layout,ballCount)]:=void})
       ]),
-    newLabel.withCaption('Console output is: step/collisions/time slices/temperature'),
-    newOutputConsole
+    newOutputConsole,
+    newButton.withCaption('Cancel calculation')
+             .withAction({cancellingCalculation:=true})
+             .withEnabledRule({!cancellingCalculation AND runningTask().isVoid})
   ]);
 end;
+
+//*Compute and store all defaults
+main('defaults')->begin
+  assert(HAS_WRITE_ACCESS);
+  local lastSave:=time;
+  GEOMETRIES.getInner(0).each(geometry,
+  INITIAL_BALL_POSITIONS.getInner(0).each(initial,
+    calculateSystemHeadless(geometry,initial,20),
+    time-lastSave>300
+    ? begin
+        async(::writeAllDataStores);
+        lastSave:=time;
+      end
+    : void));
+end;
+

@@ -64,10 +64,14 @@ synchronized storeInitial(geometry:Geometry,ballPositions)->
   current:=[geometry['name'],ballPositions];
 synchronized storeStep(ballPositions)->
   current||=ballPositions;
+
 storeReplay(velocities:List,name:String)->begin
   collisions[name]:=current|[velocities];
   writeDataStores;
 end;
+
+canReplay(name:String)->!(collisions[name].isVoid);
+
 doReplay(name:String)->begin
   local data:=collisions[name];
   data.isVoid ? return false : void;

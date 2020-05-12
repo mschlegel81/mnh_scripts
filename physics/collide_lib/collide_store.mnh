@@ -103,7 +103,8 @@ resumeCalculation(name)->begin
 end;
 
 stillMoving(snapshot)->
-  snapshot.size <21 OR
+   snapshot.size<1500 AND
+  (snapshot.size <21 OR
   begin
     local threshold:=exp(snapshot.size/200.0)*1E-5;
     snapshot.trailing(20)
@@ -111,6 +112,6 @@ stillMoving(snapshot)->
                              (x[19]-x[ 5]).sqr.agg(+)>threshold OR
                              (x[19]-x[10]).sqr.agg(+)>threshold OR
                              (x[19]-x[15]).sqr.agg(+)>threshold,OR);
-  end;
+  end);
 
 stillMoving->current.stillMoving;

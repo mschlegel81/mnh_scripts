@@ -287,17 +287,27 @@ main->begin
 end;
 
 //*Compute and store all defaults
+//*Time limit is 1 minute per scenario, 30 minutes globally
 main('defaults')->begin
   assert(HAS_WRITE_ACCESS);
+  local scriptTimeout:=time+1800; //=30 minutes
   local lastSave:=time;
-  GEOMETRIES.getInner(0).each(geometry,
-  INITIAL_BALL_POSITIONS.getInner(0).each(initial,
-    calculateSystemHeadless(geometry,initial,20),
-    time-lastSave>300
-    ? begin
-        async(::writeAllDataStores);
-        lastSave:=time;
-      end
-    : void));
+  while(time<scriptTimeout,begin
+    local anyMoving:=
+      GEOMETRIES.getInner(0).each(geometry,
+      INITIAL_BALL_POSITIONS.getInner(0).each(initial,
+        time<scriptTimeout
+        ? calculateSystemHeadless(geometry,initial,20)
+        : void,
+        time-lastSave>600 //=10 minutes
+        ? begin
+            async(::writeAllDataStores);
+            lastSave:=time;
+          end
+        : void,or),or);
+    anyMoving
+    ? void
+    : scriptTimeout:=time;
+  end);
 end;
 

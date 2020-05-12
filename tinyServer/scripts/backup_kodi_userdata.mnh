@@ -1,10 +1,18 @@
+#!C:\bin\mnh_light.exe -headless
 KODI_FOLDER:="C:/users/schlegel/AppData/Roaming/Kodi";
 SEVEN_ZIP_PATH:='c:\Program Files\7-Zip\7z.exe';
 DEST_PATH:='D:\backup\kodi.7z';
 
-datastore savedHash:=0;
+datastore savedState:=[];
 
-main->begin
+simpleDiff(lines1:StringList,lines2:StringList)->
+  diff(lines1,lines2)['edit'].each(edit,
+    edit[0]=='-' ?  '- '&lines1[edit[1]] :
+    edit[0]=='+' ?  '+ '&lines2[edit[2]] :
+    edit[0]=='M' ? ['- '&lines1[edit[1]],
+                    '+ '&lines2[edit[2]]] : void,|);
+
+doBackup(scanOnly:Boolean)->begin
   assertUniqueInstance;
   changeDirectory(KODI_FOLDER.extractFileDirectory);
   local relativeKodiFolder:=KODI_FOLDER.extractFileName;
@@ -14,18 +22,24 @@ main->begin
   local archive:=fileList.map({!matches($filename,'/Thumbnails') AND
                                !matches($filename,'kodi_crashlog') AND
                                !matches($filename,'kodi_stacktrace')});
-  fileList:=fileList[archive];
-  printf("  %s",fileList);
-  local currentHash:=fileList.pEach(f,f.fileContents.sha256,+);
-  printf(' The current hash is %x',currentHash);
-  currentHash==savedHash
-  ? print('Not updating the zip because the hash is unchanged')
-  : begin
-      deleteFile(DEST_PATH);
-      print('Now executing ',SEVEN_ZIP_PATH);
-      writeFileLines(local list:='kodi_backup.lst'.systemSpecificFilename,fileList,#10#13);
-      SEVEN_ZIP_PATH.teeExec(['a','-mx9','-mmt1','-bd',DEST_PATH,'@'&list],::print);
-      deleteFile(list);
-      savedHash:=currentHash;
-    end;
+  fileList:=fileList[archive].sort;
+  local newState:=format('%{$0.fileStats.trailing}8.8x %{$0}s',fileList);
+  local delta:=simpleDiff(savedState.decompress.split("\n"),newState);
+  print('File delta');
+  printf('  %s',delta);
+  scanOnly
+  ? print('Not updating the zip because we are running in check only mode - the state is ',delta.size=0 ? 'unchanged' : 'changed')
+  : delta.size=0
+    ? print('Not updating the zip because the hash is unchanged')
+    : begin
+        deleteFile(DEST_PATH);
+        print('Now executing ',SEVEN_ZIP_PATH);
+        writeFileLines(local list:='kodi_backup.lst'.systemSpecificFilename,fileList,#10#13);
+        SEVEN_ZIP_PATH.teeExec(['a','-mx9','-mmt1','-bd',DEST_PATH,'@'&list],::print);
+        deleteFile(list);
+        savedState:=newState.join("\n").compress;
+      end;
 end;
+
+main        ->doBackup(false);
+main('scan')->doBackup(true);

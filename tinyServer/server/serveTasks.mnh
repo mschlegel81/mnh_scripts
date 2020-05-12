@@ -2,7 +2,6 @@ USE loggingRunner,tinyServer_html,tinyServer_config,javascriptUtils;
 
 datastore queued  :=[];
 datastore previous:=[];
-SPECIAL_TASK_RESTART:='RESTART';
 
 getNextTask->queued.size<=0 ? [] : begin
   local task:=queued.head;
@@ -10,58 +9,83 @@ getNextTask->queued.size<=0 ? [] : begin
   local scriptParams:=task[2];
   queued:=queued.tail;
   writeDataStores;
-  scriptName=SPECIAL_TASK_RESTART
-  ? SPECIAL_TASK_RESTART
+  scriptName in SPECIAL_TASKS
+  ? scriptName
   : [scriptName.fullScriptName.systemSpecificFilename,scriptParams];
 end;
-
-nextTaskIsRestart->
-  queued.size>0 AND queued[0,1]==SPECIAL_TASK_RESTART
-  ? begin
-      queued:=queued.tail;
-      writeDataStores;
-      true;
-    end
-  : false;
 
 private fmtT(pointInTime)->'<class="right">'&
                                formatTime(floor(pointInTime)==floor(systime)
                                ? 'hh:nn:ss'
                                : 'yyyy/mm/dd hh:nn:ss',pointInTime)&"</class>";
 
+STATUS_BOX_QUEUED        :='<div style="background-color: #00C; padding: 0px">&nbsp;&nbsp;<br><br></div>';
+STATUS_BOX_RUNNING       :='<div style="background-color: #999; padding: 0px">&nbsp;&nbsp;<br><br></div>';
+STATUS_BOX_KILLED        :='<div style="background-color: #800; padding: 0px">&nbsp;&nbsp;<br><br></div>';
+STATUS_BOX_CANCELLED     :='<div style="background-color: #F00; padding: 0px">&nbsp;&nbsp;<br><br></div>';
+STATUS_BOX_FINISHED      :='<div style="background-color: #090; padding: 0px">&nbsp;&nbsp;<br><br></div>';
+STATUS_BOX_KILL_REQUESTED:='<div style="background-color: #F80; padding: 0px">&nbsp;&nbsp;<br><br></div>';
+
+getQueuedTable(forOverviewPage:Boolean)->
+  [['','Enqueued','Script','','',''].map({$x.tag('b')})] |
+    queued.reverseList.each(x,['',fmtT(x[0]),
+                   x[1].tag('code')&(x[2].trim=='' ? '' : '<br>'&tag('   '&x[2],'code')),
+                   htmlLink('remove','dequeue?index='&index&'&mainView='&ord(forOverviewPage)),
+                   STATUS_BOX_QUEUED,
+                   htmlLink('force start','forceStart?taskHash='&hash(x)&'&mainView='&ord(forOverviewPage))&
+                   (index=queued.size-1 ? '' :
+                   ('<br>'&htmlLink('next to execute','moveToFront?taskHash='&hash(x)&'&mainView='&ord(forOverviewPage))))]);
+
 getQueuedSection(withLink:Boolean)->
   tag(
   tag('Queue'&(withLink ? '    '&htmlLink('(+)','enqueue') : void), 'h2')&
-  htmlTable(
-  [['Enqueued at','','Script'].map({$x.tag('b')})] |
-    queued.each(x,[fmtT(x[0]),
-                   htmlLink('remove','dequeue?index='&index&'&mainView='&ord(withLink)),
-                   x[1].tag('code')&(x[2].trim=='' ? '' : '<br>'&tag('   '&x[2],'code')),
-                   htmlLink('force start','forceStart?taskHash='&hash(x)&'&mainView='&ord(withLink)),
-                   index=0 ? '' :
-                   htmlLink('move to front','moveToFront?taskHash='&hash(x)&'&mainView='&ord(withLink))])),'div');
+  htmlTable(getQueuedTable(false)),'div');
 
-getHistorySection->begin
+getTasksSection->begin
   local report:=getTaskReport;
   tag(
-  tag('History','h2')&
-  htmlTable([['#','Started','Script','Log','Status'].map({$x.tag('b')})]|
+  tag('Tasks '&htmlLink('(+)','enqueue'),'h2')&
+  htmlTable(getQueuedTable(true)| [['#','Started','Script','Log','','Status'].map({$x.tag('b')})]|
     report.each(r,
-      [r['index'],
-       fmtT(r[STARTTIME]),
-       tag(r[SCRIPT].extractFileName,'code')&(trim(r[PARAMETERS])==''
-                                              ? ''
-                                              : '<br>'& tag('   '&r[PARAMETERS],'code')),
-       r[FILESTATS]==[0.0,-1] ? '- log missing -' : htmlLink(getLogName(r['index']).extractFileName,
-                                                       encodeRequest('','displayFile',['filename'=>getLogName(r['index'])].toMap)),
-       (r[RUNNING]
-       ? tag('running ','b')
-         & ((r[KILLREQUESTED] orElse false)
-            ? tag('kill reqested','i')
-            : htmlLink('kill',encodeRequest('','kill',['index'=>r['index']].toMap)))
-       : ((r[KILLREQUESTED] orElse false) ? 'killed' : r[FINISHED] ? 'finished' :  'cancelled'))&'<br>'&
-       fmtT(r[FINISHTIME] orElse systime)])
-   ),'div');
+      begin
+        local statusBox:=
+          r[SCRIPT] in SPECIAL_TASKS
+          ? STATUS_BOX_FINISHED
+          : r[RUNNING]
+            ? r[KILLREQUESTED] orElse false
+              ? STATUS_BOX_KILL_REQUESTED
+              : STATUS_BOX_RUNNING
+          : r[KILLREQUESTED] orElse false
+            ? STATUS_BOX_KILLED
+            : r[FINISHED]
+              ? STATUS_BOX_FINISHED
+              : STATUS_BOX_CANCELLED;
+        local stateMessage:=
+          r[SCRIPT] in SPECIAL_TASKS
+          ? ''
+          : r[RUNNING]
+            ? r[KILLREQUESTED] orElse false
+              ? 'kill requested'
+              : 'running '&htmlLink('kill',encodeRequest('','kill',['index'=>r['index']].toMap))
+          : r[KILLREQUESTED] orElse false
+            ? 'killed'
+            : r[FINISHED]
+              ? 'finished'
+              : 'cancelled';
+        r[SCRIPT] in SPECIAL_TASKS ? void : stateMessage&='<br>'&fmtT(r[FINISHTIME] orElse systime);
+        local parameters:=(r['PARAMETERS'] orElse '').trim;
+        parameters.length>30 ? parameters:=parameters.copy(0,27)&'...' : void;
+
+        [r['index'],
+         fmtT(r[STARTTIME]),
+         tag(r[SCRIPT].extractFileName,'code')&(parameters==''
+                                                ? ''
+                                                : '<br>'& tag('   '&parameters,'code')),
+         r[FILESTATS]==[0.0,-1] ? '- log missing -' : htmlLink(getLogName(r['index']).extractFileName,
+                                                         encodeRequest('','displayFile',['filename'=>getLogName(r['index'])].toMap)),
+         statusBox,
+         stateMessage];
+      end)),'div');
 end;
 
 killTask(parameters:Map)->begin
@@ -135,6 +159,15 @@ enqueuePage(parameters:Map)->begin
   ,false).wrapTextInHttp;
 end;
 
+mutable shutdownTriggeredBySpecialTask:='';
+mutable restartScheduled:=false;
+
+specialTaskAction(task:String)->begin
+  logSpecialTaskStarted(task);
+  shutdownTriggeredBySpecialTask:=task;
+  restartScheduled:=true;
+end;
+
 forceStart(parameters:Map)->begin
   local taskHash:=parameters['taskHash'];
   local taskIndex:=queued.each(q,q.hash==taskHash ?index : void,head);
@@ -144,8 +177,8 @@ forceStart(parameters:Map)->begin
       taskIndex=0
       ? void
       : queued:=queued[taskIndex|filter([0..queued.size-1],{$x<>taskIndex})];
-      queued.size>0 AND queued[0,1]==SPECIAL_TASK_RESTART
-      ? void
+      queued.size>0 AND queued[0,1] in SPECIAL_TASKS
+      ? specialTaskAction(getNextTask);
       : startExecution@getNextTask;
     end
   : void;

@@ -10,16 +10,28 @@ private uptimeFormat:='{floor($0/3600)}:%{floor($0/60) mod 60}2.2d:%{floor($0) m
 //--------------------------------------------------------------------------:CPU Usage
 private getStatusSection->tag(
   ('Status').tag('h2')&htmlOuterTable(
-  [['Date:'  .tag('b'),formatTime('dd.mm.yyyy',      systime),''                ,htmlLink('restart server','restart')],
-   ['Time:'  .tag('b'),formatTime('hh:nn:ss',        systime),''                ,htmlLink('show server log','showLog')],
-   ['Uptime:'.tag('b'),format(uptimeFormat,time)]])&getCpuDiagram,'div');
+  [['Date:'  .tag('b'),formatTime('dd.mm.yyyy',      systime) ,
+    'Time:'  .tag('b'),formatTime('hh:nn:ss',        systime) ,
+    'Uptime:'.tag('b'),format(uptimeFormat,time)]])&getCpuDiagram,'div');
 
 @SuppressUnusedParameterWarning
-startPage(parameters:Map)->htmlPage('Server Overview',getHeadLinks&getStatusSection&getQueuedSection(true)&getHistorySection,true).wrapTextInHttp;
+startPage(parameters:Map)->htmlPage('Server Overview',getHeadLinks&getStatusSection&getTasksSection,true).wrapTextInHttp;
 
 @SuppressUnusedParameterWarning
 restartPage(parameters:Map)->begin
-  enqueueTask(SPECIAL_TASK_RESTART,'');
+  enqueueTask(SPECIAL_TASK_RESTART_SERVER,'');
+  redirectTo(START_PAGE);
+end;
+
+@SuppressUnusedParameterWarning
+restartSysPage(parameters:Map)->begin
+  enqueueTask(SPECIAL_TASK_RESTART_SYSTEM,'');
+  redirectTo(START_PAGE);
+end;
+
+@SuppressUnusedParameterWarning
+shutdownSysPage(parameters:Map)->begin
+  enqueueTask(SPECIAL_TASK_SHUTDOWN,'');
   redirectTo(START_PAGE);
 end;
 
@@ -58,11 +70,53 @@ logServeStats->
       print(timeLines[2*index+1]));
   end;
 
+private scriptStatusOnStartup:=inspectAll.getInner(0).sort.map({[$x,$x.fileStats]});
+private currentScriptStatus  ->scriptStatusOnStartup.map({[$x[0],$x[0].fileStats==$x[1] ? 'up to date' : 'FILE IS CHANGED']});
+
+@SuppressUnusedParameterWarning
+adminPage(parameters:Map)->begin
+  local environmentDiv:=
+  tag(tag('Environment', 'h2')&getEnv.map({$x[0]=>$x[1].toString}).sort.htmlTable,'div');
+  local setupDiv:=
+  tag(tag('Configuration', 'h2')&htmlTable(
+   [['SERVE_AT_IP'               ,SERVE_AT_IP],
+    ['SERVE_AT_IP'               ,SERVE_AT_SOCKET],
+    ['MAX_HISTORY_SIZE'          ,MAX_HISTORY_SIZE          ],
+    ['LOG_FOLDER'                ,LOG_FOLDER                ],
+    ['START_WHEN_WORKLOAD_BELOW' ,START_WHEN_WORKLOAD_BELOW ],
+    ['SAMPLES_FOR_WORKLOAD_CHECK',SAMPLES_FOR_WORKLOAD_CHECK]]
+  ) ,'div');
+  local pageMap:=
+  tag(tag('Page map', 'h2')&htmlTable(
+   PAGE_MAP.getInner(0).sort.map({htmlLink($x,$x)})
+  ) ,'div');
+  local scriptStatusDiv:=
+  tag(tag('Script status', 'h2')&htmlTable(currentScriptStatus) ,'div');
+  local specialActionDiv:=
+  tag(tag('Special actions', 'h2')&htmlTable(
+   [[htmlLink('show server log','showLog')   ],
+    [htmlLink('RESTART SERVER','restart')    ],
+    [htmlLink('RESTART SYSTEM','restartsys') ],
+    [htmlLink('SHUTDOWN SYSTEM','shutdown')  ]]
+  ) ,'div');
+  htmlPage('Server Administration',
+   getHeadLinks
+   &getStatusSection
+   &setupDiv
+   &pageMap
+   &specialActionDiv
+   &scriptStatusDiv
+   &environmentDiv,  false).wrapTextInHttp;
+end;
+
 PAGE_MAP:=[
   START_PAGE     => ::startPage,
   '/'            => ::startPage,
   ''             => ::startPage,
+  ADMIN_PAGE     => ::adminPage,
   '/restart'     => ::restartPage,
+  '/shutdown'    => ::shutdownSysPage,
+  '/restartsys'  => ::restartSysPage,
   '/ping'        => ::ping,
   '/favicon.ico' => ::favicon,
   '/showlog' =>
@@ -93,7 +147,6 @@ PAGE_MAP:=[
   '/processes'      => ::processesPage
   ].toMap;
 
-
 serve(M)->begin
   local path:=M['request','path'];
   local parameters:=path.extractParameters;
@@ -119,34 +172,49 @@ end;
 main->begin
   assertUniqueInstance;
   local sinceLastTaskStart:=0;
-  local restartScheduled:=false;
   startHttpServer(SERVE_AT_IP&':'&SERVE_AT_SOCKET,::serve,-1);
   loggingRunner.ensureServer;
   tPrint('server is up at ',SERVE_AT_IP&':'&SERVE_AT_SOCKET);
 
   while(!restartScheduled,begin
     logCpuUsage();
-    nextTaskIsRestart
-    ? restartScheduled:=true
-    : (sinceLastTaskStart+=1)>=SAMPLES_FOR_WORKLOAD_CHECK AND isCpuAlmostIdle
+    (sinceLastTaskStart+=1)>=SAMPLES_FOR_WORKLOAD_CHECK AND isCpuAlmostIdle
       ? begin
-          startExecution@getNextTask
-          ? sinceLastTaskStart:=0
-          : void;
+          local task:=getNextTask;
+          task in SPECIAL_TASKS
+          ? specialTaskAction(task)
+          : startExecution@task
+            ? sinceLastTaskStart:=0
+            : void;
           sleep(2);
         end
       : sleep(2);
   end);
   logServeStats;
+  writeAllDataStores;
 end;
 
 @after
 restart->begin
-  tPrint('Performing restart');
-  local ipcIsUpAgain:=false;
-  while(!ipcIsUpAgain,begin
-    execAsync(executor,[myPath]);
-    sleep(1);
-    ipcIsUpAgain:=isLoggingRunnerIpcServerRunning;
-  end);
+  shutdownTriggeredBySpecialTask==SPECIAL_TASK_RESTART_SERVER
+  ? begin
+      tPrint('Performing restart');
+      local ipcIsUpAgain:=false;
+      while(!ipcIsUpAgain,begin
+        execAsync(executor,[myPath]);
+        sleep(1);
+        ipcIsUpAgain:=isLoggingRunnerIpcServerRunning;
+      end);
+    end
+  : shutdownTriggeredBySpecialTask==SPECIAL_TASK_RESTART_SYSTEM
+  ? begin
+      tPrint('Restarting system');
+      execPipeless('Shutdown.exe',['-r','-t','00']);
+    end
+  : shutdownTriggeredBySpecialTask==SPECIAL_TASK_SHUTDOWN
+  ? begin
+      tPrint('Shutting down system');
+      execPipeless('Shutdown.exe',['-s','-t','00']);
+    end
+  : fail;
 end;

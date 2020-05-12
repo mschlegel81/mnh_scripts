@@ -1,1 +1,0 @@
-main->execPipeless('Shutdown.exe',['-s','-t','00']);

@@ -8,6 +8,7 @@ SAMPLES_FOR_WORKLOAD_CHECK:=10;
 
 START_PAGE:='/index';
 ENQUEUE_PAGE:='/enqueue';
+ADMIN_PAGE:='/admin';
 
 tPrint(...)->formatTime('hh:mm:ss.zzz ',systime).print@(...);
 

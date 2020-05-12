@@ -56,7 +56,7 @@ htmlClean(text:String)->
 text.replace(['&'  ,'"'   ,"'"   ,'<' ,'>'],
          '&'&['amp','quot','apos','lt','gt']&';');
 
-mutable headLinks:=[htmlLink(htmlClean('<<<'),START_PAGE)];
+mutable headLinks:=[htmlLink(htmlClean('<<<'),START_PAGE),htmlLink('admin',ADMIN_PAGE)];
 
 private mutable fileServed:=[].toMap;
 serveFile(filename:String)->

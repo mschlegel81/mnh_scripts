@@ -10,6 +10,15 @@ private DATE_TIME_FORMAT_PATTERN:=DATE_TIME_FORMAT.replace(['a'..'z'],'\d').repl
 private KILL_SIGNAL:=['KILL',197512];
 private FINAL_LINE:='### - DONE - ###';
 
+SPECIAL_TASK_RESTART_SERVER:='RESTART';
+SPECIAL_TASK_RESTART_SYSTEM:='RESTART_SYSTEM';
+SPECIAL_TASK_SHUTDOWN:='SHUTDOWN_SYSTEM';
+
+SPECIAL_TASKS:=[SPECIAL_TASK_RESTART_SERVER,
+                SPECIAL_TASK_RESTART_SYSTEM,
+                SPECIAL_TASK_SHUTDOWN];
+
+
 FILESTATS       :='fileStats'       ;
 SCRIPT          :='script'          ;
 PARAMETERS      :='parameters'      ;
@@ -20,9 +29,10 @@ FINISHED        :='finished'        ;
 STARTTIME       :='startTime'       ;
 FINISHTIME      :='finishTime'      ;
 
+
 datastore taskHistory:=[].toMap;
 
-private logTaskStarted(taskIndex:Int,scriptName:String,scriptParameters:String)->
+logTaskStarted(taskIndex:Int,scriptName:String,scriptParameters:String)->
   begin
     taskHistory[taskIndex]:=
     [FILESTATS       =>[],
@@ -33,6 +43,18 @@ private logTaskStarted(taskIndex:Int,scriptName:String,scriptParameters:String)-
      FINISHED        =>false,
      STARTTIME       =>systime].toMap;
      tPrint('Started task #',taskIndex,': ',scriptName,' ',scriptParameters.join(" "));
+  end;
+
+logSpecialTaskStarted(scriptName:String)->
+  begin
+    taskHistory[taskHistory.getInner(0).max+1]:=
+    [FILESTATS       =>[],
+     SCRIPT          =>scriptName,
+     PARAMETERS      =>'',
+     HEARTBEATTIMEOUT=>0,
+     RUNNING         =>false,
+     FINISHED        =>true,
+     STARTTIME       =>systime].toMap;
   end;
 
 setKillRequest(taskIndex)->taskHistory[taskIndex].isVoid ? void : begin
@@ -47,6 +69,7 @@ begin
   .each(taskIndex,begin
      local pathToLog:=getLogName(taskIndex);
      local current:=taskHistory[taskIndex];
+     local isSpecialTask:=current[SCRIPT] in SPECIAL_TASKS;
      local running:=time<=current[HEARTBEATTIMEOUT];
      local fileStats:=fileInfo(pathToLog).getAll(['time','size']);
      (fileStats==current[FILESTATS]) AND running==current[RUNNING]
@@ -59,11 +82,11 @@ begin
            ? finishTime:=fileStats[0]
            : finishTime:=current[STARTTIME]
          : void;
-         local runIsFinished:=lastLines.trailing==FINAL_LINE;
-         current[RUNNING         ]:=running AND !runIsFinished;
-         current[FILESTATS       ]:=fileStats;
-         current[FINISHED        ]:=runIsFinished;
-         current[FINISHTIME      ]:=finishTime;
+         local runIsFinished:=isSpecialTask OR (lastLines.trailing==FINAL_LINE);
+         current[RUNNING   ]:=running AND !runIsFinished;
+         current[FILESTATS ]:=fileStats;
+         current[FINISHED  ]:=runIsFinished;
+         current[FINISHTIME]:=isSpecialTask ? current[STARTTIME] : finishTime;
          runIsFinished
          ? current[HEARTBEATTIMEOUT]:=0
          : void;
@@ -156,8 +179,7 @@ private ON_STARTUP:=begin
   //On server startup, reset all timeouts
   taskHistory.getInner(0).each(taskIndex,
   taskHistory[taskIndex,HEARTBEATTIMEOUT]:=0);
-  taskHistory.getInner(0).filter({!fileExists(getLogName($i)) AND taskHistory[$i,STARTTIME]<systime-1}).each(taskIndex,
-  tPrint('Dropping task #',taskIndex,' from history because there is no log');
-  taskHistory[taskIndex]:=void);
   void;
 end;
+
+getTaskReport;

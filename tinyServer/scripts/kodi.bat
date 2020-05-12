@@ -1,1 +1,1 @@
-"C:\Program Files (x86)\Kodi\kodi.exe"
+"C:\Program Files\Kodi\kodi.exe"

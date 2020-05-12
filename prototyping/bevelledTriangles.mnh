@@ -28,11 +28,6 @@ orientation(a,b,c)->begin
   x[1]*y[0];
 end;
 
-curry isInside(A,B,C,D,p)->(orientation(A,B,p)>=0) AND
-                           (orientation(B,C,p)>=0) AND
-                           (orientation(C,D,p)>=0) AND
-                           (orientation(D,A,p)>=0);
-
 begin
   plot([A,B,C,D,A],'polygon f');
 

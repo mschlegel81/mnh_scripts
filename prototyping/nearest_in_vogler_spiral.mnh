@@ -2,12 +2,13 @@ fibonacciTesselation->begin
   local fibonacciNumber:=[1,2];
   while(fibonacciNumber.size<45,fibonacciNumber|=fibonacciNumber.trailing(2).agg(+));
 
-  local P:=(local validIndexes:=[0..999999]);
+  local P:=(local validIndexes:=[0..1999999]);
   local fibDelta:=fibonacciNumber.intersect(validIndexes).sort;
   fibDelta:=-fibDelta.reverseList | fibDelta;
 
   P:=[cos(2*pi/sqr((sqrt(5)-1)/2)*P),sin(2*pi/sqr((sqrt(5)-1)/2)*P)].transpose*sqrt(P);
   [0..P.size-1].pEach(i,begin
+    (i mod 10000=0) ? note('Progress: ',i/P.size*100,'%') : void;
     local p:=P[i];
     local J:=i+fibDelta;
     [i,(J[0<=J<P.size]).each(j,[euklideanNorm(P[j]-p),j-i]).sort.head(4).getInner(1).sort];
@@ -45,11 +46,12 @@ end;
 // 25503.. 65871 : [-610,-377,377,610]
 // 66554..172793 : [-987,-610,610,987]
 //173897..452929 : [-1597,-987,987,1597]
-//454715..997415 : [-2584,-1597,1597,2584]
+// 454715..1186675 : [-2584,-1597,1597,2584]
+//1189566..1995818 : [-4181,-2584,2584,4181]
 
 memoized
   fib(i>1)->fib(i-1)+fib(i-2);
   fib(i)->1;
 
 
-508*2;
+main->fibonacciTesselation;

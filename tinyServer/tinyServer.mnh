@@ -1,5 +1,5 @@
 #!C:\bin\mnh.exe -GUI -quiet +out ?.log(1)
-USE tinyServer_html,tinyServer_config,loggingRunner,serveTasks,cpuUsage;
+USE tinyServer_html,tinyServer_config,loggingRunner,serveTasks,cpuUsage,generators;
 
 @SuppressUnusedWarning
 USE serveProcesses,serveFiles;
@@ -70,6 +70,22 @@ logServeStats->
       print(timeLines[2*index+1]));
   end;
 
+serveStatSection->begin
+  local list:=
+  serveStatistics
+    .map({$x[0]|$x[1]})
+    .sort(2)
+    .reverseList;
+  local totScale:=100/list.getInner(2).max;
+  local avgScale:=100/(list.getInner(2)/list.getInner(1)).max;
+
+  tag(
+  tag('Statistics','h2')&
+  list.each(entry,
+    [tag(entry[0],'b'),'tot.',round(entry[2]         *1000)&'ms',"#".repeat(round(entry[2]         *totScale))],
+    ['x'&entry[1]     ,'avg.',round(entry[2]/entry[1]*1000)&'ms',"#".repeat(round(entry[2]/entry[1]*avgScale))]).htmlTable,'div');
+end;
+
 private scriptStatusOnStartup:=inspectAll.getInner(0).sort.map({[$x,$x.fileStats]});
 private currentScriptStatus  ->scriptStatusOnStartup.map({[$x[0],$x[0].fileStats==$x[1] ? 'up to date' : 'FILE IS CHANGED']});
 
@@ -80,7 +96,7 @@ adminPage(parameters:Map)->begin
   local setupDiv:=
   tag(tag('Configuration', 'h2')&htmlTable(
    [['SERVE_AT_IP'               ,SERVE_AT_IP],
-    ['SERVE_AT_IP'               ,SERVE_AT_SOCKET],
+    ['SERVE_AT_SOCKET'           ,SERVE_AT_SOCKET],
     ['MAX_HISTORY_SIZE'          ,MAX_HISTORY_SIZE          ],
     ['LOG_FOLDER'                ,LOG_FOLDER                ],
     ['START_WHEN_WORKLOAD_BELOW' ,START_WHEN_WORKLOAD_BELOW ],
@@ -88,25 +104,22 @@ adminPage(parameters:Map)->begin
   ) ,'div');
   local pageMap:=
   tag(tag('Page map', 'h2')&htmlTable(
-   PAGE_MAP.getInner(0).sort.map({htmlLink($x,$x)})
+   PAGE_MAP.getInner(0).sort.map({htmlLink($x,$x)}).chunkIterator(4).toList
   ) ,'div');
+  local mnhInfoDiv:=
+  tag(tag('MNH info', 'h2')&htmlTable(mnhInfo.sort) ,'div');
   local scriptStatusDiv:=
   tag(tag('Script status', 'h2')&htmlTable(currentScriptStatus) ,'div');
-  local specialActionDiv:=
-  tag(tag('Special actions', 'h2')&htmlTable(
-   [[htmlLink('show server log','showLog')   ],
-    [htmlLink('RESTART SERVER','restart')    ],
-    [htmlLink('RESTART SYSTEM','restartsys') ],
-    [htmlLink('SHUTDOWN SYSTEM','shutdown')  ]]
-  ) ,'div');
   htmlPage('Server Administration',
    getHeadLinks
    &getStatusSection
+   &htmlLink('<br>show server log<br>','showLog')
    &setupDiv
+   &mnhInfoDiv
    &pageMap
-   &specialActionDiv
    &scriptStatusDiv
-   &environmentDiv,  false).wrapTextInHttp;
+   &environmentDiv
+   &serveStatSection,false).wrapTextInHttp;
 end;
 
 PAGE_MAP:=[
@@ -122,7 +135,6 @@ PAGE_MAP:=[
   '/showlog' =>
     {begin
        isMap($0);
-       logServeStats;
        redirectTo(encodeRequest('','displayFile',['filename'=>LOG_NAME].toMap));
      end},
 //File related:------------------------------
@@ -200,10 +212,12 @@ restart->begin
   ? begin
       tPrint('Performing restart');
       local ipcIsUpAgain:=false;
+      local numberOfTries:=0;
       while(!ipcIsUpAgain,begin
         execAsync(executor,[myPath]);
         sleep(1);
         ipcIsUpAgain:=isLoggingRunnerIpcServerRunning;
+        assert((numberOfTries+=1)<60); //try for about 1 minute, then fail
       end);
     end
   : shutdownTriggeredBySpecialTask==SPECIAL_TASK_RESTART_SYSTEM

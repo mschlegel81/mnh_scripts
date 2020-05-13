@@ -20,16 +20,26 @@ private fmtT(pointInTime)->'<class="right">'&
                                : 'yyyy/mm/dd hh:nn:ss',pointInTime)&"</class>";
 
 STATUS_BOX_QUEUED        :='<div style="background-color: #00C; padding: 0px">&nbsp;&nbsp;<br><br></div>';
-STATUS_BOX_RUNNING       :='<div style="background-color: #999; padding: 0px">&nbsp;&nbsp;<br><br></div>';
+STATUS_BOX_RUNNING       :='<div style="background-color: #8F0; padding: 0px">&nbsp;&nbsp;<br><br></div>';
 STATUS_BOX_KILLED        :='<div style="background-color: #800; padding: 0px">&nbsp;&nbsp;<br><br></div>';
 STATUS_BOX_CANCELLED     :='<div style="background-color: #F00; padding: 0px">&nbsp;&nbsp;<br><br></div>';
 STATUS_BOX_FINISHED      :='<div style="background-color: #090; padding: 0px">&nbsp;&nbsp;<br><br></div>';
 STATUS_BOX_KILL_REQUESTED:='<div style="background-color: #F80; padding: 0px">&nbsp;&nbsp;<br><br></div>';
 
+scriptDefInTable(script)   ->tag(script.extractFileName,'code');
+scriptDefInTable(script,'')->tag(script.extractFileName,'code');
+scriptDefInTable(script,param)->begin
+  local parameters:=(param orElse '').trim;
+  parameters.length>30 ? parameters:=parameters.copy(0,27)&'...' : void;
+  tag(script.extractFileName,'code')&(parameters==''
+                                      ? ''
+                                      : '<br>'& tag('   '&parameters,'code'));
+end;
+
 getQueuedTable(forOverviewPage:Boolean)->
   [['','Enqueued','Script','','',''].map({$x.tag('b')})] |
     queued.reverseList.each(x,['',fmtT(x[0]),
-                   x[1].tag('code')&(x[2].trim=='' ? '' : '<br>'&tag('   '&x[2],'code')),
+                   scriptDefInTable(x[1],x[2]),
                    htmlLink('remove','dequeue?index='&index&'&mainView='&ord(forOverviewPage)),
                    STATUS_BOX_QUEUED,
                    htmlLink('force start','forceStart?taskHash='&hash(x)&'&mainView='&ord(forOverviewPage))&
@@ -40,6 +50,8 @@ getQueuedSection(withLink:Boolean)->
   tag(
   tag('Queue'&(withLink ? '    '&htmlLink('(+)','enqueue') : void), 'h2')&
   htmlTable(getQueuedTable(false)),'div');
+
+
 
 getTasksSection->begin
   local report:=getTaskReport;
@@ -66,21 +78,16 @@ getTasksSection->begin
           : r[RUNNING]
             ? r[KILLREQUESTED] orElse false
               ? 'kill requested'
-              : 'running '&htmlLink('kill',encodeRequest('','kill',['index'=>r['index']].toMap))
+              : 'running '&htmlLink('kill',encodeRequest('','kill',['index'=>r['index'],'mainView'=>1].toMap))
           : r[KILLREQUESTED] orElse false
             ? 'killed'
             : r[FINISHED]
               ? 'finished'
               : 'cancelled';
         r[SCRIPT] in SPECIAL_TASKS ? void : stateMessage&='<br>'&fmtT(r[FINISHTIME] orElse systime);
-        local parameters:=(r['PARAMETERS'] orElse '').trim;
-        parameters.length>30 ? parameters:=parameters.copy(0,27)&'...' : void;
-
         [r['index'],
          fmtT(r[STARTTIME]),
-         tag(r[SCRIPT].extractFileName,'code')&(parameters==''
-                                                ? ''
-                                                : '<br>'& tag('   '&parameters,'code')),
+         scriptDefInTable(r[SCRIPT],r[PARAMETERS]),
          r[FILESTATS]==[0.0,-1] ? '- log missing -' : htmlLink(getLogName(r['index']).extractFileName,
                                                          encodeRequest('','displayFile',['filename'=>getLogName(r['index'])].toMap)),
          statusBox,
@@ -93,7 +100,7 @@ killTask(parameters:Map)->begin
   indexToKill.isInt
   ? setKillRequest(indexToKill)
   : void;
-  redirectTo(parameters['mainView']=1 ? START_PAGE : ENQUEUE_PAGE);
+  redirectTo(parameters['mainView']==1 ? START_PAGE : ENQUEUE_PAGE);
 end;
 
 dequeueTask(parameters:Map)->begin
@@ -152,6 +159,10 @@ enqueuePage(parameters:Map)->begin
                                encodeRequest('','addTask',['scriptName'=>script,'cmdLineParameters'=>par].toMap));
                     end]
                  ))&
+  tag(tag('Special actions', 'h2')&htmlTable(
+   [[htmlLink('<br>RESTART SERVER<br>','restart')    ],
+    [htmlLink('<br>RESTART SYSTEM<br>','restartsys') ],
+    [htmlLink('<br>SHUTDOWN SYSTEM<br>','shutdown')  ]]),'div')&
   jsHiddenInputFields(parameters).join
   ,'div')&
   (parameters['scriptName'].isVoid ? void : '<br>'&htmlLink('enqueue task',http.encodeRequest('','addTask',parameters)))

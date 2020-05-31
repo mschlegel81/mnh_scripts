@@ -33,9 +33,6 @@ recamanFunc(t:Real)->begin
    ((k and 1)=0 ? 1 : -1)*abs(radius)*sin(tau)];
 end;
 
-([0..40]/20).map(::recamanFunc).plot("l .");
-([0..40]/20+0.0).map(::recamanFunc).addPlot("l .");
-
 recamanAnimation(fileOutput:Boolean)->begin
   local STYLE:=map([1..60]/20,{'black '&$x});
 
@@ -94,7 +91,7 @@ recamanAnimation(fileOutput:Boolean)->begin
     tEnd:=t;
     plotRow($f);
   end};
-  [0..500].each(frame,simpleStep(frame));
+  [0..1000].each(frame,simpleStep(frame));
 end;
 
 main->recamanAnimation(true);

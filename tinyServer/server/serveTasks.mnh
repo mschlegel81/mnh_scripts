@@ -40,7 +40,7 @@ getQueuedTable(forOverviewPage:Boolean)->
   [['','Enqueued','Script','','',''].map({$x.tag('b')})] |
     queued.reverseList.each(x,['',fmtT(x[0]),
                    scriptDefInTable(x[1],x[2]),
-                   htmlLink('remove','dequeue?index='&index&'&mainView='&ord(forOverviewPage)),
+                   htmlLink('remove','dequeue?taskHash='&hash(x)&'&mainView='&ord(forOverviewPage)),
                    STATUS_BOX_QUEUED,
                    htmlLink('force start','forceStart?taskHash='&hash(x)&'&mainView='&ord(forOverviewPage))&
                    (index=queued.size-1 ? '' :
@@ -50,8 +50,6 @@ getQueuedSection(withLink:Boolean)->
   tag(
   tag('Queue'&(withLink ? '    '&htmlLink('(+)','enqueue') : void), 'h2')&
   htmlTable(getQueuedTable(false)),'div');
-
-
 
 getTasksSection->begin
   local report:=getTaskReport;
@@ -104,11 +102,12 @@ killTask(parameters:Map)->begin
 end;
 
 dequeueTask(parameters:Map)->begin
-  local indexToDrop:=parameters['index'];
-  indexToDrop.isInt
+  local taskHash:=parameters['taskHash'];
+  local taskIndex:=queued.each(q,q.hash==taskHash ?index : void,head);
+  isInt(taskIndex) AND (0<=taskIndex<queued.size)
   ? begin
-      tPrint('Dropping todo ',queued[indexToDrop,1],' ',queued[indexToDrop,2]);
-      queued[indexToDrop]:=void;
+      tPrint('Dropping todo ',queued[taskIndex,1],' ',queued[taskIndex,2]);
+      queued[taskIndex]:=void;
     end
   : void;
   redirectTo(parameters['mainView']=1 ? START_PAGE : ENQUEUE_PAGE);

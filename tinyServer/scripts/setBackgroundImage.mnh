@@ -1,0 +1,14 @@
+main(filename)->begin
+  assert(fileExists(filename),'File does not exist');
+  assert(filename.extractFileExt.lower=='.jpg','File has the wrong extension');
+  local targetName:=getEnv['APPDATA']&'/Microsoft/Windows/Themes/TranscodedWallpaper.jpg';
+  fileExists(targetName)
+  ? note(targetName,' exists')
+  : warn(targetName,' does not exist');
+
+  print(filename,' => ',targetName,'  ',copyFile(filename,targetName) ? 'o.k.' : fail('copy failed'));
+  teeExec('RUNDLL32.EXE',['user32.dll,UpdatePerUserSystemParameters','1,','True'],::print);
+  sleep(1);
+  teeExec('RUNDLL32.EXE',['user32.dll,UpdatePerUserSystemParameters','1,','True'],::print);
+end;
+

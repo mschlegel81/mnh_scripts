@@ -18,7 +18,6 @@ SPECIAL_TASKS:=[SPECIAL_TASK_RESTART_SERVER,
                 SPECIAL_TASK_RESTART_SYSTEM,
                 SPECIAL_TASK_SHUTDOWN];
 
-
 FILESTATS       :='fileStats'       ;
 SCRIPT          :='script'          ;
 PARAMETERS      :='parameters'      ;
@@ -28,7 +27,6 @@ KILLREQUESTED   :='killRequested'   ;
 FINISHED        :='finished'        ;
 STARTTIME       :='startTime'       ;
 FINISHTIME      :='finishTime'      ;
-
 
 datastore taskHistory:=[].toMap;
 
@@ -181,5 +179,3 @@ private ON_STARTUP:=begin
   taskHistory[taskIndex,HEARTBEATTIMEOUT]:=0);
   void;
 end;
-
-getTaskReport;

@@ -1,5 +1,5 @@
-SERVE_AT_IP:='127.0.0.1';
-SERVE_AT_SOCKET           :=23000;
+SERVE_AT_IP               :='localhost';
+SERVE_AT_SOCKET           :=80;
 MAX_HISTORY_SIZE          :=50;
 LOG_FOLDER                :='logs';
 private SCRIPT_FOLDER     :='scripts';

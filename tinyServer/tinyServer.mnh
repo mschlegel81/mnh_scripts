@@ -114,6 +114,7 @@ adminPage(parameters:Map)->begin
    getHeadLinks
    &getStatusSection
    &htmlLink('<br>show server log<br>','showLog')
+   &htmlLink('<br>call memory cleaner<br>','gc')
    &setupDiv
    &mnhInfoDiv
    &pageMap
@@ -132,6 +133,12 @@ PAGE_MAP:=[
   '/restartsys'  => ::restartSysPage,
   '/ping'        => ::ping,
   '/favicon.ico' => ::favicon,
+  '/gc' =>
+    {begin
+       isMap($0);
+       callMemoryCleaner;
+       redirectTo(ADMIN_PAGE);
+     end},
   '/showlog' =>
     {begin
        isMap($0);

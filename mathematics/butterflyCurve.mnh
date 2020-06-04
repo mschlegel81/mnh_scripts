@@ -1,0 +1,6 @@
+r(a)->exp(sin(a))-2*cos(4*a)+sin((2*a-pi)/24)^5;
+
+f(a)->[cos(a),sin(a)]*r(a);
+
+plot   (::f,0,24*pi,10000,'0.5 blue');
+//plot(::r,0,24*pi,10000,'0.5 blue');

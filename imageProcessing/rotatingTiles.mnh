@@ -1,5 +1,5 @@
 #!C:\bin\mnh.exe -GUI
-GEOM_DETAIL:=10;
+GEOM_DETAIL:=20;
 basicTile:=map([0..GEOM_DETAIL]/GEOM_DETAIL*pi/2,{-0.5+0.6*[cos($x),sin($x)]})|
            map([GEOM_DETAIL..0]/GEOM_DETAIL*pi/2,{-0.5+0.4*[cos($x),sin($x)]})|[[Nan,Nan]]|
            map([0..GEOM_DETAIL]/GEOM_DETAIL*pi/2,{ 0.5-0.6*[cos($x),sin($x)]})|
@@ -17,7 +17,7 @@ plottableTile(i,j,rotation)->begin
   [bt[0]+i,bt[1]+j].transpose;
 end;
 
-COORDINATES:=[0..20].cross([0..10]);
+COORDINATES:=[0..30].cross([0..15]);
 
 normalizedSys(L:NumericList)->L.map(::round) and 1;
 
@@ -36,7 +36,6 @@ randomSys->
   random<0.5
   ? intRandom(2,COORDINATES.size)
   : DEFAULT_SYS[DEFAULT_SYS.size.intRandom];
-  getOptions;
 
 main->begin
   clearAnimation(true);

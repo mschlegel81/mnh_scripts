@@ -49,3 +49,4 @@ logCpuUsage->
     : void;
   end;
 
+cpuUsageTrim->cpuUsageHistory:=cpuUsageHistory.trailing(50);

@@ -3,17 +3,6 @@ USE loggingRunner,tinyServer_html,tinyServer_config,javascriptUtils;
 datastore queued  :=[];
 datastore previous:=[];
 
-getNextTask->queued.size<=0 ? [] : begin
-  local task:=queued.head;
-  local scriptName  :=task[1];
-  local scriptParams:=task[2];
-  queued:=queued.tail;
-  writeDataStores;
-  scriptName in SPECIAL_TASKS
-  ? scriptName
-  : [scriptName.fullScriptName.systemSpecificFilename,scriptParams];
-end;
-
 private fmtT(pointInTime)->'<class="right">'&
                                formatTime(floor(pointInTime)==floor(systime)
                                ? 'hh:nn:ss'
@@ -26,8 +15,8 @@ STATUS_BOX_CANCELLED     :='<div style="background-color: #F00; padding: 0px">&n
 STATUS_BOX_FINISHED      :='<div style="background-color: #090; padding: 0px">&nbsp;&nbsp;<br><br></div>';
 STATUS_BOX_KILL_REQUESTED:='<div style="background-color: #F80; padding: 0px">&nbsp;&nbsp;<br><br></div>';
 
-scriptDefInTable(script)   ->tag(script.extractFileName,'code');
-scriptDefInTable(script,'')->tag(script.extractFileName,'code');
+scriptDefInTable(script)   ->tag(script in SPECIAL_TASKS.getInner(0) ? script : script.extractFileName,'code');
+scriptDefInTable(script,'')->tag(script in SPECIAL_TASKS.getInner(0) ? script : script.extractFileName,'code');
 scriptDefInTable(script,param)->begin
   local parameters:=(param orElse '').trim;
   parameters.length>30 ? parameters:=parameters.copy(0,27)&'...' : void;
@@ -59,7 +48,7 @@ getTasksSection->begin
     report.each(r,
       begin
         local statusBox:=
-          r[SCRIPT] in SPECIAL_TASKS
+          r[SCRIPT] in SPECIAL_TASKS.getInner(0)
           ? STATUS_BOX_FINISHED
           : r[RUNNING]
             ? r[KILLREQUESTED] orElse false
@@ -71,7 +60,7 @@ getTasksSection->begin
               ? STATUS_BOX_FINISHED
               : STATUS_BOX_CANCELLED;
         local stateMessage:=
-          r[SCRIPT] in SPECIAL_TASKS
+          r[SCRIPT] in SPECIAL_TASKS.getInner(0)
           ? ''
           : r[RUNNING]
             ? r[KILLREQUESTED] orElse false
@@ -82,7 +71,7 @@ getTasksSection->begin
             : r[FINISHED]
               ? 'finished'
               : 'cancelled';
-        r[SCRIPT] in SPECIAL_TASKS ? void : stateMessage&='<br>'&fmtT(r[FINISHTIME] orElse systime);
+        r[SCRIPT] in SPECIAL_TASKS.getInner(0) ? void : stateMessage&='<br>'&fmtT(r[FINISHTIME] orElse systime);
         [r['index'],
          fmtT(r[STARTTIME]),
          scriptDefInTable(r[SCRIPT],r[PARAMETERS]),
@@ -159,9 +148,15 @@ enqueuePage(parameters:Map)->begin
                     end]
                  ))&
   tag(tag('Special actions', 'h2')&htmlTable(
-   [[htmlLink('<br>RESTART SERVER<br>','restart')    ],
+   [[htmlLink('<br>DELAY EXECUTION FOR 1h<br>','delay1h')],
+    [htmlLink('<br>DELAY EXECUTION UNTIL 22:00<br>','delay22')],
+    [htmlLink('<br>DELAY EXECUTION UNTIL 23:00<br>','delay23')],
+    [htmlLink('<br>DELAY EXECUTION UNTIL 00:00<br>','delay24')],
+    [htmlLink('<br>RESET DELAY<br>','delay0h')],
+    [htmlLink('<br>RESTART SERVER<br>','restart')    ],
     [htmlLink('<br>RESTART SYSTEM<br>','restartsys') ],
     [htmlLink('<br>SHUTDOWN SYSTEM<br>','shutdown')  ]]),'div')&
+
   jsHiddenInputFields(parameters).join
   ,'div')&
   (parameters['scriptName'].isVoid ? void : '<br>'&htmlLink('enqueue task',http.encodeRequest('','addTask',parameters)))
@@ -172,10 +167,29 @@ end;
 mutable shutdownTriggeredBySpecialTask:='';
 mutable restartScheduled:=false;
 
-specialTaskAction(task:String)->begin
-  logSpecialTaskStarted(task);
+SPECIAL_TASK_RESTART_SERVER:='RESTART';
+SPECIAL_TASK_RESTART_SYSTEM:='RESTART_SYSTEM';
+SPECIAL_TASK_SHUTDOWN      :='SHUTDOWN_SYSTEM';
+
+getShutdownTask(task)->{begin
   shutdownTriggeredBySpecialTask:=task;
   restartScheduled:=true;
+end};
+
+startNextTask->queued.size<=0 ? false : begin
+  local task:=queued.head;
+  local scriptName  :=task[1];
+  local scriptParams:=task[2];
+  queued:=queued.tail;
+  writeDataStores;
+  scriptName in SPECIAL_TASKS.getInner(0)
+  ? begin
+      tPrint('Executing special task ',scriptName);
+      logSpecialTaskStarted(scriptName);
+      SPECIAL_TASKS[scriptName]();
+      true;
+    end
+  : loggingRunner.startExecution(scriptName.fullScriptName.systemSpecificFilename,scriptParams);
 end;
 
 forceStart(parameters:Map)->begin
@@ -187,9 +201,7 @@ forceStart(parameters:Map)->begin
       taskIndex=0
       ? void
       : queued:=queued[taskIndex|filter([0..queued.size-1],{$x<>taskIndex})];
-      queued.size>0 AND queued[0,1] in SPECIAL_TASKS
-      ? specialTaskAction(getNextTask);
-      : startExecution@getNextTask;
+      startNextTask;
     end
   : void;
   redirectTo(parameters['mainView']=1 ? START_PAGE : ENQUEUE_PAGE);
@@ -221,4 +233,3 @@ enqueueTask(script,parameters)->begin
   queued|=[[systime,script,parameters.toString]];
   addToPrevious(script,parameters.toString);
 end;
-

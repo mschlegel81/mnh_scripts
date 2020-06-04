@@ -1,0 +1,22 @@
+
+
+//*Generates random values by obtaining true random value and then applying an ISAAC PRNG
+//*Outputs 1000 256bit numbers
+main->
+  //Generate "true random" input
+  ['name'=>'rand.mnh',
+   'source'=>['printSome(x)->sleepUntil(0.01) orElse [0..9].map({print(x) orElse sleep(1E-6)});',
+              'main->begin',
+              "  [0..9,'A'..'Z'].each(i,async(::printSome,[i]));",
+              '  sleepUntil(0.05);',
+              'end;'],
+  'side effects'=>['alter package state','output','detaching','sleep']]
+  .toMap
+  .runScript
+  .serialize //serialize the output to obtain a string
+  .sha256    //compute the hash to obtain an int
+  .isaacRandomGenerator(2^256) //use the output as a seed for an ISAAC PRNG
+  .head(1000)
+  .map(::print);
+
+

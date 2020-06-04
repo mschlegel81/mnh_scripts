@@ -10,13 +10,8 @@ private DATE_TIME_FORMAT_PATTERN:=DATE_TIME_FORMAT.replace(['a'..'z'],'\d').repl
 private KILL_SIGNAL:=['KILL',197512];
 private FINAL_LINE:='### - DONE - ###';
 
-SPECIAL_TASK_RESTART_SERVER:='RESTART';
-SPECIAL_TASK_RESTART_SYSTEM:='RESTART_SYSTEM';
-SPECIAL_TASK_SHUTDOWN:='SHUTDOWN_SYSTEM';
 
-SPECIAL_TASKS:=[SPECIAL_TASK_RESTART_SERVER,
-                SPECIAL_TASK_RESTART_SYSTEM,
-                SPECIAL_TASK_SHUTDOWN];
+mutable SPECIAL_TASKS:=[].toMap;
 
 FILESTATS       :='fileStats'       ;
 SCRIPT          :='script'          ;
@@ -67,7 +62,7 @@ begin
   .each(taskIndex,begin
      local pathToLog:=getLogName(taskIndex);
      local current:=taskHistory[taskIndex];
-     local isSpecialTask:=current[SCRIPT] in SPECIAL_TASKS;
+     local isSpecialTask:=current[SCRIPT] in SPECIAL_TASKS.getInner(0);
      local running:=time<=current[HEARTBEATTIMEOUT];
      local fileStats:=fileInfo(pathToLog).getAll(['time','size']);
      (fileStats==current[FILESTATS]) AND running==current[RUNNING]

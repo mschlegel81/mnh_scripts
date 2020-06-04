@@ -7,33 +7,32 @@ USE serveProcesses,serveFiles;
 private LOG_NAME:=changeFileExt(myPath,'.log');
 private uptimeFormat:='{floor($0/3600)}:%{floor($0/60) mod 60}2.2d:%{floor($0) mod 60}2.2d';
 
-//--------------------------------------------------------------------------:CPU Usage
+datastore doNotStartTasksBefore:=systime;
+
 private getStatusSection->tag(
   ('Status').tag('h2')&htmlOuterTable(
   [['Date:'  .tag('b'),formatTime('dd.mm.yyyy',      systime) ,
     'Time:'  .tag('b'),formatTime('hh:nn:ss',        systime) ,
-    'Uptime:'.tag('b'),format(uptimeFormat,time)]])&getCpuDiagram,'div');
+    'Uptime:'.tag('b'),format(uptimeFormat,time)],
+    systime>doNotStartTasksBefore ? void :['','','<b style="color:red">Delayed until:</b>',
+                                           '<b style="color:red">'&formatTime('hh:nn:ss',doNotStartTasksBefore)&'</b>']])
+    &getCpuDiagram,'div');
 
 @SuppressUnusedParameterWarning
 startPage(parameters:Map)->htmlPage('Server Overview',getHeadLinks&getStatusSection&getTasksSection,true).wrapTextInHttp;
 
-@SuppressUnusedParameterWarning
-restartPage(parameters:Map)->begin
-  enqueueTask(SPECIAL_TASK_RESTART_SERVER,'');
-  redirectTo(START_PAGE);
-end;
+SPECIAL_TASK_DELAY_RESET             :='DELAY RESET';
+SPECIAL_TASK_DELAY_EXECUTION_ONE_HOUR:='DELAY 1h';
+SPECIAL_TASK_DELAY_EXECUTION_UNTIL_22:='DELAY until 22:00';
+SPECIAL_TASK_DELAY_EXECUTION_UNTIL_23:='DELAY until 23:00';
+SPECIAL_TASK_DELAY_EXECUTION_UNTIL_24:='DELAY until 00:00';
 
-@SuppressUnusedParameterWarning
-restartSysPage(parameters:Map)->begin
-  enqueueTask(SPECIAL_TASK_RESTART_SYSTEM,'');
-  redirectTo(START_PAGE);
-end;
-
-@SuppressUnusedParameterWarning
-shutdownSysPage(parameters:Map)->begin
-  enqueueTask(SPECIAL_TASK_SHUTDOWN,'');
-  redirectTo(START_PAGE);
-end;
+genericSpecialTaskPage(task:String)->{begin
+  assert($p.isMap);
+  assert(task in SPECIAL_TASKS.getInner(0),task,' is not a special task');
+  enqueueTask(task,'');
+  redirectTo(ENQUEUE_PAGE);
+end};
 
 @SuppressUnusedParameterWarning
 ping(parameters:Map)->wrapTextInHttp('pong');
@@ -128,15 +127,21 @@ PAGE_MAP:=[
   '/'            => ::startPage,
   ''             => ::startPage,
   ADMIN_PAGE     => ::adminPage,
-  '/restart'     => ::restartPage,
-  '/shutdown'    => ::shutdownSysPage,
-  '/restartsys'  => ::restartSysPage,
+  '/restart'     => genericSpecialTaskPage(SPECIAL_TASK_RESTART_SERVER),
+  '/shutdown'    => genericSpecialTaskPage(SPECIAL_TASK_SHUTDOWN),
+  '/restartsys'  => genericSpecialTaskPage(SPECIAL_TASK_RESTART_SYSTEM),
+  '/delay0h'     => genericSpecialTaskPage(SPECIAL_TASK_DELAY_RESET),
+  '/delay1h'     => genericSpecialTaskPage(SPECIAL_TASK_DELAY_EXECUTION_ONE_HOUR),
+  '/delay22'     => genericSpecialTaskPage(SPECIAL_TASK_DELAY_EXECUTION_UNTIL_22),
+  '/delay23'     => genericSpecialTaskPage(SPECIAL_TASK_DELAY_EXECUTION_UNTIL_23),
+  '/delay24'     => genericSpecialTaskPage(SPECIAL_TASK_DELAY_EXECUTION_UNTIL_24),
   '/ping'        => ::ping,
   '/favicon.ico' => ::favicon,
   '/gc' =>
     {begin
        isMap($0);
        callMemoryCleaner;
+       cpuUsage.cpuUsageTrim;
        redirectTo(ADMIN_PAGE);
      end},
   '/showlog' =>
@@ -188,23 +193,33 @@ serve(M)->begin
   response orElse fail;
 end;
 
+ONE_HOUR:=1/24;
+
 main->begin
   assertUniqueInstance;
   local sinceLastTaskStart:=0;
   startHttpServer(SERVE_AT_IP&':'&SERVE_AT_SOCKET,::serve,-1);
   loggingRunner.ensureServer;
+
+  SPECIAL_TASKS:=[
+     SPECIAL_TASK_RESTART_SERVER           => getShutdownTask(SPECIAL_TASK_RESTART_SERVER),
+     SPECIAL_TASK_RESTART_SYSTEM           => getShutdownTask(SPECIAL_TASK_RESTART_SYSTEM),
+     SPECIAL_TASK_SHUTDOWN                 => getShutdownTask(SPECIAL_TASK_SHUTDOWN      ),
+     SPECIAL_TASK_DELAY_RESET              => {begin doNotStartTasksBefore:=systime; end},
+     SPECIAL_TASK_DELAY_EXECUTION_ONE_HOUR => {begin doNotStartTasksBefore:=systime+ONE_HOUR; end},
+     SPECIAL_TASK_DELAY_EXECUTION_UNTIL_22 => {begin doNotStartTasksBefore:=ceil(systime)-2*ONE_HOUR; end},
+     SPECIAL_TASK_DELAY_EXECUTION_UNTIL_23 => {begin doNotStartTasksBefore:=ceil(systime)-ONE_HOUR;   end},
+     SPECIAL_TASK_DELAY_EXECUTION_UNTIL_24 => {begin doNotStartTasksBefore:=ceil(systime);            end}].toMap;
+
   tPrint('server is up at ',SERVE_AT_IP&':'&SERVE_AT_SOCKET);
 
   while(!restartScheduled,begin
     logCpuUsage();
-    (sinceLastTaskStart+=1)>=SAMPLES_FOR_WORKLOAD_CHECK AND isCpuAlmostIdle
+    (sinceLastTaskStart+=1)>=SAMPLES_FOR_WORKLOAD_CHECK AND isCpuAlmostIdle AND systime>=doNotStartTasksBefore
       ? begin
-          local task:=getNextTask;
-          task in SPECIAL_TASKS
-          ? specialTaskAction(task)
-          : startExecution@task
-            ? sinceLastTaskStart:=0
-            : void;
+          startNextTask
+          ? sinceLastTaskStart:=0
+          : void;
           sleep(2);
         end
       : sleep(2);

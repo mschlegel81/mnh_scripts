@@ -5,7 +5,7 @@ robocopy N:\dev D:\dev *.7z /MIR /NP /LEV:1 /FFT /COPY:DT
 robocopy N:\dev\art.bin D:\dev\art.bin /MIR /COPY:DT
 robocopy N:\dev\mnh5 D:\dev\mnh5 /S /NP /FFT /COPY:DT /XO
 rem robocopy N:\dev\retrospective D:\dev\retrospective /S /NP /FFT /COPY:DT /XO
-robocopy N:\dev\retrospective D:\dev\retrospective /MIR /COPY:DT
+rem robocopy N:\dev\retrospective D:\dev\retrospective /MIR /COPY:DT
 
 robocopy D:\dev D:\backup\dev *.7z /NP /LEV:1 /COPY:DT
 robocopy D:\dev\art.bin D:\backup\dev\art.bin /MIR /COPY:DT
@@ -15,8 +15,8 @@ rem robocopy D:\dokumente\Martin N:\Martin /FFT /S
 rem robocopy D:\dokumente\Oskar N:\Oskar /FFT /S
 
 rem robocopy N:\Sylwia D:\dokumente\Sylwia /FFT /S
-robocopy N:\Martin D:\dokumente\Martin /FFT /S
-robocopy N:\Oskar D:\dokumente\Oskar /FFT /S
+rem robocopy N:\Martin D:\dokumente\Martin /FFT /S
+rem robocopy N:\Oskar D:\dokumente\Oskar /FFT /S
 
 D:
 cd dev 

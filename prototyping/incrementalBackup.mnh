@@ -1,0 +1,54 @@
+type SizeAndHash       (L:List       )->L.size>=2 AND L[0].isInt AND L[0]>=-1
+                                                  AND L[1].isInt AND L[1]>=-1;
+DeletionMarker:=[-1,-1].toSizeAndHash;
+type SizeHashAndContent(L:SizeAndHash)->L.size=3 AND L[2].isString;
+type SizesAndHashes(M:Map)->M.getInner(0).isStringSet AND M.getInner(1).each(e,e.isSizeAndHash,AND);
+type SizesHashesAndContents(M:SizesAndHashes)->M.getInner(0).isStringSet AND M.getInner(1).each(e,e.isSizeHashAndContent,AND);
+
+COMPARATOR_EQ(x:SizeAndHash,y:SizeAndHash)->x[0]==y[0] AND x[1]==y[1];
+
+matchtAll(x)->x==x;
+
+fileState(rootPath:String,basePattern:String,recurse:Boolean)->fileState(rootPath,basePattern,recurse,::matchtAll);
+
+fileState(rootPath:String,basePattern:String,recurse:Boolean,matcher:Expression(1))->begin
+  allFiles(rootPath,basePattern,recurse)
+    .filter(matcher)
+    .pMap({relativeFileName(rootPath,$file) => toSizeAndHash($file.fileStats.trailing(2))})
+    .toMap
+    .toSizesAndHashes;
+end;
+
+stateDelta(previous:SizesAndHashes,current:SizesAndHashes)->begin
+  local newInCurrent    :=current .getInner(0).minus(previous.getInner(0));
+  local missingInCurrent:=previous.getInner(0).minus(current.getInner(0));
+  local modified        :=previous.getInner(0).intersect(current.getInner(0))
+                                              .filter({!(previous[$key]==current[$key])});
+  (modified.union(newInCurrent).map({$key => current[$key]})|
+   missingInCurrent            .map({$key => DeletionMarker})).toMap.toSizesAndHashes;
+end;
+
+sortableSystime->formatTime('yyyymmddhhnnss',systime);
+
+doBackup(rootPath:String,basePattern:String,recurse:Boolean,matcher:Expression(1))->begin
+  local backupPattern:=format('%s_%8.8x_%%s.dat',
+                              relativeFileName(myPath.extractFileDirectory,rootPath).replace('../',''),
+                              $params.hash);
+  local previousBackups:=backupPattern.format('*').files;
+  local nextBackup     :=backupPattern.format(sortableSystime);
+
+
+//  format('%8.8x',$params.hash);
+//  local backupName:=&'_'&sortableSystime&'.dat';
+
+end;
+
+datastore state;//:=fileState('C:\dev','*.mnh',true);
+
+main->begin
+  stateDelta(state,fileState('C:\dev','*.mnh',true))
+  .map(::print);
+end;
+
+doBackup('C:\dev\mnh5','*.pas',true,::matchtAll);
+

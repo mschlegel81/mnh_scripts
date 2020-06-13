@@ -24,7 +24,7 @@ save;
   drawTextAbsolute(0,1,' Collisions: '&collisionCount,11,'TL');
   drawText(p0+BLOCK_SIZE_0/2             ,BLOCK_SIZE_0/2,'1kg'     ,9,'C');
   drawText(p1+BLOCK_SIZE_0+BLOCK_SIZE_1/2,BLOCK_SIZE_1/2,block1text,9,'C');
-  outputFilename=='' ? void : renderToFile(outputFilename,960,270,0);
+  outputFilename=='' ? void : renderToFile(outputFilename,960,270);
 end;
 
 newCollisionSimulation(POWER:Int)->{begin

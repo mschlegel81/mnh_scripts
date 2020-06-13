@@ -1,4 +1,4 @@
-#!C:\bin\mnh.exe -GUI -quiet +out ?.log(1)
+#!C:\bin\mnh.exe -GUI -quiet -headless +out ?.log(1)
 USE tinyServer_html,tinyServer_config,loggingRunner,serveTasks,cpuUsage,generators;
 
 @SuppressUnusedWarning
@@ -220,9 +220,9 @@ main->begin
           startNextTask
           ? sinceLastTaskStart:=0
           : void;
-          sleep(2);
         end
-      : sleep(2);
+      : void;
+    sleep(MAIN_EVENT_CLOCK_IN_SECONDS);
   end);
   logServeStats;
   writeAllDataStores;

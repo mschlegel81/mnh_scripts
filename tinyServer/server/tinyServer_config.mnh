@@ -5,6 +5,7 @@ LOG_FOLDER                :='logs';
 private SCRIPT_FOLDER     :='scripts';
 START_WHEN_WORKLOAD_BELOW :=20;
 SAMPLES_FOR_WORKLOAD_CHECK:=10;
+MAIN_EVENT_CLOCK_IN_SECONDS:=2;
 
 START_PAGE:='/index';
 ENQUEUE_PAGE:='/enqueue';

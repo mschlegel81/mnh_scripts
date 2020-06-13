@@ -8,7 +8,11 @@ getCpuDiagram->begin
 save;
   cpuUsageHistory==shownFor
   ? lastResult
-  : begin
+  : try({begin
+
+      cpuUsageHistory.size>1000
+      ? cpuUsageTrim
+      : void;
       local x0:=cpuUsageHistory.getInner(0).min orElse 0;
       local x1:=cpuUsageHistory.getInner(0).max orElse 1;
 
@@ -20,7 +24,7 @@ save;
                   "y1"=>100].toMap);
       plot([[x0,0],  [x1,100]],'GREY0.13 fs box');
       cpuUsageHistory.size>0
-      ? addPlot(cpuUsageHistory.getInner(0),cpuUsageHistory.getInner(1),'GREY0.5 f')
+      ? addPlot(cpuUsageHistory.getInner(0),cpuUsageHistory.getInner(1),'GREY0.5 f b')
       : warn('Not plotting history');
       addPlot([[x0,START_WHEN_WORKLOAD_BELOW],[x1,START_WHEN_WORKLOAD_BELOW]],'GREY0.5');
       begin
@@ -35,7 +39,10 @@ save;
       end;
       drawTextAbsolute(0,0.5,'CPU',80,'L','Century Gothic',[0.2,0.2,0.2]);
       lastResult:= format('<img src="data:image/png;base64,%s" />',renderToString(500,100).base64encode);
-    end;
+      //Clear plot to free memory:
+      plot;
+      lastResult;
+    end},lastResult);
 end;
 
 isCpuAlmostIdle->(cpuUsageHistory.size>0) AND (cpuUsageHistory.trailing(SAMPLES_FOR_WORKLOAD_CHECK).getInner(1)<START_WHEN_WORKLOAD_BELOW).agg(AND);
@@ -44,9 +51,34 @@ logCpuUsage->
   begin
     cpuUsageHistory||=[systime,exec('wmic',['path','Win32_PerfFormattedData_PerfOS_Processor','get','Name,','PercentProcessorTime'])[0]
                               .tail.filter({$x!=''}).map({$line.trim.replace('  ',' ').split(' ').softCast}).toMap['_Total'] orElse -1];
-    cpuUsageHistory.size>1000
+    cpuUsageHistory.size>2000
     ? cpuUsageHistory:=cpuUsageHistory.tail
     : void;
   end;
 
-cpuUsageTrim->cpuUsageHistory:=cpuUsageHistory.trailing(50);
+cpuUsageTrim->begin
+  cpuUsageHistory:=
+  (systime-1/(24*60*60)*
+   1.05^transpose([[191..0],
+                   [190..0,-Inf]])).each(interval,begin
+    print(formatTime(interval[0]));
+    local t0:=interval[0];
+    local t1:=interval[1];
+    local inRange:=cpuUsageHistory.filter({t0<$h[0]<=t1});
+    inRange.size>0
+    ? inRange.agg(+)/inRange.size
+    : void;
+  end);
+
+
+end;
+
+//mock for testing
+//begin
+//  cpuUsageHistory:=map(systime+[-100..0]*2/(24*60*60),{[$x,intRandom(100)]});
+//  getCpuDiagram;
+//  addAnimationFrame;
+//  cpuUsageTrim;
+//  getCpuDiagram;
+//  addAnimationFrame;
+//end;

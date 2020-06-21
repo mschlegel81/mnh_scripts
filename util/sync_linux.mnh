@@ -33,13 +33,14 @@ LOCAL_ROOT_PREFIX :='~/dev';
 NAS_ROOT_PREFIX:='N:/dev';
 TGT:='/mnh5/target';
 TEST:='/mnh5/regTest';
+MNH_ROOT:='/mnh5';
 ROOT_SUFFIXES:=[
   '/art.source'        =>false,
   '/art.source/common' =>true,
   '/art.source/display'=>true,
   '/art.source/igSrc'  =>true,
   '/art.source/im'     =>true,
-  '/mnh5'              =>false,
+  (MNH_ROOT)           =>false,
   '/mnh5/3rd_party'    =>true,
   '/mnh5/common'       =>true,
   '/mnh5/consoles'     =>true,
@@ -65,8 +66,7 @@ end;
 
 main('r')->begin
   print('Starting sync ',LOCAL_ROOT_PREFIX,' -> ',SHARED_ROOT_PREFIX);
-  sync(LOCAL_ROOT_PREFIX&TGT,SHARED_ROOT_PREFIX&TGT,::takeAll,true);
-  sync(LOCAL_ROOT_PREFIX&TEST,SHARED_ROOT_PREFIX&TEST,::takeAll,true);
+  ROOT_SUFFIXES.each(s,sync(LOCAL_ROOT_PREFIX&s[0],SHARED_ROOT_PREFIX&s[0],::takeAll,s[1]));
   print('Done');
 end;
 

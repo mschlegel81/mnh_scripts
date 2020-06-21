@@ -217,7 +217,7 @@ main->begin
     logCpuUsage();
     (sinceLastTaskStart+=1)>=SAMPLES_FOR_WORKLOAD_CHECK AND isCpuAlmostIdle AND systime>=doNotStartTasksBefore
       ? begin
-          startNextTask
+          try(::startNextTask,false)
           ? sinceLastTaskStart:=0
           : void;
         end

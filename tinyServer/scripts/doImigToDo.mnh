@@ -1,6 +1,12 @@
 #!C:\bin\mnh.exe -silent -headless
 KILL_SWITCH_NAME:=changeFileExt(myPath,'.killswitch');
 
+WORK_IN:='D:\wip';
+//WORK_IN:=myPath.extractFileDirectory;
+
+@SuppressUnusedWarning
+ON_STARTUP:=changeDirectory(WORK_IN);
+
 private killSwitchExists->begin
   local switchFoundBefore:=false;
 save;
@@ -12,7 +18,7 @@ save;
   : switchFoundBefore;
 end;
 
-private mutable allTodos:=myPath.extractFileDirectory.allFiles('*.todo').systemSpecificFilename.sort;
+private mutable allTodos:=WORK_IN.allFiles('*.todo').systemSpecificFilename.sort;
 private synchronized nextTodo->begin
   local result:=allTodos.head;
   allTodos:=allTodos.tail;

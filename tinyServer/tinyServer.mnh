@@ -1,4 +1,4 @@
-#!C:\bin\mnh.exe -GUI -quiet -headless +out ?.log(1)
+#!C:\bin\mnh\mnh.exe -GUI -quiet -headless +out ?.log(1)
 USE tinyServer_html,tinyServer_config,loggingRunner,serveTasks,cpuUsage,generators;
 
 @SuppressUnusedWarning
@@ -217,7 +217,7 @@ main->begin
     logCpuUsage();
     (sinceLastTaskStart+=1)>=SAMPLES_FOR_WORKLOAD_CHECK AND isCpuAlmostIdle AND systime>=doNotStartTasksBefore
       ? begin
-          try(::startNextTask,false)
+          startNextTask
           ? sinceLastTaskStart:=0
           : void;
         end
@@ -237,7 +237,7 @@ restart->begin
       local numberOfTries:=0;
       while(!ipcIsUpAgain,begin
         execAsync(executor,[myPath]);
-        sleep(1);
+        sleep(5);
         ipcIsUpAgain:=isLoggingRunnerIpcServerRunning;
         assert((numberOfTries+=1)<60); //try for about 1 minute, then fail
       end);

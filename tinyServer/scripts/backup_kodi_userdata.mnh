@@ -18,11 +18,7 @@ ducktype BackupConfig(M:Map(4))->M['backupNameBase'].isString  AND
                                  M['recurse']       .isBoolean AND
                                  M['matcher']       .isExpression(1);
 
-FILE_AGE_TOLERANCE:=0.000025; //= 2.16 seconds
-equalFileAge  (x,y)->abs(x-y)<=FILE_AGE_TOLERANCE;
-
 matchAll(x)->x==x;
-dropPascalCompilates(x)->!(x.matches('\.(exe|log|o|ppu|a)$|\.git'));
 
 fileState(rootPath:String,basePattern:String,recurse:Boolean,matcher:Expression(1),includeContents:Boolean)->
   allFiles(rootPath,basePattern,recurse)
@@ -135,6 +131,7 @@ doRestore(targetFolder:String,config:BackupConfig)->begin
       .pEach(backupFile,
              backupFile.readState(true),
              aggregator({$1.mergeMaps($0,::orElse)}))
+      .filter({config['matcher']($x[0])})
       .toFullFileInfoMap);
   local targetPath:=expandedFileName(targetFolder&'/');
   deltaToApply

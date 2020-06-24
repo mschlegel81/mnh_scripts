@@ -2,45 +2,54 @@ USE tinyServer_config;
 //CPU Usage:--------------------------------------------------------------------------
 private mutable cpuUsageHistory:=[];
 
+private plotCpuDiagram->begin
+  setOptions(["preserveAspect"=>false,"autoscaleX"=>false,"autoscaleY"=>false,
+     "axisStyleX"=>0,"axisStyleY"=>0,
+     "x0"=>0,"x1"=>1,
+     "y0"=>0,
+     "y1"=>100].toMap);
+  plot([[0,0],  [1,100]],'GREY0.13 fs box');
+  cpuUsageHistory.size>1
+  ? begin
+      local t1:=cpuUsageHistory.trailing.head;
+      local t0:=cpuUsageHistory.head.head;
+      local t:=cpuUsageHistory.getInner(0);
+      local F:={1-sqrt(1-sqr(max(0,$t-t0)/(t1-t0)))};
+      addPlot(t.pMap(F),cpuUsageHistory.getInner(1),'GREY0.5 f b');
+      addPlot([[0,START_WHEN_WORKLOAD_BELOW],[1,START_WHEN_WORKLOAD_BELOW]],'GREY0.5');
+      //1-minute ticks
+      local i0:=ceil (t1*(24*6 )-2)*10;
+      local i1:=floor(t1*(24*60));
+      i1>=i0 ? ([i0..i1]/(24*60)).map(F).each(x,[x,0],[x,100],[Nan,Nan]).addPlot('GREY0.5 0.5')
+             : void;
+      //10-minute ticks
+      i0      :=ceil (t0*(24*6));
+      i1      :=floor(t1*(24*6));
+      i1>=i0 ? ([i0..i1]/(24*6)).map(F).each(x,[x,0],[x,100],[Nan,Nan]).addPlot('GREY0.5 1.5')
+             : void;
+    end
+  : begin
+      warn('Not plotting history');
+      addPlot([[0,START_WHEN_WORKLOAD_BELOW],[1,START_WHEN_WORKLOAD_BELOW]],'GREY0.5');
+    end;
+  drawTextAbsolute(0,0.5,'CPU',80,'L','Century Gothic',[0.2,0.2,0.2]);
+end;
+
+
 getCpuDiagram->begin
-  local shownFor:=[];
+  local shownFor:=-1;
   local lastResult:='';
 save;
-  cpuUsageHistory==shownFor
+  cpuUsageHistory.hash==shownFor
   ? lastResult
   : try({begin
-
       cpuUsageHistory.size>1000
       ? cpuUsageTrim
       : void;
-      local x0:=cpuUsageHistory.getInner(0).min orElse 0;
-      local x1:=cpuUsageHistory.getInner(0).max orElse 1;
-
-      shownFor:=cpuUsageHistory;
-      setOptions(["preserveAspect"=>false,"autoscaleX"=>false,"autoscaleY"=>false,
-                  "axisStyleX"=>0,"axisStyleY"=>0,
-                  "x0"=>x0,"x1"=>x1,
-                  "y0"=>0,
-                  "y1"=>100].toMap);
-      plot([[x0,0],  [x1,100]],'GREY0.13 fs box');
-      cpuUsageHistory.size>0
-      ? addPlot(cpuUsageHistory.getInner(0),cpuUsageHistory.getInner(1),'GREY0.5 f b')
-      : warn('Not plotting history');
-      addPlot([[x0,START_WHEN_WORKLOAD_BELOW],[x1,START_WHEN_WORKLOAD_BELOW]],'GREY0.5');
-      begin
-        local i0:=ceil (x0*(24*60));
-        local i1:=floor(x1*(24*60));
-        i1>=i0 ? ([i0..i1]/(24*60)).each(x,[x,0],[x,100],[Nan,Nan]).addPlot('GREY0.5 0.5')
-               : void;
-        i0      :=ceil (x0*(24*6));
-        i1      :=floor(x1*(24*6));
-        i1>=i0 ? ([i0..i1]/(24*6)).each(x,[x,0],[x,100],[Nan,Nan]).addPlot('GREY0.5 1.5')
-               : void;
-      end;
-      drawTextAbsolute(0,0.5,'CPU',80,'L','Century Gothic',[0.2,0.2,0.2]);
+      shownFor:=cpuUsageHistory.hash;
+      plotCpuDiagram;
       lastResult:= format('<img src="data:image/png;base64,%s" />',renderToString(500,100).base64encode);
       //Clear plot to free memory:
-      plot;
       lastResult;
     end},lastResult);
 end;
@@ -52,7 +61,7 @@ logCpuUsage->
     cpuUsageHistory||=[systime,exec('wmic',['path','Win32_PerfFormattedData_PerfOS_Processor','get','Name,','PercentProcessorTime'])[0]
                               .tail.filter({$x!=''}).map({$line.trim.replace('  ',' ').split(' ').softCast}).toMap['_Total'] orElse -1];
     cpuUsageHistory.size>2000
-    ? cpuUsageHistory:=cpuUsageHistory.tail
+    ? cpuUsageTrim
     : void;
   end;
 
@@ -61,7 +70,6 @@ cpuUsageTrim->begin
   (systime-1/(24*60*60)*
    1.05^transpose([[191..0],
                    [190..0,-Inf]])).each(interval,begin
-    print(formatTime(interval[0]));
     local t0:=interval[0];
     local t1:=interval[1];
     local inRange:=cpuUsageHistory.filter({t0<$h[0]<=t1});
@@ -69,16 +77,32 @@ cpuUsageTrim->begin
     ? inRange.agg(+)/inRange.size
     : void;
   end);
+  void;
+end;
 
-
+//loop for testing;
+main->begin
+  while(true,begin
+    logCpuUsage;
+    cpuUsageHistory.size>500
+    ? cpuUsageTrim
+    : void;
+    print(formatTime(systime),' ',cpuUsageHistory.size);
+    plotCpuDiagram;
+    display;
+  end);
 end;
 
 //mock for testing
 //begin
-//  cpuUsageHistory:=map(systime+[-100..0]*2/(24*60*60),{[$x,intRandom(100)]});
+//  cpuUsageHistory:=map(systime+[-3000..0]*2/(24*60*60),{[$x,intRandom(100)]});
+//  cpuUsageTrim;
 //  getCpuDiagram;
 //  addAnimationFrame;
 //  cpuUsageTrim;
 //  getCpuDiagram;
 //  addAnimationFrame;
+//
 //end;
+//
+

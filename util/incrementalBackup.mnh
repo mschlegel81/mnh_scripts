@@ -9,8 +9,8 @@ type FullFileInfoMap(M:FingerprintMap)->M.getInner(0).isStringSet AND M.getInner
 
 fileAge     (info:Fingerprint)->info[0];
 fileHash    (info:Fingerprint)->info[1];
-deletedHash:=-1;
-DELETED:=[-1.0,deletedHash,''].toFullFileInfo;
+DELETED_HASH:=-1;
+DELETED:=[-1.0,DELETED_HASH,''].toFullFileInfo;
 
 ducktype BackupConfig(M:Map(4))->M['backupNameBase'].isString  AND
                                 (M['basePattern']   .isString OR
@@ -18,10 +18,8 @@ ducktype BackupConfig(M:Map(4))->M['backupNameBase'].isString  AND
                                  M['recurse']       .isBoolean AND
                                  M['matcher']       .isExpression(1);
 
-FILE_AGE_TOLERANCE:=0.000025; //= 2.16 seconds
-equalFileAge  (x,y)->abs(x-y)<=FILE_AGE_TOLERANCE;
-
 matchAll(x)->x==x;
+dropPascalCompilates(x)->!(x.matches('\.(exe|log|o|ppu|a)$|\.git'));
 
 fileState(rootPath:String,basePattern:String,recurse:Boolean,matcher:Expression(1),includeContents:Boolean)->
   allFiles(rootPath,basePattern,recurse)
@@ -39,11 +37,9 @@ fileState(rootPath:String,basePattern:String,recurse:Boolean,matcher:Expression(
        : $M.toFingerprintMap};
 
 stateDelta(previous:FingerprintMap,current:FingerprintMap)->begin
-  local newInCurrent    :=current .getInner(0).minus(previous.getInner(0));
-  local missingInCurrent:=previous.getInner(0).minus(current.getInner(0)).filter({previous[$key].fileHash!=deletedHash});
-  local modified        :=previous.getInner(0).intersect(current.getInner(0))
-                                              //compare hashes only
-                                              .filter({previous[$key].fileHash != current[$key].fileHash});
+  local newInCurrent    :=current .getInner(0).minus   (previous.getInner(0)).filter({current [$key].fileHash!=DELETED_HASH});
+  local missingInCurrent:=previous.getInner(0).minus   (current .getInner(0)).filter({previous[$key].fileHash!=DELETED_HASH});
+  local modified        :=previous.getInner(0).intersect(current.getInner(0)).filter({current [$key].fileHash!=previous[$key].fileHash});
   (modified.union(newInCurrent).map({$key => current[$key]})|
    missingInCurrent            .map({$key => DELETED})).toMap.toFullFileInfoMap;
 end;
@@ -51,6 +47,7 @@ end;
 sortableSystime->formatTime('yyyymmddhhnnss',systime);
 
 private writeState(filename:String,state:FullFileInfoMap)->begin
+    state.each(entry,format("  %s\t%s",entry[0],entry[1].fileHash=DELETED_HASH ? 'deleted' : 'updated')).join("\n").print;
     note(time,' Compressing contents');
     local persistedState:=state.sort.map(::flatten).transpose;//.pMap({$x.serialize.compress(1)}).serialize;
     persistedState[0]:=persistedState[0].join(#0).compress ; //filenames
@@ -134,13 +131,14 @@ doRestore(targetFolder:String,config:BackupConfig)->begin
       .pEach(backupFile,
              backupFile.readState(true),
              aggregator({$1.mergeMaps($0,::orElse)}))
+      .filter({config['matcher']($x[0])})
       .toFullFileInfoMap);
   local targetPath:=expandedFileName(targetFolder&'/');
   deltaToApply
     .futureMap({[targetPath&$info[0],
                  $info[1,2].decompress,
                  $info[1].fileAge,
-                 $info[1].fileHash==deletedHash]})
+                 $info[1].fileHash==DELETED_HASH]})
     .each(i,i[3]
             ? print('Deleting ',i[0],' ',deleteFile(i[0]) ? 'o.k.' : 'FAILED')
             : begin
@@ -150,35 +148,58 @@ doRestore(targetFolder:String,config:BackupConfig)->begin
 end;
 
 DEV_CONFIG:=
-  ['backupNameBase'=>'dev',
+  ['backupNameBase'=>'ib/dev',
    'basePattern'   =>'*.*',
    'recurse'       =>false,
-   'matcher'       =>{!($x.matches('\.(ib|log|7z)$'))}].toMap;
+   'matcher'       =>{!($x.matches('(\.(ib|log|7z))|(checkstyle\.datastore0)|(smart7z\.datastore.)$'))}].toMap;
 MNH_CONFIG:=
-  ['backupNameBase'=>'mnh5',
+  ['backupNameBase'=>'ib/mnh5',
    'basePattern'   =>'*.*',
    'recurse'       =>true,
-   'matcher'       =>{!($x.matches('\.(exe|log)$|\.git|/consoles/lib|/ide/compilates'))}].toMap;
+   'matcher'       =>{!($x.matches('\.(exe|log|png)$|\.git|/consoles/lib|/ide/compilates|/backup/'))}].toMap;
+MNH_RESTORE_CONFIG:=
+  ['matcher'       =>{!($x.matches('\.(exe|log|png)$|\.git|(testExpectation\.datastore1)|/consoles/lib|/ide/compilates|/backup/'))}].toMap
+  .mergeMaps(MNH_CONFIG,::orElse);
 GIT_CONFIG:=
-  ['backupNameBase'=>'git',
+  ['backupNameBase'=>'ib/git',
    'basePattern'   =>'*.*',
    'recurse'       =>true,
    'matcher'       =>::matchAll].toMap;
 SCRIPTS_CONFIG:=
-  ['backupNameBase'=>'mnh_scripts',
+  ['backupNameBase'=>'ib/mnh_scripts',
    'basePattern'   =>'*.*',
    'recurse'       =>true,
    'matcher'       =>{!($x.matches('(\.git)|(/oeis/.*datastore)'))}].toMap;
 ART_SRC_CONFIG:=
-  ['backupNameBase'=>'art_source',
+  ['backupNameBase'=>'ib/art_source',
    'basePattern'   =>'*.*',
    'recurse'       =>true,
-   'matcher'       =>{!($x.matches('\.(exe|log|o|ppu|a)$|\.git'))}].toMap;
+   'matcher'       =>::dropPascalCompilates].toMap;
 RETROSPECTIVE_CONFIG:=
-  ['backupNameBase'=>'retrospective',
+  ['backupNameBase'=>'ib/retrospective',
    'basePattern'   =>'*.*',
    'recurse'       =>true,
    'matcher'       =>{!($x.matches('\.datastore'))}].toMap;
+SUDOKU_CONFIG:=
+  ['backupNameBase'=>'ib/sudoku',
+   'basePattern'   =>'*.*',
+   'recurse'       =>true,
+   'matcher'       =>::dropPascalCompilates].toMap;
+GRAVEYARD_CONFIG:=
+  ['backupNameBase'=>'ib/graveyard',
+   'basePattern'   =>'*.*',
+   'recurse'       =>true,
+   'matcher'       =>::matchAll].toMap;
+WEB_CONFIG:=
+  ['backupNameBase'=>'ib/web',
+   'basePattern'   =>'*.*',
+   'recurse'       =>true,
+   'matcher'       =>::dropPascalCompilates].toMap;
+TP_CONFIG:=
+  ['backupNameBase'=>'ib/3rd_party',
+   'basePattern'   =>'*.*',
+   'recurse'       =>true,
+   'matcher'       =>::dropPascalCompilates].toMap;
 
 doBackup->begin
   doBackup('.'            ,DEV_CONFIG);
@@ -187,13 +208,22 @@ doBackup->begin
   doBackup('git'          ,GIT_CONFIG);
   doBackup('mnh_scripts'  ,SCRIPTS_CONFIG);
   doBackup('data/retrospective',RETROSPECTIVE_CONFIG);
+  doBackup('Sudoku3'      ,SUDOKU_CONFIG);
+  doBackup('graveyard'    ,GRAVEYARD_CONFIG);
+  doBackup('web'          ,WEB_CONFIG);
+  doBackup('3rd_party'    ,TP_CONFIG);
 end;
 
 main->begin
   doRestore('.'            ,DEV_CONFIG);
-  doRestore('mnh5'         ,MNH_CONFIG);
+  doRestore('mnh5'         ,MNH_RESTORE_CONFIG);
   doRestore('art.source'   ,ART_SRC_CONFIG);
   doRestore('git'          ,GIT_CONFIG);
   doRestore('mnh_scripts'  ,SCRIPTS_CONFIG);
   doRestore('retrospective',RETROSPECTIVE_CONFIG);
+  doRestore('Sudoku3'      ,SUDOKU_CONFIG);
+  doRestore('graveyard'    ,GRAVEYARD_CONFIG);
+  doRestore('web'          ,WEB_CONFIG);
+  doRestore('3rd_party'    ,TP_CONFIG);
 end;
+

@@ -1,0 +1,174 @@
+private trimTrailing(L:StringList)->begin
+  local result:=L.trimRight;
+  while(result.trailing=='',result:=result.leading);
+  result;
+end;
+
+private fixMnhFile(filename:String)->fileMustBeChecked(filename) ? begin
+  local oldLines:=filename.fileLines;
+  local newLines:=oldLines.trimTrailing;
+  newLines==oldLines
+  ? print('Checked ',filename,' - o.k.')
+  : begin
+      print('Fixing ',filename);
+      filename.writeFileLines(newLines);
+    end;
+  fileWasChecked(filename);
+end : void;
+
+private language:='Pascal';
+private srcFolders:=myPath.extractFileDirectory&['/mnh5','/art.source','/Sudoku3','/art.wip0','/art.wip1','/art.wip2'];
+private extensions:=['*.pas','*.inc','*.lpr'];
+private datastore fileCheckedAtTime;
+
+private synchronized fileAgeDifference(filename:String)->begin
+  local relName:=relativeFileName(myPath.extractFileDirectory,filename);
+  local checkTime:=fileCheckedAtTime[relName] orElse [];
+  checkTime==[]
+  ? '?'
+  : (abs(checkTime-fileInfo(filename)['time'])*24*60*60)&'s';
+end;
+
+private TIME_TOL:=3/(24*60*60); //2 seconds
+
+private synchronized fileMustBeChecked(filename:String)->begin
+  local relName:=relativeFileName(myPath.extractFileDirectory,filename);
+  local checkTime:=fileCheckedAtTime[relName] orElse '-';
+  checkTime=='-' OR //One second tolerance:
+  abs(checkTime-fileInfo(filename)['time'])>TIME_TOL;
+end;
+
+private synchronized fileWasChecked(filename:String)->begin
+  local relName:=relativeFileName(myPath.extractFileDirectory,filename);
+  fileCheckedAtTime[relName]:=fileInfo(filename)['time'];
+end;
+
+removeDoubleBlankLines(L:StringList)->[L,tail(L)].transpose.pEach(x,x[0]==''==x[1] ? void : x[0]);
+
+private fixFileLines(S:StringList)->
+  S.each(line,trim(line)="" ? "" : begin
+    local T:=line.tokenSplit(language);
+    autoDict.getAll(T.upper,T).join.trimRight;
+  end).removeDoubleBlankLines;
+
+private significance(literal:String,count:Int)->
+  literal.length<=3 ? 0 : count;
+
+memoized filesToCheck->srcFolders.each(dir,allFiles(dir,extensions))
+                                 .flatten
+                                 .filter({!($file.matches('3rd_party'))});
+
+private extractIdentifiers(tokens:StringList)->tokens[tokens.matches('^[a-zA-Z][a-zA-Z_]+') or tokens.matches('\{\$')];
+
+private datastore autoDict;
+synchronized prepareDict->autoDict:=
+begin
+  print('Preparing dictionary based on ',filesToCheck.size,' files');
+  local result:=filesToCheck.each(file,fileContents(file).tokenSplit(language)).flatten;
+  print('                              ',result.size,' tokens');
+  result:=elementFrequency(result.extractIdentifiers).toList;
+  print('                              ',result.size,' identifiers/keywords');
+  result:=result[result.getInner(1)>1];
+  print('                              ',result.size,' identifiers/keywords ocurring more than once');
+  result:=group(result,upper(result.getInner(0))).each(idsGroup,[idsGroup[0],idsGroup[1,argMax(idsGroup[1].getInner(1)),0]]);
+  print('                              ',result.size,' distinct identifiers/keywords');
+  result.toMap;
+end;
+
+private checkConsistency(fileList)->begin
+  local allTokens:=fileList.each(file,fileContents(file).tokenSplit(language)).flatten;
+  print('Collected ',size(allTokens),' tokens');
+  local allIds     :=allTokens.extractIdentifiers;
+  print('Filtered ',size(allIds),' identifiers and keywords');
+  local allLiterals:=allTokens[regex.matches(allTokens,"^['0-9]")];
+  print('Filtered ',size(allLiterals),' literals');
+  allIds:=elementFrequency(allIds).toList;
+
+  local anyComplaints:=false;
+  group(allIds,upper(allIds.getInner(0))).group(1).each(idsGroup,
+    idsGroup.size>1
+    ? begin
+        anyComplaints:=true;
+        print('Inconsistent spelling: ',idsGroup.sort);
+      end
+    : void);
+
+  !anyComplaints ? print('Spelling is consistent.') : void;
+  allLiterals:=allLiterals.elementFrequency.each(fp,begin
+                       local s:=significance@fp;
+                       s>0 ? fp
+                           : void;
+                     end).sort.reverseList.head(20);
+  print('Most frequent (nontrivial) literals: ');
+  printf("%s\vx\t%s",allLiterals.getInner(0),allLiterals.getInner(1));
+  void;
+end;
+
+private pattern:='checkstyle: %-'&max(length(filesToCheck))&'s (%4d lines) ';
+
+USE guiScripts;
+private fix(filename:String,readOnly:Boolean)->begin
+  local oldLines:=fileLines(filename);
+  local newLines:=fixFileLines(oldLines);
+  local diffOut:=format(pattern,filename,size(oldLines));
+  oldLines==newLines ? diffOut&=' ok' : begin
+    readOnly ? diffOut&=' NOT OKAY:' : diffOut&=' FIXED:';
+    diffOut|=unifiedDiff('previous',
+                         'fixed',
+                         oldLines,
+                         newLines,
+                         2);
+    readOnly ? void : writeFileLines(filename,newLines);
+  end;
+  readOnly ? void : fileWasChecked(filename);
+  printf('%s',diffOut);
+end;
+
+//*Check all files, writing out potential fixes
+main("check")->begin
+  print('Checking files...');
+  autoDict:=toMap(autoDict);
+  filesToCheck.each(s,fix(s,true));
+  print('Checking spelling consistency in MNH sources');
+  checkConsistency(filesToCheck);
+end;
+
+//*Fix all files that have changed, writing out fixes
+//*Additional parameters will be interpreted as enforced spellings
+main("fix",...)->begin
+  print('Fixing .mnh files...');
+  allFiles(myPath.extractFileDirectory&'/mnh5',['*.mnh','*.mnhwf']).each(file,file.fixMnhFile);
+  print('Fixing .pas/.inc files...');
+  ... .each(otherId,autoDict[upper(otherId)]:=otherId);
+  local checkAll:=!(...==[]);
+  local filesToBeChecked:=filesToCheck.each(file,checkAll OR fileMustBeChecked(file) ? file : void);
+  filesToBeChecked==[]
+  ? void
+  : filesToBeChecked.each(file,fix(file,false));
+end;
+
+//*Fix all files, writing out fixes
+main("fixAll")->begin
+  fileCheckedAtTime:=[].toMap;
+  print('Fixing .mnh files...');
+  allFiles('..',['*.mnh','*.mnhwf']).each(file,file.fixMnhFile);
+  print('Fixing .pas/.inc files...');
+  filesToCheck.each(file,fix(file,false));
+end;
+
+//*Look through all files preparing a dictionary
+main("prepare")->begin
+  prepareDict;
+  fileCheckedAtTime:=[].toMap;
+  print('dict type:  ',typeOf(autoDict));
+  print('check type: ',typeOf(fileCheckedAtTime));
+end;
+
+
+//*Print out dictionary
+main("list")->printf('%s',autoDict.getInner(1));
+
+main("info")->begin
+  local F:=filesToCheck|allFiles('mnh5',['*.mnh','*.mnhwf']);
+  printf("%s\t%s\t%s",F,F.each(file,file.fileExists ? '' : 'MISSING'),F.each(file,file.fileMustBeChecked ? 'MUST BE CHECKED ('&fileAgeDifference(file)&')' : 'unchanged since last check'));
+end;

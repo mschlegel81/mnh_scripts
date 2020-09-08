@@ -48,7 +48,7 @@ end : warn('There is no instance running to kill');
 
 //*List todos
 main('list')->allTodos
-              .futureMap({["\t",$filename,"\n\t...",$filename.fileLines.trailing].join})
+              .pMap({["\t",$filename,"\n\t...",$filename.fileLines.trailing].join})
               .each(entry,print('(',index+1,') ',entry));
 
 //*Process todos
@@ -71,8 +71,9 @@ main(...)->begin
   print('Processing ',allTodos.size,' todos ',workInParallel ? 'in parallel' : void);
   assertUniqueInstance;
   workInParallel
-  ? [1..mnhInfo['configured_cpus']].map(::printMethod).futureMap({while(processOneToDo($pm))}).toList
-  :                                                               while(processOneToDo(::print),void);
+  //TODO Is this correct? Maybe use async or future instead.
+  ? [1..mnhInfo['configured_cpus']].map(::printMethod).pMap({while(processOneToDo($pm))}).toList
+  :                                                          while(processOneToDo(::print),void);
 end;
 
 @SuppressUnusedWarning

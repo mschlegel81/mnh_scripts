@@ -92,7 +92,7 @@ animate->begin
     setOptions([['autoscaleX',false],['autoscaleY',false],['preserveAspect',true],['x0',globalX0],['x1',globalX1],['y0',globalY0],['y1',globalY1],['axisStyleX',0],['axisStyleY',0]]);
   end;
   clearAnimation;
-  rangeGenerator(0,A.head.size-1).lazyMap({begin
+  rangeGenerator(0,A.head.size-1).pMap({begin
     traces.each(trace,begin
       local trail:=trace.head($k+1).trailing(64).reverseList;
       local prev:=trail[0];

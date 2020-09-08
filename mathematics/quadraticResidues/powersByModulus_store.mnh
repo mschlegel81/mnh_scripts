@@ -25,7 +25,8 @@ end;
 main->[2..100000]
   .minus(UM.getInner(0))
   .{print($L.size,' entries must be calculated ',$L.toList.head(20).join(','),'...') orElse $L}
-  .futureMap({$k|([2..12].each(p,uniqueRemainders($k,p)))})
+  .toIteratableExpression
+  .pMap({$k|([2..12].each(p,uniqueRemainders($k,p)))})
   .each(entry,begin
      UM[entry.head]:=entry.tail;
      logSpeed;

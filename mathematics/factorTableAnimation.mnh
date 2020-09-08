@@ -26,7 +26,7 @@ main->begin
   addAnimationFrame;
   display;
   rangeGenerator(0)
-    .futureMap({factorPlottable(modulus,$index/50)})
+    .pMap({factorPlottable(modulus,$index/50)})
     .map(::renderFrame);
 end;
 

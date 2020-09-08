@@ -140,6 +140,8 @@ PAGE_MAP:=[
   '/gc' =>
     {begin
        isMap($0);
+       clearServedFiles;
+       writeAllDataStores;
        callMemoryCleaner;
        cpuUsage.cpuUsageTrim;
        redirectTo(ADMIN_PAGE);

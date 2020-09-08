@@ -138,19 +138,19 @@ begin
 //  X:=cos([0..80]/80*pi)|
 //    (cos([1..80]/80*pi)-2);
 //  Y:=sin([0..160]/80*pi);
-//  addPlot(X,Y);
+  addPlot(bSpline(X,Y));
 
 end;
 //
 //
 
-//[0..SPLINE_DETAIL-1].each(i,
-//  begin
-//    local iT   := i / (SPLINE_DETAIL-1);
-//    local i1_T := 1 - iT;
-//    [( i1_T * i1_T * i1_T ) / 6,
-//     ( ( 3 * iT * iT * iT ) - ( 6 * iT * iT ) + 4 ) / 6,
-//     ( ( -3 * iT * iT * iT ) + ( 3 * iT * iT ) + ( 3 * iT ) + 1 ) / 6,
-//     ( iT * iT * iT ) / 6];
-//  end).toString.replace('[','(').replace(']',')').replace('),(',"),\n(").print;
+[0..SPLINE_DETAIL-1].each(i,
+  begin
+    local iT   := i / (SPLINE_DETAIL-1);
+    local i1_T := 1 - iT;
+    [( i1_T * i1_T * i1_T ) / 6,
+     ( ( 3 * iT * iT * iT ) - ( 6 * iT * iT ) + 4 ) / 6,
+     ( ( -3 * iT * iT * iT ) + ( 3 * iT * iT ) + ( 3 * iT ) + 1 ) / 6,
+     ( iT * iT * iT ) / 6];
+  end).toString.replace('[','(').replace(']',')').replace('),(',"),\n(").print;
 

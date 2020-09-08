@@ -26,7 +26,7 @@ decimalForm(rat:IntList(2))->begin
 end;
 
 setOptions(["preserveAspect"=>false].toMap);
-X:=[2..1000].futureMap({$n => decimalForm([1,$n])})
+X:=[2..1000].pMap({$n => decimalForm([1,$n])})
             .map({[$x[0],$x[1,'nonperiodicPart'].size,$x[1,'periodicPart'].size]});
 plot   (X.getInner(0),X.getInner(1),'.');
 addPlot(X.getInner(0),X.getInner(2),'.');

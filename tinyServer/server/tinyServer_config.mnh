@@ -1,6 +1,6 @@
 SERVE_AT_IP               :='localhost';
 SERVE_AT_SOCKET           :=80;
-MAX_HISTORY_SIZE          :=50;
+MAX_HISTORY_SIZE          :=30;
 LOG_FOLDER                :='logs';
 private SCRIPT_FOLDER     :='scripts';
 START_WHEN_WORKLOAD_BELOW :=20;

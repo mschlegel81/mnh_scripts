@@ -135,10 +135,11 @@ doRestore(targetFolder:String,config:BackupConfig)->begin
       .toFullFileInfoMap);
   local targetPath:=expandedFileName(targetFolder&'/');
   deltaToApply
-    .futureMap({[targetPath&$info[0],
-                 $info[1,2].decompress,
-                 $info[1].fileAge,
-                 $info[1].fileHash==DELETED_HASH]})
+    .toIteratableExpression
+    .pMap({[targetPath&$info[0],
+            $info[1,2].decompress,
+            $info[1].fileAge,
+            $info[1].fileHash==DELETED_HASH]})
     .each(i,i[3]
             ? print('Deleting ',i[0],' ',deleteFile(i[0]) ? 'o.k.' : 'FAILED')
             : begin

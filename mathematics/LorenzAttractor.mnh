@@ -43,7 +43,7 @@ showSingleAttractor->begin
               'x0'=>-1,'x1'=>1,'y0'=>-1,'y1'=>1]);
   clearAnimation;
   print(repeat('-'.repeat(24)&'|',4));
-  ([0..99]/100*2*pi).futureMap({
+  ([0..99]/100*2*pi).toIteratableExpression.pMap({
     projectOnly(L.rotateX(pi/2).rotateY($angle),
               [c].rotateX(pi/2).rotateY($angle).head,0.5)})
   .each(row,begin
@@ -125,7 +125,7 @@ showDots->begin
               'x0'=>-1,'x1'=>1,'y0'=>-1,'y1'=>1]);
   clearAnimation;
   print(repeat('-'.repeat(24)&'|',4));
-  ([0..99]/100*2*pi).futureMap({
+  ([0..99]/100*2*pi).toIteratableExpression.pMap({
     projectOnly(L.rotateX(pi/2).rotateY($angle),
               [c].rotateX(pi/2).rotateY($angle).head,0.5)})
   .each(row,begin

@@ -25,8 +25,6 @@ save;
   [k,L[i]];
 end}.toIteratableExpression;
 
-
-
 displayState->begin
   plot();
   superiorModul.sort.each(g,g[1]==[] ? void : begin
@@ -41,7 +39,7 @@ end;
 
 calculateSome(timeoutInSeconds:Numeric)-> begin
   local next:=crossGenerator(rangeGenerator(first),[2..MAX_POW])
-              .futureMap({$x|uniqueRemainders($x[0],$x[1])});
+              .pMap({$x|uniqueRemainders($x[0],$x[1])});
 
   local bestUpToHere:=superiorModul.map({$x[0]=>$x[1].trailing}).map({$x[0]=>$x[1]==[] ? Inf : uniqueRemainders($x[1],$x[0])/$x[1]}).toMap;
   local timeOut:=time+timeoutInSeconds;

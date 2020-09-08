@@ -122,7 +122,7 @@ factorize(121);
 //            palindromeNumberGenerator(3)).map({print($x,' = ',$x.formatInBase(2),' = ',$x.formatInBase(3))});
 
 
-primeGenerator.lazyMap({begin
+primeGenerator.pMap({begin
   local b:=getPalindromeBases($p);
   b.size<2 ? void : [$p,b];
 end}).map(::print);

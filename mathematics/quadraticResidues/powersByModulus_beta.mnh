@@ -3,7 +3,7 @@ uniqueRemainders(modulus:Int,power:Int)->powMod([0..modulus-1],power,modulus).to
 
 showAsPlotAndTable->begin
   setOptions(["x0"=>1E-100,"y0"=>1E-100,"preserveAspect"=>false,"logscaleX"=>true,"logscaleY"=>true].toMap);
-  local X:=[2..1000] .futureMap({[$x,$x.uniqueRemainders(2)]}).pMap({[$x[0],$x[1].size/$x[0],$x[1].size,factorize($x[0]).join("*"),$x[1].sort.join(",")]});
+  local X:=randomGenerator(2,1000).pMap({[$x,$x.uniqueRemainders(2)]}).pMap({[$x[0],$x[1].size/$x[0],$x[1].size,factorize($x[0]).join("*"),$x[1].sort.join(",")]});
   plot(X.getInner(0),X.getInner(1),'0.5 .');
   showTable(([['k','ratio','remainders','factors','dividers']]|X),
              true);
@@ -19,7 +19,7 @@ begin
   local deficientDots:=[[Nan,Nan]];
   local primeDots:=[[2,1]];
   local best:=Inf;
-  rangeGenerator(2).futureMap({$x=>$x.uniqueRemainders(2).size/$x}).each(entry,
+  rangeGenerator(2).pMap({$x=>$x.uniqueRemainders(2).size/$x}).each(entry,
     entry[1]<best
     ? begin
         upToHere|=[entry];

@@ -17,7 +17,7 @@ main(xres,yres,quality)->begin
 
   print('Computing samples');
   setOptions(["preserveAspect"=>false,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
-  [2..maxK].futureMap({f($k,xRes,yRes)}).each(sampleGroup,sampleGroup.each(i,sampleCount[i]+=1));
+  rangeGenerator(2,maxK).pMap({f($k,xRes,yRes)}).each(sampleGroup,sampleGroup.each(i,sampleCount[i]+=1));
   sampleCount:=sampleCount.pEach(s,s=0 ? void : divMod(index,xRes)|s);
   print('Sample density: ');
   local maxDens:=sampleCount.getInner(2).elementFrequency;
@@ -25,17 +25,6 @@ main(xres,yres,quality)->begin
   maxDens:=maxDens.getInner(0).max;
   plot();
   [maxDens..1].each(cutoff,sampleCount.each(s,s[2]>cutoff ? s[[0,1]] : void)).addPlot('. 0.1 RGB0,0,0,0.2');
-
-
-
-//  [2..maxK].pEach(k,f(k,xRes,yRes),|).plot('. 0.1 RGB0,0,0,0.2');
-//  print('Rendering plot to internal image');
-//  renderPlotToCurrentImage(xRes,yRes);
-//  executeWorkflow(['normalize','lagrangeDiff:0.05,0.05','normalize'],
-//                  '-', //source is current image
-//                  changeFileExt(myPath,'_q'&maxK&'_'&xRes&'x'&yRes&'.png'),::print);
 end;
-
-
 
 main(1920,1080,1000);

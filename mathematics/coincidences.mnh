@@ -8,7 +8,7 @@ e:=exp(1);
 
 pairGenerator(1,620,0)
   .filter({$x.agg(>)})
-  .futureMap({begin
+  .pMap({begin
     local powerSum:=(pi^$x).agg(+);
     local c:=powerSum.ln;
     [abs(powerSum^(1/round(c))-e),$x|round(c)];

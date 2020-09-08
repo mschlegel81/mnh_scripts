@@ -41,7 +41,7 @@ calculate(quit:Expression(0),quiet:Boolean)->begin
   local startOfCalculation:=time;
   local digitGen:=
   rangeGenerator(calculatedDigitsOfPi.size)
-    .futureMap(::calcPiHexDigit);
+    .pMap(::calcPiHexDigit);
   quiet
   ? while(quit().isVoid,calculatedDigitsOfPi|=               digitGen() )
   : while(quit().isVoid,calculatedDigitsOfPi|=printNewDigits(digitGen()));

@@ -229,7 +229,8 @@ begin
   local radiusLimit:=0.003;
   clearAnimation;
   param3Sym(50).each(p,[index,p])
-  .futureMap({begin
+  .toIteratableExpression
+  .pMap({begin
     local index:=$p[0];
     local param:=$p[1];
     local t0:=time;

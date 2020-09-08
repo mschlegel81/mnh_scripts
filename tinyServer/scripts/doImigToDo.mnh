@@ -71,7 +71,6 @@ main(...)->begin
   print('Processing ',allTodos.size,' todos ',workInParallel ? 'in parallel' : void);
   assertUniqueInstance;
   workInParallel
-  //TODO Is this correct? Maybe use async or future instead.
   ? [1..mnhInfo['configured_cpus']].map(::printMethod).pMap({while(processOneToDo($pm))}).toList
   :                                                          while(processOneToDo(::print),void);
 end;

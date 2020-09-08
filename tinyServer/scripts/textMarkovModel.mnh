@@ -1,0 +1,80 @@
+USE inputs;
+
+mutable fullTextChars:=kjv.fileLines.trim.join(" ").bytes;
+calcSnippets(Length:Int)->begin
+  local t0:=time;
+  note('Constructing snippets of length ',Length);
+  local all:=[0..fullTextChars.size-1-Length]
+    .pMap({fullTextChars[[$x..$x+Length-1]].join})
+    .elementFrequency
+    .toList;
+  all:=
+  all.pMap({$x[0].copy(Length-1,1)=>$x[1]})
+     .group(all.getInner(0).copy(0,Length-1))
+     .pEach(sub,begin
+        local key:=sub[0];
+        local val:=sub[1].sort(1).reverseList;
+        Length<=1 ? void : val:=val.head(max(val.size div 2,2));
+//        local threshold:=val.getInner(1).agg(+)*0.1;
+//        val:=val.filter({$v[1]>threshold})
+//                .sort(1)
+//                .reverseList;
+        local tally:=0;
+        local c:=val.getInner(1).each(x,tally+=x);
+        key=>[c/c.max,val.getInner(0)];
+      end)
+     .toMap;
+  note('Snippets of length ',Length,' constructed in ',time-t0,' seconds');
+  all;
+end;
+
+mutable snippets:=[].toMap;
+getSnippets(l:Int)->snippets[l] orElse snippets[l]:=calcSnippets(l);
+
+randomChar(before)->begin
+  local L:=snippets[byteLength(before)+1,before];
+  L.isVoid
+  ? return void
+  : void;
+  local r:=L[1,indexOf(L[0]>random).head];
+  assert(r.byteLength==1,r);
+  r;
+end;
+
+randomTextSegment(lookBack>=0,totalLength)->begin
+  local s:=randomChar('');
+  [1..totalLength].each(x,begin
+    local nextChar:=randomChar(s.copy(s.byteLength-1-lookBack,lookBack));
+    nextChar.isVoid
+    ? return s+"*"+randomTextSegment(lookBack,totalLength-byteLength(s))
+    : s+=nextChar;
+  end);
+  s;
+end;
+
+prettyWrapPrint(txt:String)->
+  txt.split("\n").each(line,begin
+    local toPrint:='';
+    (line.split(' ')+' ').each(part,
+      byteLength(toPrint)+byteLength(part)>100
+      ? begin
+          print(toPrint);
+          toPrint:='  '+part;
+        end
+      : toPrint&=part);
+    print(toPrint);
+  end);
+
+main->begin
+  local i:=0;
+  while(mnhInfo.getAll(['used_mem','configured_mem']).agg(<),
+    getSnippets(i+=1));
+  snippets[i]:=void;
+  fullTextChars:=void;
+  [0..min(100,i)].each(lookback,begin
+    print('+-----------------------------');
+    print('| Text with a lookback of ',lookback);
+    print('+-----------------------------');
+    randomTextSegment(lookback,1000).prettyWrapPrint;
+  end);
+end;

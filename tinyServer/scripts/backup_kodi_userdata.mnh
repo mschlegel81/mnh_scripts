@@ -137,9 +137,9 @@ doRestore(targetFolder:String,config:BackupConfig)->begin
   deltaToApply
     .toIteratableExpression
     .pMap({[targetPath&$info[0],
-                 $info[1,2].decompress,
-                 $info[1].fileAge,
-                 $info[1].fileHash==deletedHash]})
+            $info[1,2].decompress,
+            $info[1].fileAge,
+            $info[1].fileHash==deletedHash]})
     .each(i,i[3]
             ? print('Deleting ',i[0],' ',deleteFile(i[0]) ? 'o.k.' : 'FAILED')
             : begin

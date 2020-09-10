@@ -1,32 +1,18 @@
 USE tinyServer_html,processUtil;
 
 getProcessMap->begin
-  local lines:=exec('wmic',['process','get','Caption,ParentProcessId,ProcessId,CommandLine'])[0].trim.filter({$x<>''});
-  local commonSpaces:=intersect@(lines.map({$x.matchComposite(' ').getInner(1)}));
-  commonSpaces:=commonSpaces.minus(commonSpaces-1).|([0,lines.length.max]).sort;
-  local splitStarts :=commonSpaces.leading;
-  local splitLengths:=commonSpaces.tail-commonSpaces.leading;
-  lines:=lines.each(line,line.copy(splitStarts,splitLengths).trim.softCast);
-  local header:=lines.head;
-  local PM:=lines.tail
-                 .each(l,header.each(h,l[index]==''
-                         ? void
-                         : (h => l[index])).toMap
-                         .mergeMaps(['children'=>[]].toMap,::orElse))
-                 .each(processEntry,processEntry['ProcessId']=>processEntry).toMap;
+  local PM:=getTaskInfo.map({$x['PID'] => $x.mergeMaps(['children'=>[]].toMap,::orElse)}).toMap;
   PM.getInner(1).each(p,begin
-    local parent:=p['ParentProcessId'];
+    local parent:=p['parentPID'];
     PM[parent].isVoid
     ? void
-    : begin
-        PM[parent,'children']|=p['ProcessId'];
-      end;
+    : PM[parent,'children']|=p['PID'];
   end);
   PM;
 end;
 
 private isProcessChildOfAnyOther(processMap:Map, PID:Int)->begin
-  local pPID:=processMap[PID,'ParentProcessId'];
+  local pPID:=processMap[PID,'parentPID'];
   pPID != PID AND !isVoid(processMap[pPID]);
 end;
 
@@ -52,7 +38,7 @@ processesPage(parameters:Map)->begin
   local printed:=[].toSet;
   local result:=[];
   local recurse:={begin
-    result|=[[$indent&($last ? '\--' : '+--')&(PM[$pid,'Caption'] orElse '<?>'),$pid,PM[$pid,'CommandLine'] orElse '']];
+    result|=[[$indent&($last ? '\--' : '+--')&(PM[$pid,'caption'] orElse '<?>'),$pid,PM[$pid,'commandLine'] orElse '']];
     printed|=$pid;
     local newIndent:=$last
           ? $indent + '   '

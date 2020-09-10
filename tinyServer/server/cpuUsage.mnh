@@ -58,8 +58,7 @@ isCpuAlmostIdle->(cpuUsageHistory.size>0) AND (cpuUsageHistory.trailing(SAMPLES_
 
 logCpuUsage->
   begin
-    cpuUsageHistory||=[systime,exec('wmic',['path','Win32_PerfFormattedData_PerfOS_Processor','get','Name,','PercentProcessorTime'])[0]
-                              .tail.filter({$x!=''}).map({$line.trim.replace('  ',' ').split(' ').softCast}).toMap['_Total'] orElse -1];
+    cpuUsageHistory||=[systime,getCPULoadPercentage];
     cpuUsageHistory.size>2000
     ? cpuUsageTrim
     : void;

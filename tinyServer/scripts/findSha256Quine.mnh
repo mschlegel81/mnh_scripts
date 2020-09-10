@@ -10,5 +10,5 @@ checkChunk(i)->begin
   : void;
 end;
 
-main->intRandomGenerator(intRandom(2^256),2^256).pMap(::checkChunk);
+main->intRandomGenerator(intRandom(2^256),2^256).pMap(::checkChunk).agg(|);
 

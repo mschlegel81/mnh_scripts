@@ -1,11 +1,8 @@
-#!C:\bin\mnh.exe -silent -headless
-KILL_SWITCH_NAME:=changeFileExt(myPath,'.killswitch');
-
+#!C:\bin\mnh.exe -silent -headless -out ?.log
 WORK_IN:='D:\wip';
 //WORK_IN:=myPath.extractFileDirectory;
 
-@SuppressUnusedWarning
-ON_STARTUP:=changeDirectory(WORK_IN);
+KILL_SWITCH_NAME:=changeFileExt(myPath,'.killswitch');
 
 private killSwitchExists->begin
   local switchFoundBefore:=false;
@@ -18,27 +15,36 @@ save;
   : switchFoundBefore;
 end;
 
-private mutable allTodos:=WORK_IN.allFiles('*.todo').systemSpecificFilename.sort;
-private synchronized nextTodo->begin
-  local result:=allTodos.head;
-  allTodos:=allTodos.tail;
-  result;
+todoIterator(maxTodos:Numeric)->{begin
+  local todos:=WORK_IN.allFiles('*.todo').systemSpecificFilename.sort;
+  local handedOut:=0;
+save;
+  (handedOut+=1)>maxTodos OR killSwitchExists
+  ? void
+  : todos.size=0
+    ? void
+    : begin
+        local result:=todos.head;
+        todos:=todos.tail;
+        result;
+      end;
+end}.toIteratableExpression;
+
+createPrintMethod(id)->{print('(Task ',id,') ',$0)};;
+
+nextPrintMethod->begin
+  local taskCounter:=rangeGenerator(1);
+save;
+  createPrintMethod(taskCounter());
 end;
 
-private processOneToDo(printMethod:Expression(1))->begin
-  local todo:=nextTodo;
-  isVoid(todo) OR (todo==[])
-  ? false
-  : begin
-      printMethod('+-'&todo.clean(['-'],'-')&'-+');
-      printMethod('| '&todo                 &' |');
-      printMethod('+-'&todo.clean(['-'],'-')&'-+');
-      executeTodo(todo,printMethod);
-      !killSwitchExists;
-    end;
+private processToDo(todo:String)->begin
+  local printMethod:=nextPrintMethod;
+  printMethod('+-'&todo.clean(['-'],'-')&'-+');
+  printMethod('| '&todo                 &' |');
+  printMethod('+-'&todo.clean(['-'],'-')&'-+');
+  executeTodo(todo,printMethod);
 end;
-
-printMethod(i)->{print('(CPU ',i,') ',$0)};
 
 //*Create kill switch - takes effect after evaluation
 main('kill')->isIpcServerRunning ? begin
@@ -47,7 +53,7 @@ main('kill')->isIpcServerRunning ? begin
 end : warn('There is no instance running to kill');
 
 //*List todos
-main('list')->allTodos
+main('list')->todoIterator(Inf)
               .pMap({["\t",$filename,"\n\t...",$filename.fileLines.trailing].join})
               .each(entry,print('(',index+1,') ',entry));
 
@@ -57,22 +63,21 @@ main('list')->allTodos
 //*  parallel          : process todos in parallel
 main(...)->begin
   local workInParallel:=false;
-  local processAll:=false;
   local limit:=1;
   (...).each(parameter,
     parameter='parallel'     ? begin workInParallel:=true; limit:=(limit=1 ? mnhInfo['configured_cpus'] : limit); end :
-    parameter='all'          ? processAll:=true :
+    parameter='all'          ? limit:=Inf :
     parameter.softCast.isInt ? limit:=parameter.softCast :
     parameter='-h'           ? return print(helpOnMain) :
     print(helpOnMain) orElse
     fail('Unknown parameter: ',parameter));
-  processAll ? void : allTodos:=allTodos.head(limit);
 
-  print('Processing ',allTodos.size,' todos ',workInParallel ? 'in parallel' : void);
+  print('Processing ',limit,' todos ',workInParallel ? 'in parallel' : void);
   assertUniqueInstance;
+
   workInParallel
-  ? [1..mnhInfo['configured_cpus']].map(::printMethod).pMap({while(processOneToDo($pm))}).toList
-  :                                                          while(processOneToDo(::print),void);
+  ? todoIterator(limit).pMap(::processToDo).agg(|)
+  : todoIterator(limit). map(::processToDo).agg(|);
 end;
 
 @SuppressUnusedWarning

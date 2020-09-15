@@ -135,15 +135,14 @@ private memoized serve_('download',...)->begin
   local idAndRest  :={[$s.copy(1,6).softCast,$s.copy(8,$s.length)]};
   local idAndSeries:={[$s.copy(1,6).softCast,$s.copy(8,$s.length).split(',').softCast.filter(::isInt)]};
   local namesMap :=future(::getData,['https://oeis.org/names.gz'   ,{$line.matches('^A\d{6} ') ? idAndRest($line)   : void}]);
-  //local namesMap :=         getData( 'https://oeis.org/names.gz'   ,{$line.matches('^A\d{6} ') ? idAndRest($line)   : void});
   local seriesMap:=         getData( 'https://oeis.org/stripped.gz',{$line.matches('^A\d{6} ') ? idAndSeries($line) : void});
   namesMap:=namesMap(); //resolve future
   respond('Files parsed - ',seriesMap.size,'/',namesMap.size,' entries');
   local maxSeries:=max(namesMap.getInner(0).max,seriesMap.getInner(0).max);
   respond('Updating names list of ',maxSeries,' relevant entries');
-  names    :=rangeGenerator(0,maxSeries).pMap({namesMap [$i] orElse ''});
+  names    :=rangeGenerator(0,maxSeries).pMap({namesMap [$i] orElse ''}).toList;
   respond('Updating sequences list of ',maxSeries,' relevant entries');
-  sequences:=rangeGenerator(0,maxSeries).pMap({seriesMap[$i] orElse []});
+  sequences:=rangeGenerator(0,maxSeries).pMap({seriesMap[$i] orElse []}).toList;
   respond('Datastores generated - '&(names.size)&' entries');
   foundImplementations:=[].toMap;
   response;
@@ -188,10 +187,11 @@ private serve_('validate')->
   implemented.mergeMaps(foundImplementations,::orElse)
   .pMap({[$x[0],$x[1,0].isExpression ? $x[1,0] : $x[1,0].toExpression]})
   .sort
-  .lazyMap({[$x[0],                                                     //ID
-             timingOutGenerator($x[1](),VALIDATION_TIMEOUT_IN_SECONDS), //Generator
-             sequences[$x[0]] orElse []]})                              //Expected value
-  .futureMap({[$x[0],$x[1].head($x[2].size),$x[2]]})
+  .toIteratableExpression
+  .map({[$x[0],                                                     //ID
+         timingOutGenerator($x[1](),VALIDATION_TIMEOUT_IN_SECONDS), //Generator
+         sequences[$x[0]] orElse []]})                              //Expected value
+  .pMap({[$x[0],$x[1].head($x[2].size),$x[2]]})
   .map({note('Validating ',$x[0]) orElse
         ($x[1]==$x[2]
         ? [0,$x[0]]
@@ -248,7 +248,7 @@ private serve_('class',className)->
     .map({$entry[1,1]==className ? $entry[0] : void})
     .sort.map(::info);
 
-private mutable timeout:=time+600;
+private mutable timeout:=scriptTime+600;
 private synchronized resetTimeout()->begin
   timeout:=time+600;
   void;
@@ -300,6 +300,8 @@ end;
 main()->begin
   startIpcServer(ipcId,::serve);
   print('IPC Server started. ',ipcId);
-  while(serving OR time<timeout,sleep(1));
+  while(serving OR scriptTime<timeout,sleep(1));
   print("\nIPC Server stopped. ",ipcId);
 end;
+
+serve_('statistics');

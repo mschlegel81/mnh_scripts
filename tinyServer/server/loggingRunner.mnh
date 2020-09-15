@@ -31,7 +31,7 @@ logTaskStarted(taskIndex:Int,scriptName:String,scriptParameters:String)->
     [FILESTATS       =>[],
      SCRIPT          =>scriptName,
      PARAMETERS      =>scriptParameters,
-     HEARTBEATTIMEOUT=>time+HEARTBEAT_INTERVAL*3,
+     HEARTBEATTIMEOUT=>scriptTime+HEARTBEAT_INTERVAL*3,
      RUNNING         =>true,
      FINISHED        =>false,
      STARTTIME       =>systime].toMap;
@@ -63,7 +63,7 @@ begin
      local pathToLog:=getLogName(taskIndex);
      local current:=taskHistory[taskIndex];
      local isSpecialTask:=current[SCRIPT] in SPECIAL_TASKS.getInner(0);
-     local running:=time<=current[HEARTBEATTIMEOUT];
+     local running:=scriptTime<=current[HEARTBEATTIMEOUT];
      local fileStats:=fileInfo(pathToLog).getAll(['time','size']);
      (fileStats==current[FILESTATS]) AND running==current[RUNNING]
      ? void
@@ -104,7 +104,7 @@ ensureServer->isLoggingRunnerIpcServerRunning ? void :
   end;
 
 private postScriptRunning(id:Int)->taskHistory[id].isVoid ? false : begin
-  taskHistory[id,HEARTBEATTIMEOUT]:=time+3*HEARTBEAT_INTERVAL;
+  taskHistory[id,HEARTBEATTIMEOUT]:=scriptTime+3*HEARTBEAT_INTERVAL;
   taskHistory[id,RUNNING]:=true;
   (taskHistory[id,KILLREQUESTED] orElse false)
   ? KILL_SIGNAL

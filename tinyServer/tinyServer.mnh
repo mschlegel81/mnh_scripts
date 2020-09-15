@@ -1,4 +1,4 @@
-#!C:\bin\mnh\mnh.exe -GUI -quiet -headless +out ?.log(1)
+#!C:\bin\mnh\mnh.exe -GUI -quiet -headless +out ?.log(1) +out D:\server\tinyServer.log
 USE tinyServer_html,tinyServer_config,loggingRunner,serveTasks,cpuUsage,generators;
 
 @SuppressUnusedWarning
@@ -13,7 +13,7 @@ private getStatusSection->tag(
   ('Status').tag('h2')&htmlOuterTable(
   [['Date:'  .tag('b'),formatTime('dd.mm.yyyy',      systime) ,
     'Time:'  .tag('b'),formatTime('hh:nn:ss',        systime) ,
-    'Uptime:'.tag('b'),format(uptimeFormat,time)],
+    'Uptime:'.tag('b'),format(uptimeFormat,scriptTime)],
     systime>doNotStartTasksBefore ? void :['','','<b style="color:red">Delayed until:</b>',
                                            '<b style="color:red">'&formatTime('hh:nn:ss',doNotStartTasksBefore)&'</b>']])
     &getCpuDiagram,'div');
@@ -177,7 +177,7 @@ serve(M)->begin
   local path:=M['request','path'];
   local parameters:=path.extractParameters;
         path      :=path.extractPath.lower;
-  local serveTime:=-time;
+  local serveTime:=-scriptTime;
 
   local serveRoutine:=PAGE_MAP[path];
   serveRoutine.isVoid
@@ -190,7 +190,7 @@ serve(M)->begin
      $messages.map({'    '&$x.join("\t")}).join("\n").print;
      redirectTo(START_PAGE);
    end});
-  serveTime+=time;
+  serveTime+=scriptTime;
   serveStatistics[path]:=(serveStatistics[path] orElse [0,0])+[1,serveTime];
   tPrint(';TIME;',path,';',serveTime);
   response orElse fail;

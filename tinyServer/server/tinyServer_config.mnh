@@ -1,7 +1,7 @@
-SERVE_AT_IP               :='localhost';
+SERVE_AT_IP:='192.168.1.100';
 SERVE_AT_SOCKET           :=80;
 MAX_HISTORY_SIZE          :=30;
-LOG_FOLDER                :='logs';
+LOG_FOLDER                :='D:\server\logs';
 private SCRIPT_FOLDER     :='scripts';
 START_WHEN_WORKLOAD_BELOW :=20;
 SAMPLES_FOR_WORKLOAD_CHECK:=10;
@@ -19,9 +19,9 @@ filesInScriptFolder->begin
   local nextUpdate:=time+30; //update every 30 seconds
   local result:=extractFileName(files(SCRIPT_FOLDER&'\*.mnh')|files(SCRIPT_FOLDER&'\*.bat')).sort;
 save;
-  time<nextUpdate
+  scriptTime<nextUpdate
   ? result
   : begin
-      nextUpdate:=time+30; //update every 30 seconds
+      nextUpdate:=scriptTime+30; //update every 30 seconds
       result:=extractFileName(files(SCRIPT_FOLDER&'\*.mnh')|files(SCRIPT_FOLDER&'\*.bat')).sort;
     end;end;

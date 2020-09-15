@@ -1,0 +1,36 @@
+#!C:\bin\mnh.exe -GUI
+ONE_KB:=1024;
+TOTAL_OUTPUT:=1024²;
+
+main('1kb'  )->printf('%x',intRandom(16^1024,TOTAL_OUTPUT div 1024));
+main('small')->printf('%x',intRandom(16^8   ,TOTAL_OUTPUT div 8   ));
+main('burst')->[0..7].each(burst,printf('%x',intRandom(16^1024,TOTAL_OUTPUT div 1024 div 8)));
+
+testSelfCall(parameter)->begin
+  print('Testing ',parameter);
+  local outputs:=[[local t0:=scriptTime,0]];
+  teeExec(executor,[myPath,parameter],{outputs||=[scriptTime,$0.byteLength]});
+  setOptions(["preserveAspect"=>false].toMap);
+  print('  Plotting throughput in kb/second vs. time');
+  local amountsOfData:=outputs.getInner(1)/ONE_KB;
+  local times        :=(outputs.getInner(0)+(0| outputs.getInner(0).leading))/2-t0;
+  local binSize:=times.max/50;
+  local avg:=amountsOfData.group(floor(times/binSize),::+);
+  avg:=avg.mergeMaps([avg.getInner(0).min..avg.getInner(0).max+2].map({$x=>0}).toMap,::orElse)
+          .map({[$x[0]*binSize,$x[1]/binSize]})
+          .sort
+          .filter({$x[0]>=0});
+  avg.addPlot('b f');
+  display;
+  print('  Overall throughput: ',amountsOfData.agg(+)/(outputs.getInner(0).max-t0),'kb/s');
+  local directExecTime:=time(::exec,[executor,[myPath,parameter]]);
+  print('  direct exec       : ', directExecTime['result',0].map(::byteLength).agg(+)/ONE_KB/directExecTime['time'],'kb/s');
+end;
+
+main->begin
+  testSelfCall('1kb');
+  testSelfCall('small');
+  testSelfCall('burst');
+end;
+
+

@@ -1,0 +1,12 @@
+TIMES_PER_PATH:=
+fileLines('N:\server\tinyServer.log')
+  .filter({pos(';TIME;',$line)<Inf})
+  .map({$x.split(";").trailing(2).softCast})
+  .{$L.getInner(1).group($L.getInner(0))};
+
+quartiles(L:List)->L.sort[round([1..3]/4*(L.size-1))]*1000;
+
+showTable(
+[['Path','25%ile','median','75%ile'],
+ 'Total'|quartiles(TIMES_PER_PATH.getInner(1).flatten)]|
+TIMES_PER_PATH.map({$x[0]|$x[1].quartiles}),2,1);

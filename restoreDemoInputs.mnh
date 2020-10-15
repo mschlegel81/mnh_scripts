@@ -1,4 +1,9 @@
+assertNonBlankString(s:String)->assert(s!='') orElse s;
+assertFolderExists(filename:String)->assert(filename.extractFileDirectory.folderExists) orElse filename;
+
 main->begin
-  writeFile('C:\dev\mnh5\demos\inputs\unixdict.txt','C:\dev\web\page\data\dict.dat'.fileContents.decompress);
-  writeFile('C:\dev\mnh5\demos\inputs\kjv.txt','C:\dev\web\page\data\kjv.dat'.fileContents.decompress);
+  writeFile('..\mnh5\demos\inputs\unixdict.txt'.assertFolderExists,'..\web\page\data\dict.dat'.fileContents.assertNonBlankString.decompress);
+  print('Restored ',expandedFileName('..\mnh5\demos\inputs\unixdict.txt').systemSpecificFilename);
+  writeFile('..\mnh5\demos\inputs\kjv.txt'     .assertFolderExists,'..\web\page\data\kjv.dat' .fileContents.assertNonBlankString.decompress);
+  print('Restored ',expandedFileName('..\mnh5\demos\inputs\kjv.txt' ).systemSpecificFilename);
 end;

@@ -1,0 +1,62 @@
+sfxHead:=//!~
+main->DATA.pMap((chunk)->chunk.base92decode.decompress.deserialize)
+          .flatMap((info)->begin
+                     print(info[0]);
+                     writeFile(info[0],info[2]);
+                     setFileDate(info[0],info[1]);
+                   end).agg(|);
+~.split("\n");
+sfxTail:=[';'];
+
+CHUNK_SIZE_LIMIT_IN_BYTES:=100*1024²;
+
+dynamicChunk(inputIterator)->{begin
+save;
+  local next:=inputIterator();
+  local collected:=[];
+  local collectedSize:=0;
+  while(!isVoid(next) AND collectedSize<CHUNK_SIZE_LIMIT_IN_BYTES,
+  begin
+    collected||=next;
+    collectedSize+=next[2].byteLength;
+    next:=inputIterator();
+  end);
+  collected==[] ? void : collected;
+end}.toIteratableExpression;
+
+
+main(folderToArchive,target)->begin
+  print(folderToArchive);
+
+  local relativeRoot:=folderToArchive.extractFileName&'/';
+  relativeRoot:=relativeRoot=='./'?'':relativeRoot;
+
+  local targetName:=target.changeFileExt('.mnh');
+  writeFileLines(targetName,sfxHead);
+
+  allFiles(folderToArchive)
+  .{$fileList[sortPerm($fileList.extractFileExt)]}
+  .{print('Found ',$fileList.size,' files to compress.') orElse $fileList}
+  .toIteratableExpression
+  .map((file)->[relativeRoot&folderToArchive.relativeFileName(file),
+                file.fileInfo['time'],
+                file.fileContents])
+  .dynamicChunk
+  .pMap((chunk)->begin
+     local startOfCompression:=scriptTime;
+     local out:=chunk.serialize.compress(1).base92encode;
+     print('Chunk of ',chunk.size,' files, ',chunk.getInner(2).map(::byteLength).agg(+),' bytes compressed in ',scriptTime-startOfCompression,'s');
+     out;
+   end)
+  .each(data,
+    appendFileLines(targetName,
+     [join([index==0 ? 'DATA:=//!~' : '|//!~',
+            data,'~'])]));
+   appendFileLines(targetName,sfxTail);
+end;
+
+//main('C:\bin\Dawn Of War','dawnOfWarSfx.mnh');
+
+
+allFiles  ('C:\dev\private\mnh_scripts','*.*');
+allFolders('C:\dev\private\mnh_scripts');

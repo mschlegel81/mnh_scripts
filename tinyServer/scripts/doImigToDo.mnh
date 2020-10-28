@@ -30,7 +30,7 @@ save;
       end;
 end}.toIteratableExpression;
 
-createPrintMethod(id)->{print('(Task ',id,') ',$0)};;
+createPrintMethod(id)->{print('(Task ',id,') ',$0)};
 
 nextPrintMethod->begin
   local taskCounter:=rangeGenerator(1);

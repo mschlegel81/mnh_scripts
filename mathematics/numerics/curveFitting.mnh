@@ -76,7 +76,7 @@ end;
 
 SAMPLE_COUNT:=200;
 HEART:=([1..SAMPLE_COUNT]/SAMPLE_COUNT*2*pi).map({[12*sin($x)-4*sin(3*$x),
-       13*cos($x)-5*cos(2*$x)-2*cos(3*$x)-cos(4*$x)-4]});;
+       13*cos($x)-5*cos(2*$x)-2*cos(3*$x)-cos(4*$x)-4]});
 
 plot(HEART,'.');
 display;

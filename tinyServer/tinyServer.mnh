@@ -1,5 +1,5 @@
 #!C:\bin\mnh\mnh.exe -GUI -quiet -headless +out ?.log(1) +out D:\server\tinyServer.log
-USE tinyServer_html,tinyServer_config,loggingRunner,serveTasks,cpuUsage,generators;
+USE tinyServer_html,tinyServer_config,loggingRunner,serveTasks,cpuUsage;
 
 @SuppressUnusedWarning
 USE serveProcesses,serveFiles;
@@ -103,7 +103,7 @@ adminPage(parameters:Map)->begin
   ) ,'div');
   local pageMap:=
   tag(tag('Page map', 'h2')&htmlTable(
-   PAGE_MAP.getInner(0).sort.map({htmlLink($x,$x)}).chunkIterator(4).toList
+   PAGE_MAP.getInner(0).sort.map({htmlLink($x,$x)}).chunkMap(4).toList
   ) ,'div');
   local mnhInfoDiv:=
   tag(tag('MNH info', 'h2')&htmlTable(mnhInfo.sort) ,'div');

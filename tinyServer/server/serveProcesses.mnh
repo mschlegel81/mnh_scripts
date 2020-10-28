@@ -1,4 +1,6 @@
-USE tinyServer_html,processUtil;
+USE tinyServer_html;
+
+stopProcess(pid:Int)->execAsync('taskkill',['/f','/PID',toString(pid)]);
 
 getProcessMap->begin
   local PM:=getTaskInfo.map({$x['PID'] => $x.mergeMaps(['children'=>[]].toMap,::orElse)}).toMap;

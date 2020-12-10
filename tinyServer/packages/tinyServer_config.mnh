@@ -16,7 +16,7 @@ tPrint(...)->formatTime('hh:mm:ss.zzz ',systime).print@(...);
 getLogName(index)->format('%s/log%s.txt',LOG_FOLDER,index);
 fullScriptName(filename)->format('%s/%s',SCRIPT_FOLDER,filename);
 filesInScriptFolder->begin
-  local nextUpdate:=time+30; //update every 30 seconds
+  local nextUpdate:=scriptTime+30; //update every 30 seconds
   local result:=extractFileName(files(SCRIPT_FOLDER&'\*.mnh')|files(SCRIPT_FOLDER&'\*.bat')).sort;
 save;
   scriptTime<nextUpdate

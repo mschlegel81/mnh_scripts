@@ -1,6 +1,4 @@
-ducktype ProcessInfo(L:List(3))->L[0].isString AND L[1].isInt AND L[2].isInt;
-
-allProcessesStartedByMe->begin
+private allProcessesStartedByMe->begin
   local taskInfo:=getTaskInfo;
   local childProcessMap:=taskInfo.getInner('PID').group(taskInfo.getInner('parentPID'));
   local parentPidsToConsider:=[mnhInfo['PID']].toSet;
@@ -15,4 +13,7 @@ end;
 
 stopProcess(pid:Int)->execAsync('taskkill',['/f','/PID',toString(pid)]);
 
-killAllMyChildren->begin allProcessesStartedByMe.filter({$x[0]!='conhost.exe'}).getInner(1).map(::stopProcess); void; end;
+killAllMyChildren->begin
+  allProcessesStartedByMe.map(::stopProcess);
+  void;
+end;

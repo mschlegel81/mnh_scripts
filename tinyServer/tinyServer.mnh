@@ -1,4 +1,4 @@
-#!C:\bin\mnh\mnh.exe -GUI -quiet -headless +out ?.log(1) +out D:\server\tinyServer.log
+#!C:\bin\mnh\mnh.exe -GUI -quiet -headless +out D:\server\tinyServer.log(1)
 USE tinyServer_html,tinyServer_config,loggingRunner,serveTasks,cpuUsage;
 
 @SuppressUnusedWarning
@@ -192,7 +192,6 @@ serve(M)->begin
    end});
   serveTime+=scriptTime;
   serveStatistics[path]:=(serveStatistics[path] orElse [0,0])+[1,serveTime];
-  tPrint(';TIME;',path,';',serveTime);
   response orElse fail;
 end;
 

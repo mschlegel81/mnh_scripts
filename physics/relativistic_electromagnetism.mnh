@@ -88,8 +88,8 @@ apparentPosition(positionFunction:Expression(1),observerPosition:NumericList(2),
   t0:=regulaFalsi({euklideanNorm(positionFunction(atTime-$t)-observerPosition)-$t},
                   t0/(1+speed),
                   t0/(1-speed),
-                  1E-2,
-                  1E-2);
+                  1E-6,
+                  1E-6);
   [positionFunction(atTime-t0     )-observerPosition,
    positionFunction(atTime-t0+1E-3)-observerPosition];
 end;
@@ -120,7 +120,7 @@ getCalculatedScenario(scenarioName in (SCENARIOS.getInner(0)),speed:FractionOfC)
   storedScenarios[key].isVoid
   ? begin
       assertUniqueInstance;
-      local startOfCalculation:=time;
+      local startOfCalculation:=scriptTime;
       local scenarioAtSpeed:=SCENARIOS[scenarioName,0](speed);
       local pointsInTime:=SCENARIOS[scenarioName,1].toExpression()(speed);
       print('Calculating scenario ',key.join(" "),'; ',pointsInTime.size,' frames must be calculated');
@@ -155,8 +155,9 @@ getCalculatedScenario(scenarioName in (SCENARIOS.getInner(0)),speed:FractionOfC)
          frameData[2].map({                    min($x     ,globalMaxMagnetFld)/globalMaxMagnetFld*255}).round,
          printDirect('.')];
       end);
-      print("\nCalculation done in ",time-startOfCalculation,' seconds');
+      print("\nCalculation done in ",scriptTime-startOfCalculation,' seconds');
       storedScenarios[key]:=scenarioData.dataToStore;
+      writeDataStores;
       scenarioData;
     end
   : begin
@@ -169,7 +170,7 @@ normed(x:NumericList)->x/x.euklideanNorm;
 
 maxTipSize:=0.15;
 
-memoized dArrow(dx:IntList(2))->begin
+dArrow(dx:IntList(2))->begin
   local tipSize:=min(maxTipSize,euklideanNorm(dx)/100);
   local fwd:=dx; fwd:=fwd.normed*tipSize;
   local lft:=[-fwd[1],fwd[0]];
@@ -212,6 +213,8 @@ showAnimation(scenarioName in (SCENARIOS.getInner(0)),speed:FractionOfC,magnetic
   end;
   print(repeat("-",calculatedScenario.size-1),'|');
   //Convert frame data to plot commands
+
+
   calculatedScenario.each(frameData,
     future({begin
               (magnetic

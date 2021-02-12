@@ -45,7 +45,7 @@ main->begin
 
   state.isVoid
   ? begin
-      state:=fp([1..PARTICLE_COUNT])*0.25;
+      state:=centralDartThrowing(PARTICLE_COUNT)*0.7;
       state:=[state,zeros(state.size)];
       positionHistory:=[];
     end
@@ -54,17 +54,20 @@ main->begin
   local step:=integrator(CASH_KARP, //The Integrator
                          ::D,       //The ODE
                          0.05,      //time step size
-                         1E-4);     //tolerance
+                         1E-5);     //tolerance
+  isGuiStarted ? setOptions(["fontsize"=>6.8301345536507059,"autoscaleX"=>false,"autoscaleY"=>false,"axisStyleX"=>3,"axisStyleY"=>3].toMap) : void;
   while(!quitPosted AND positionHistory.size<=FRAMES_TOTAL,begin
     switchSetup(positionHistory.size);
     positionHistory|=[state[0]];
     state:=step(state);
     print(formatTime(systime),' ',positionHistory.size);
+    isGuiStarted ? state[0].prepareForPlot.plotPreparedSystem(true) : void;
   end);
   writeDataStores;
 end;
 
 main('replay')->begin
+  setOptions(["fontsize"=>6.8301345536507059,"autoscaleX"=>false,"autoscaleY"=>false,"axisStyleX"=>3,"axisStyleY"=>3].toMap);
   assertGuiStarted;
   positionHistory.each(frame,
   future({printDirect($0) orElse prepareForPlot($1)},["\r"&(index+1)&'/'&positionHistory.size,frame]))

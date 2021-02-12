@@ -135,12 +135,12 @@ mutable globalDampingFactor:=0;
 
 D(system:List(2))->begin
   local points:=system[0];
+  local f1:=future(::forcesOf,[points,PAIRS_00,absForce00]);
+  local f2:=future(::forcesOf,[points,PAIRS_11,absForce11]);
+  local f3:=future(::forcesOf,[points,PAIRS_01,absForce01]);
   [system[1],points.attractToOrigin
             +globalDampingFactor*(system [1])
-            +(forcesOf(points,PAIRS_00,absForce00)
-             |forcesOf(points,PAIRS_11,absForce11)
-             |forcesOf(points,PAIRS_01,absForce01)
-             ).group(0).getInner(1)
+            +(f1()|f2()|f3()).group(0).getInner(1)
             .map({[$g.head.head,$g.getInner(1).agg(+)]})
             .sort(0)
             .getInner(1)];

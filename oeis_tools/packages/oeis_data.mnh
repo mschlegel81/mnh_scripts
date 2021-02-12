@@ -1,0 +1,74 @@
+datastore sequences:=[];
+datastore names    :=[];
+datastore foundImplementations:=[].toMap;
+datastore details  :=[].toMap;
+
+postUpdateDatastores->begin
+  local posted:={true};
+save;
+  posted().isVoid
+  ? void
+  : posted:=async(()->begin
+      log('Starting to update datastores');
+      writeDataStores;
+      log('Datastores updated');
+      true;
+    end);
+end;
+
+private memoized sevenZipExe->
+  ["c:/Program Files/7-Zip/7z.exe",
+   "c:/Program Files (x86)/7-Zip/7z.exe"]
+  .each(file,file.fileExists ? file : void,head)
+  orElse fail('7-Zip could not be located!');
+
+private unzipWithOperation(filename:String,operation:Expression(1))->
+  log('Unzipping ',filename) orElse
+  mnhInfo['targetOs'].matches('(i?)Linux')
+  ? 'zcat'     .teeExec([filename],operation)
+  : sevenZipExe.teeExec(['e','-so','-bd',filename],operation);
+
+private getData(URL:String,extractor:Expression(1))->begin
+  local filename:=URL.split('/').trailing;
+  (local fileExistedBefore:=fileExists(filename))
+  ? void
+  : begin
+      log('Fetching data from ',URL);
+      local data:=httpGet(URL);
+      data['code']!=200 ? fail('Response from ',URL,' is ',data['code']) :
+      log(filename,' downloaded');
+      filename.writeFile(data['body']);
+    end;
+  local list:=[];
+  local temp:=unzipWithOperation(filename,{list||=extractor($line)});
+  temp[1]==0 ? log(filename,' decompressed')
+             : fail('Decompression returned with exit code ',temp[1]);
+  fileExistedBefore ? void : deleteFile(filename);
+  temp[0];
+  list.toMap;
+end;
+
+//*Updates datastores based on input files
+//*Obtain the files at https://oeis.org/names.gz and https://oeis.org/stripped.gz
+//*Unzip the files before using them as input
+memoized downloadData->begin
+  local response:=[];
+  local respond:={log@($params) orElse response|=join($params)};
+  respond('Updating data - old: ',typeOf(names));
+  local idAndRest  :={[$s.copy(1,6).softCast,$s.copy(8,$s.length)                                    ]};
+  local idAndSeries:={[$s.copy(1,6).softCast,$s.copy(8,$s.length).split(',').softCast.filter(::isInt)]};
+  local namesMap :=future(::getData,['https://oeis.org/names.gz'   ,(line)->line.matches('^A\d{6} ') ? idAndRest  (line) : void]);
+  local seriesMap:=         getData ('https://oeis.org/stripped.gz',(line)->line.matches('^A\d{6} ') ? idAndSeries(line) : void);
+  namesMap:=namesMap(); //resolve future
+  respond('Files parsed - ',seriesMap.size,'/',namesMap.size,' entries');
+  local maxSeries:=max(namesMap.getInner(0).max,seriesMap.getInner(0).max);
+  respond('Updating names list of ',maxSeries,' relevant entries');
+  names    :=rangeGenerator(0,maxSeries).pMap({namesMap [$i] orElse ''}).toList;
+  respond('Updating sequences list of ',maxSeries,' relevant entries');
+  sequences:=rangeGenerator(0,maxSeries).pMap({seriesMap[$i] orElse []}).toList;
+  respond('Datastores generated - '&(names.size)&' entries');
+  foundImplementations:=[].toMap;
+  postUpdateDatastores;
+  response;
+end;
+

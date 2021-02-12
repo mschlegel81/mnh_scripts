@@ -1,76 +1,334 @@
 #!/usr/bin/mnh_light
-USE oeis_server;
+USE oeis_sequences, generators,oeis_data;
+
+ipcId:=myPath.extractFileNameOnly;
+
+private IDFormat:='A%6.6d';
+
+private D(x0,   x0):=[1,0,0];
+private D(x0,x1>x0):=[0,1,0];
+private D(x0,x1<x0):=[0,0,1];
+private CLASS(0,0,0)->'empty';
+private CLASS(e,0,0)->'constant';
+private CLASS(0,i,0)->'monotonically increasing';
+private CLASS(e,i,0)->'increasing';
+private CLASS(0,0,d)->'monotonically decreasing';
+private CLASS(e,0,d)->'decreasing';
+private CLASS(e,i,d)->'alternating';
+
+memoized implementationOf(index:Int)->begin
+  local result:=implemented[index];
+  result.isVoid ? void : return result;
+  result:=foundImplementations[index];
+  result.isVoid ? void : return [result[0].toExpression,result[1]];
+  result:=sequences[index];
+  result.isVoid ? return void : void;
+  result:=guessImplementation(result);
+  result.isVoid ? return void : foundImplementations[index]:=result;
+  log('Found new implementation [',index,'] ',result);
+  [result[0].toExpression,result[1]];
+end;
+
+memoized private classify(L:IntList)->begin
+  local last:=L[0];
+  CLASS@(L.tail.each(x,D(last,last:=x),+) orElse [0,0,0]);
+end;
+
+KEY_ID               :='ID';
+KEY_NAME             :='Name';
+KEY_SEQUENCE         :='Sequence';
+KEY_GENERATED        :='Generated';
+KEY_OFFSET           :="Offset";
+KEY_INFO             :='Info';
+KEY_AUTHOR           :="Author";
+KEY_COMMENT          :="Commment";
+KEY_REF              :="Ref";
+KEY_LINK             :="Link";
+KEY_FRM              :="Frm.";
+KEY_SEE              :="see";
+KEY_EXTENSION        :="Extension";
+KEY_KEY              :="Key";
+KEY_GENERATOR        :='Generator';
+KEY_PLAIN_TEXT_OUTPUT:='plain-text-output';
+
 @SuppressUnusedWarning
-initHook:=begin
-  isIpcServerRunning(oeis_server.ipcId) OR $1=='stopServer'
-  ? void
+ALL_KEYS_BY_PRIO:=[KEY_ID,KEY_NAME,KEY_SEQUENCE,KEY_GENERATED,KEY_OFFSET,KEY_INFO,KEY_AUTHOR,KEY_COMMENT,KEY_REF,KEY_LINK,KEY_FRM,KEY_SEE,KEY_EXTENSION,KEY_KEY,KEY_GENERATOR];
+
+private info(numericId:Int,forceDetails:Boolean)->begin
+  note('Composing info for ID ',numericId,'; forcing details: ',forceDetails);
+  local details:=forceDetails
+                 ? getDetails        (numericId)
+                 : getExistingDetails(numericId);
+  [KEY_ID      => IDFormat.format(numericId),
+   KEY_NAME    => names[numericId] orElse '- not found -',
+   KEY_SEQUENCE=> sequences[numericId] orElse [],
+   KEY_INFO    => classify(sequences[numericId] orElse []),
+   implementationOf(numericId).isVoid ? void :
+   (KEY_GENERATOR=>implementationOf(numericId).map(::toString))
+   ].toMap
+  .mergeMaps(details,::orElse);
+end;
+
+private getDetails        (index:Int)->(details[index] orElse begin details[index]:=queryDetails(index); postUpdateDatastores; details[index]; end).decompress.deserialize;
+private getExistingDetails(index:Int)->(details[index] orElse #251',').decompress.deserialize;
+
+private queryDetails(index:Int)->begin
+  local TRANS:=[
+        '%D'=>KEY_REF,
+        '%H'=>KEY_LINK,
+        '%F'=>KEY_FRM,
+        '%Y'=>KEY_SEE,
+        '%A'=>KEY_AUTHOR,
+        '%E'=>KEY_EXTENSION,
+        '%K'=>KEY_KEY,
+        '%C'=>KEY_COMMENT,
+        '%O'=>KEY_OFFSET];
+  local lines:=
+  encodeRequest('https:','//oeis.org/search',['q'=>format('id:'&IDFormat,index),'fmt'=>'text'].toMap)
+    .httpGet['body']
+    .split("\n")
+    .filter({$L.hasPrefix('%')});
+  group(lines.copy(11).replace(["\t","\v","\r"],' '),lines.copy(0,2))
+    .map((entry)->begin
+      local translatedKey:=TRANS[entry[0]];
+      translatedKey.isVoid ? void : translatedKey=>entry[1];
+    end).toMap.serialize.compress;
+end;
+
+private serve_('download',...)->[KEY_PLAIN_TEXT_OUTPUT=>downloadData];
+
+private stringToId(s:String)->begin local id:=s.clean(['0'..'9'],'').softCast; id.isInt ? id : void; end;
+private stringToId(i:Int)->i;
+
+private serve_('id'     ,...)->map(...,::stringToId).pMap((id)->info(id,false));
+private serve_('details',...)->map(...,::stringToId).pMap((id)->info(id,true ));
+private serve_('name'   ,...)-> ... .pEach(pattern,names.matches(pattern),or).indexOf.pMap((id)->info(id,false));
+private serve_('part'   ,...)->begin
+  local sequencesAsString:=sequences.pMap(::toString);
+save;
+  (...).pEach(partTxt,partTxt.sequencesAsString.matches(partTxt).indexOf,|).unique.pMap((id)->info(id,false));
+end;
+
+private serve_('continue',start:IntList,additional>0)->begin
+  local matching:=sequences.pEach(seq,
+    seq.head(start.size)==start
+    ? [index,seq.tail(start.size).head(additional)]
+    : void);
+  matching.size=0
+  ? 'No matches'
   : begin
-      executor.execAsync([inspect['uses'].each(i,i[0].matches('(?i)oeis_server') ? i[1] : void,head)]);
-      sleep(1);
+      local parts:=[1..additional].pEach(s,matching.getInner(1).map({$seq.head(s)}).toSet.size);
+      matching:=matching
+        .group(1)
+        .pEach(g,
+          [g[1].size,
+           g[1].head(10).getInner(0).pMap({format(IDFormat,$id)}).join(", ")&(g.size<=10 ? '' : '...'),
+           g[0].join(",")])
+        .sort(0);
+     [KEY_PLAIN_TEXT_OUTPUT=>
+     ((format("There are\t%s\tsequences starting with %s",matching.getInner(0).agg(+),start.join(","))|
+       format("\t%{$1}s\tdifferent options for the next %{$0}s digit%{$0=1?'':'s'}s",[1..additional],parts)).join("\n").formatTabs|
+       format("%{$x[0]}s\tentries (%{$x[1]}s)\n\tsay: %{$x[2]}s",matching.trailing(5).reverseList).join("\n").formatTabs)].toMap;
     end;
 end;
 
-OUTPUT_WIDTH:=125;
-WRAP_WIDTH:=OUTPUT_WIDTH-5;
+private serve_('class')->[KEY_PLAIN_TEXT_OUTPUT=>
+  implemented.mergeMaps(foundImplementations,::orElse)
+    .map({$x[1,1]})
+    .elementFrequency
+    .map({$x.join("\t")})].toMap;
 
-niceWrap(s:String,injectTab:Boolean)->s.length<WRAP_WIDTH ? s : begin
-  local splitAt:=s.chars.head(WRAP_WIDTH).each(c,c in [' ',','] ? index : void).trailing+1;
-  splitAt==[] ? splitAt:=WRAP_WIDTH : void;
-  copy(s,0,splitAt)&"\n"&(injectTab ? "\t":"")&copy(s,splitAt,s.length).niceWrap(injectTab);
+private serve_('class',className)->
+  implemented.mergeMaps(foundImplementations,::orElse)
+    .map({$entry[1,1]==className ? $entry[0] : void})
+    .sort
+    .pMap((id)->info(id,false));
+
+private VALIDATION_TIMEOUT_IN_SECONDS:=10;
+private serve_('validate')->
+  implemented.mergeMaps(foundImplementations,::orElse)
+  .toIteratableExpression
+  .map({[$x[0],$x[1,0].isExpression ? $x[1,0] : $x[1,0].toExpression]})
+  .map({[$x[0],                                                     //ID
+         timingOutGenerator($x[1](),VALIDATION_TIMEOUT_IN_SECONDS), //Generator
+         sequences[$x[0]] orElse []]})                               //Expected value
+  .pMap((entry)->begin
+    log('Validating ',IDFormat.format(local id:=entry[0]));
+    local sequence :=entry[2];
+    local generated:=entry[1].head(entry[2].size);
+    generated==sequence
+    ? [0,id]
+    : sequence==[]
+      ? [1,format("No sequence found for "&IDFormat,id)]
+      : generated==sequence.head(generated.size)
+        ? [2,'Validation for '&format(IDFormat,id)&' timed out @'&(generated.size-1)]
+        : [3,'Validation for '&format(IDFormat,id)&' failed @'&join(indexOf(generated!=sequence))];
+   end)
+  .toList
+  .{$L.getInner(1).group($L.getInner(0))}
+  .{begin
+      ($L[0] orElse []).size&" sequences validated successfully\n"&
+      $L[1].flatten.join("\n")&"\n"&
+      $L[2].flatten.join("\n")&"\n"&
+      $L[3].flatten.join("\n");
+    end}.trim.split("\n").{[KEY_PLAIN_TEXT_OUTPUT=>$txt].toMap};
+
+
+private serve_('statistics')->[KEY_PLAIN_TEXT_OUTPUT=> begin
+  local top10:=(L:List)->begin
+    local X:=L.elementFrequency.sort(1).trailing(10).reverseList;
+    local factor:=50/X[0,1];
+    X.map({format("\t\t%s\t%s\t%s",$x[0].join(","),$x[1],repeat('*',round($x[1]*factor)))})
+     .join("\n")
+     .format;
+  end;
+
+ (sequences.size=0 ? 'No sequences' :
+  begin
+    local allNumbers:=sequences.flatten.toSet;
+    join(["Largest  integer                                       : ",allNumbers.max,
+        "\nSmallest positive integer not contained in any sequence: ",rangeGenerator(0,  2^60 ).pFilter((i)->i not in allNumbers).head(1).head,
+        "\nLargest  negative integer not contained in any sequence: ",rangeGenerator(0,-(2^60)).pFilter((i)->i not in allNumbers).head(1).head,
+        "\nSmallest integer                                       : ",allNumbers.min]);
+  end&
+  "\n\nMost frequent integers:\n"&(sequences.flatten.top10.formatTabs.join("\n"))&
+  "\n\nSequence classifications:\n"&(sequences.pMap(::classify).elementFrequency.sort(1).map({'  '&($x.join("\t"))}).join("\n").formatTabs.join("\n"))&
+  "\n\nMost frequent series lengths:\n"&
+  begin
+    local sizes:=sequences.pMap(::size);
+    sizes.top10.formatTabs.join("\n")&
+    "\nAverage series length: "&(sizes.agg(+)/sizes.size);
+  end)&
+  format("\n\nThere are implementations available for %s series ", implemented.mergeMaps(foundImplementations,{$0 orElse $1}).size);
+end.split("\n")].toMap;
+
+private serve_('gen',seriesId,count)->begin
+  local seriesIdx:=seriesId.clean(['0'..'9'],'').softCast;
+  local n:=count.softCast;
+  n.isInt AND n>0 ? void : return 'Parameter '&escape(count)&' is no positive integer';
+  seriesIdx.isInt and seriesIdx>0 ? void : return 'Parameter '&escape(seriesId)&' is no valid series id';
+  local f:=implementationOf(seriesIdx);
+  f.isVoid
+  ? note('No implementation found - using fallback') orElse
+    f:=toIteratableExpression(sequences[seriesIdx] orElse []) //if no implementation is found, pseudo generate based on stored list
+  : f:=f[0]();
+  [KEY_GENERATED=>f.head(n)].toMap.mergeMaps(info(seriesIdx,false),::orElse);
 end;
 
-private getData(parameters)->sendIpcRequest(oeis_server.ipcId,parameters);
-private validateRegex_(s:String)->validateRegex(s,{fail('Invalid regex: ',escape(s),'; ',$message)});
-printFormattedInfo(S:String)->S.decompress.split("\n").map({$x.niceWrap(true)}).join("\n").print;
-printFormattedInfo(L:IntList)->print(L.join(",").niceWrap(false));
-printFormattedInfo(L:List)->L.each(element,printFormattedInfo(element),'='.repeat(OUTPUT_WIDTH).print);
-printFormattedInfo(M:Map)->begin
-  @SuppressUnusedWarning
-  local id  :=M['ID'] orElse '?';
-  local name:=M['Name'] orElse '?';
-  local seq :=M['Sequence'] orElse [];
-  local info:=M['Info'] orElse '?';
-  local gen :=M['genClass'];
-  printf("ID:\t{id}\n"&
-         "Name:\t{name.niceWrap(true)}\n"&
-         "Seq.:\t{seq.join(',').niceWrap(true)}\n"&
-         "Info:\t{info} series of {seq.size} elements"&
-         (gen.isVoid ? void : "\n\tGenerator avaliable: {gen[0].toString}"&
-                              "\n\tGenerator class    : {gen[1]}"));
+private serve_('scan')->begin
+  foundImplementations.isVoid OR foundImplementations.size=0 ? begin
+    foundImplementations:=
+    sequences.pEach(seq,implemented[index].isVoid ? begin
+      index mod 1000=0
+      ? log('Trying to guess implementation for ',IDFormat.format(index),': ',seq.head(10).join(","),seq.size>10 ? ',...' : void)
+      : void;
+      local imp:=try({guessImplementation(seq)},{fail('guessImplementation failed for ',index,"\n",$0.map({$x.join("\t")}).join("\n"))});
+      imp.isVoid
+      ? void
+      : [index,imp,printf(IDFormat&'=%s',index,imp.toString)];
+      end : void).toMap;
+    postUpdateDatastores;
+  end : void;
+  [KEY_PLAIN_TEXT_OUTPUT=>foundImplementations.size&' Implementations found'].toMap;
 end;
 
-@demo_for=Inter Process Communication
-//*Return info on a series by ID(s)
-main('id',...)->getData($params).printFormattedInfo;
-//*Return details on a series by ID(s)
-main('details',...)->getData($params).printFormattedInfo;
-//*Returns info on a series by name pattern(s)
-main('name',...)->map(...,::validateRegex_)[0] orElse getData($params).printFormattedInfo;
-//*Returns info on a series by part; start with \[ to indicate sequence start
-main('part',part)->validateRegex_(part) orElse getData($params).printFormattedInfo;
-//*Returns info on possible continuations
-main('continue',sequenceStart,additional)->getData(['continue',sequenceStart.split(",").softCast.filter(::isInt),toInt(additional)]).printFormattedInfo;
-//*Returns statistics on the given input
-main('statistics')->getData($params).printFormattedInfo;
-//*Validates implemented series
-main('validate')->getData($params).printFormattedInfo;
-//*Return info on a series by class (or list classes)
-main('class',...)->getData($params).printFormattedInfo;
-//*Scan for reproducible series
-main('scan')->getData($params).printFormattedInfo;
-//*Show info on duplicate series
-main('duplicates')->getData($params).printFormattedInfo;
-//*Plot number frequencies
-main('plot')->begin
-  ['logscaleX'=>true,'fontsize'=>6,'logscaleY'=>true,'preserveAspect'=>false].toMap.setOptions;
-  getData('numberFrequencies').plot('. 0.3 red') orElse display;
+private serve_('duplicates')->begin
+  [KEY_PLAIN_TEXT_OUTPUT=>
+  group([1..sequences.size-1],sequences.tail)
+    .filter((entry)->entry[1].size>1)
+    .sort((x,y)->x[1].size<=y[1].size)
+    .each(entry,"Sequence "&(entry[0]==[] ? '[]' : (entry[0].head(10).join(",") & (entry[0].size>10 ? ',...' : void))),
+                "  occurs "&entry[1].size&' times: '&IDFormat.format(entry[1].head(10)).join(", ") & (entry[1].size>10 ? ',...' : void))].toMap;
 end;
-//*Stops the IPC server (if running)
-main('stopServer')->begin
-  isIpcServerRunning(ipcId) AND sendIpcRequest(ipcId,['stop']);
-  while(isIpcServerRunning(ipcId),sleep(0.1));
+
+private START_PARMAETER:='startup_server';
+private STOP_SIGNAL:='stop';
+private serve_((STOP_SIGNAL),...)->halt;
+private serve_(...)->[KEY_PLAIN_TEXT_OUTPUT=>'Unknown query: '&toString(...)].toMap;
+
+printServerResponse(response:List)->response.each(entry,print,printServerResponse(entry));
+printServerResponse(response:Map)->begin
+  ALL_KEYS_BY_PRIO.each(k,response[k].isVoid ? void : k&"\v:\t"&( response[k].isIntList ? response[k].join(",") : response[k].isScalar ? response[k] : response[k].join("\n\v\v"))).join("\n").print;
+  response[KEY_PLAIN_TEXT_OUTPUT].isVoid
+  ? void
+  : printf('%s',response[KEY_PLAIN_TEXT_OUTPUT]);
 end;
-//*Updates OEIS data
-main('download')->getData($params).printFormattedInfo;
-//*Generates values for given id
-main('gen',id,count)->getData($params).printFormattedInfo;
+
+queryServer((STOP_SIGNAL),...)->begin
+  ipcId.isIpcServerRunning ? sendIpcRequest(ipcId,STOP_SIGNAL|...) : void;
+  [KEY_PLAIN_TEXT_OUTPUT=>'Stopped'].toMap;
+end;
+
+queryServer(query,...)->begin
+  while(!ipcId.isIpcServerRunning,begin
+    executor.execAsync(['-GUI','-quiet','-headless', //Start as a service
+                        '-convertPrintToLog','-logDateFmt','hh:mm:ss.zzz','-logLocationLength','25','+log','packages/oeis.log(1)', //log configuration
+                        myPath,START_PARMAETER]);
+    sleep(1);
+  end);
+  sendIpcRequest(ipcId,query|...);
+end;
+
+//*Updates the offline stores from the Online Encyclopedia of Integer Sequences
+main('download',...)->printServerResponse(queryServer@$params);
+
+//*Show info on ID
+main('id',...)->printServerResponse(queryServer@$params);
+
+//*Show detailed info on ID, downloading details if missing
+main('details',...)->printServerResponse(queryServer@$params);
+
+//*Show info on entries matching name
+main('name',...)->printServerResponse(queryServer@$params);
+
+//*Show possible continuations of the given sequence
+main('continue',startOfSequence,additionals)->printServerResponse(queryServer('continue',startOfSequence.split(",").map(::toInt),additionals.toInt));
+
+//*Show sequences containing the exact part
+main('part',startOfSequence,additionals)->printServerResponse(queryServer@$params);
+
+//*Show implementation classes
+main('class')->printServerResponse(queryServer@$params);
+
+//*Show implementation class members for given className
+main('class',...)->printServerResponse(queryServer('class',join(...,' ')));
+
+//*Validate the current implementations
+main('validate')->printServerResponse(queryServer@$params);
+
+//*Show statistics
+main('statistics')->printServerResponse(queryServer@$params);
+
+//*Scan for generic implementations
+main('scan')->printServerResponse(queryServer@$params);
+
+//*Look for duplicated series
+main('duplicates')->printServerResponse(queryServer@$params);
+
+//*Generate series from known implementation
+main('gen',id,elementsToGenerate)->printServerResponse(queryServer('gen',id,elementsToGenerate.toInt));
+
+//*Starts the IPC server (do not call directly)
+main((START_PARMAETER))->begin
+  startIpcServer(ipcId,(parameters)->begin
+    local t0:=scriptTime;
+    print("Processing request: ",parameters);
+    local result:=
+    parameters.isList
+      ? serve_@parameters
+      : serve_(parameters);
+    printf('Request: %s answered in %3.6fs',toString(parameters),scriptTime-t0);
+    result;
+  end);
+  while(true,sleep(3600));
+end;
+
+//*Stops the IPC server
+main('stop')->printServerResponse(queryServer@$params);
+
+//*Plot frequencies
+main('plot','frequencies')->begin
+  assertGuiStarted;
+  setOptions(["x0"=>1E-100,"y0"=>1E-100,"logscaleX"=>true,"logscaleY"=>true].toMap);
+  sequences.pMap({$seq[0<$seq<1E6]}).flatten.elementFrequency.sort.plot('. red 0.5');
+end;

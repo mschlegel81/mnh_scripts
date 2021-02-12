@@ -1,0 +1,159 @@
+KEY_PHASE:='phaseShift';
+KEY_KOEFF:='coefficients';
+KEY_ERROR:='error';
+KEY_CURVE:='curveIdx';
+KEY_REFCV:='referenceData';
+KEY_OPTIMIZED:='ever_optimized';
+
+ducktype CurveCoefficients(C:Map)->C[KEY_PHASE].isInt AND C[KEY_KOEFF].isNumericList AND C[KEY_KOEFF].size>0;
+ducktype Timed4DSamples(L:List(2))->L[0].isBoolean AND L[1].each(x,x.isList(2) AND x[0].isNumeric AND x[1].isNumericList(4),AND);
+isFullCurve(c:Timed4DSamples)->c[0];
+
+periodicTime(Nan)->Nan;
+periodicTime(t)->t-floor(t);
+
+periodicHalfCurveSample(pt:List(2))->begin
+  local t:=pt[0]-floor(pt[0]);
+  t>0.5
+  ? [t-0.5,-pt[1]]
+  : [t    , pt[1]];
+end;
+
+
+//*Returns the integral of sin(a*t)*(b+c*t) over [t0,t1]
+//private analyticIntegral(a,b,c,t0,t1)->
+//  ((c*sin(a*[t1,t0])-
+//    a*cos(a*[t1,t0])*
+//       (b+c*[t1,t0]))).agg(-)/a²;
+
+cubicSinusIntegral(q:NumericList(4),t,freq)->(1/(freq^4))*(-freq*(q[0]*freq^2-6*q[3]*t+q[1]*freq^2*t+q[3]*freq^2*t^3+q[2]*(-2+freq^2*t^2))*cos(freq*t)+(freq^2*(q[1]+2*q[2]*t)+3*q[3]*(-2+freq^2*t^2))*sin(freq*t));
+
+private sortByValueInRowDescending(L:List,rowIndex:Int)->L[sortPerm(-L.getInner(rowIndex).abs)];
+private localCubicCoeff(t0:Numeric,x0:Numeric,
+                        t1>t0     ,x1:Numeric,
+                        t2>t1     ,x2:Numeric,
+                        t3>t2     ,x3:Numeric)->begin
+  //Gauss-Jordan Algorithm
+  local aid:=[[1,t0,t0²,t0³,x0],
+              [1,t1,t1²,t1³,x1],
+              [1,t2,t2²,t2³,x2],
+              [1,t3,t3²,t3³,x3]];
+  aid:=[aid[0],
+        aid[1]-aid[0],
+        aid[2]-aid[0],
+        aid[3]-aid[0]];
+  [1..3].each(rowIndex,begin
+    //Pivot
+    aid:=aid.head(rowIndex) | //upper rows remain untouched
+         aid.tail(rowIndex).sortByValueInRowDescending(rowIndex);
+    //Subtract
+    local x:=aid[rowIndex]/aid[rowIndex,rowIndex];
+    aid:=[0..3].each(i,i=rowIndex ? x : aid[i]-aid[i,rowIndex]*x);
+  end);
+  [aid.getInner(4),[t1,t2]];
+end;
+
+private piecewise1DCubicFourierTransform(timedSamples:List,coeffCount)->begin
+  //Add two samples at the start and two at the end
+  local prevTime:=-Inf;
+  local tmp:=
+  (timedSamples.trailing(2).map((pt)->(pt[0]-1)*2*pi=>pt[1])
+  |timedSamples            .map((pt)-> pt[0]   *2*pi=>pt[1])
+  |timedSamples.head(2)    .map((pt)->(pt[0]+1)*2*pi=>pt[1])).filter((pt)->begin
+    local accept:=pt[0]>prevTime;
+    prevTime:=pt[0];
+    accept;
+  end);
+  tmp:=[0..tmp.size-4].pMap((i0)->localCubicCoeff@flatten(tmp[i0+[0..3]]));
+  tmp[0,1,0]:=0;
+  tmp[tmp.size-1,1,1]:=2*pi;
+
+  //([0..coeffCount-1]*2+1).pEach(f,tmp.each(q,cubicSinusIntegral@(q|f).agg(-),+))/(-pi);
+  local F:=[0..coeffCount-1]*2+1;
+  tmp.pEach(v,cubicSinusIntegral(v[0],v[1,1],F)
+             -cubicSinusIntegral(v[0],v[1,0],F),+)*(1/pi);
+end;
+
+piecewiseCubicFourierTransform(timedCurve:Timed4DSamples,realPhaseShift:Real,maxCoeff>=1)->
+  [0..3].pEach(dimension,timedCurve[1]
+                   .pMap((pt)->[periodicTime(pt[0]-dimension*realPhaseShift),pt[1,dimension]])
+                   .{timedCurve.isFullCurve ? $L : $L.pEach(pt,pt,[periodicTime(pt[0]+0.5),-pt[1]])}
+                   .sort
+                   .piecewise1DCubicFourierTransform(maxCoeff),+)*0.25;
+
+getCurveFunction(coeff:CurveCoefficients,dim:Int)->begin
+  local phaseShift:=coeff[KEY_PHASE]*2*pi/7*dim;
+  local f:=coeff[KEY_KOEFF].each(a,a=0 ? void : a*sin((dim=0 ? {$t} : {$t}-phaseShift)*(index*2+1)),+);
+  f.isVoid ? (x)->0
+           : f;
+end;
+
+private combine2D(fx,fy)->{[fx($t),fy($t)]};
+
+getCurveFunction2D(coeff:CurveCoefficients,dim1:Int,dim2:Int)->
+  combine2D(getCurveFunction(coeff,dim1),
+            getCurveFunction(coeff,dim2));
+
+recommendedSampleCount(coeff:CurveCoefficients)->max(350,min(3500,(coeff[KEY_KOEFF].size*2-1)*4));
+
+private combine4D(f:Expression(1),ps1,ps2,ps3)->(t)->[f(t),f(t-ps1),f(t-ps2),f(t-ps3)];
+memoized private f4(factors:NumericList,phase:Int)->
+    combine4D(factors.pEach(a,a=0 ? void : a*sin({$t}*(index*2+1)),+) orElse {$x*0},
+              phase*2*pi/7,phase*4*pi/7,phase*6*pi/7);
+
+memoized private df4dt(factors:NumericList,phase:Int)->
+    combine4D((factors.pEach(a,a=0 ? void : (a*(index*2+1))*cos({$t}*(index*2+1)),+) orElse {$x*0}),
+              phase*2*pi/7,phase*4*pi/7,phase*6*pi/7);
+
+sampleCurve(factors:NumericList,phase:Int,pointsInTime:NumericList)->pointsInTime.pMap(f4(factors,phase));
+
+private sampleCurve(coeff:CurveCoefficients,sampleCount:Int)->sampleCurve(coeff[KEY_KOEFF],coeff[KEY_PHASE],[0..sampleCount]/sampleCount*2*pi);
+
+sampleCurve(coeff:CurveCoefficients)->coeff.sampleCurve(recommendedSampleCount(coeff));
+
+retimeCurveByFourierCoeff(TY:Timed4DSamples,factors:NumericList,phase:Int,normalize:Boolean)->begin
+  local F :=f4   (factors,phase);
+  local dF:=df4dt(factors,phase);
+
+  local absolutePrecisionThreshold:=1E-3/TY.size;
+  local stepLimit:=1/TY.size;
+
+  local retimed:=TY[1].pMap((pt)->begin
+    local t:=pt[0]*2*pi;
+    local p:=pt[1];
+    local prevStep:=void;
+    local damping:=1;
+    while(abs(prevStep orElse Inf)>absolutePrecisionThreshold,begin
+      local f0:=F(t);
+      local df:=dF(t);
+      local step:=(((p-f0)*df).agg(+)/(df.sqr.agg(+))).max(-stepLimit).min(stepLimit);
+      step*=(sign(step)==sign(prevStep orElse step)
+             ? damping
+             : damping*=0.5);
+      prevStep:=step;
+      t+=step;
+    end);
+    [t/(2*pi),p];
+  end);
+  ['timedSamples'=>[TY[0],
+                    normalize
+                    ? TY[0] ? retimed.pMap((pt)->periodicTime(pt[0])=>pt[1])
+                            : retimed.pMap(::periodicHalfCurveSample)
+                    : retimed],
+   'maxTimeDelta'=>abs(retimed.getInner(0)-TY[1].getInner(0)).max].toMap;
+end;
+
+begin
+  local T:=[0.1,0.2];
+  local K:=[0..50]*2+1;
+
+  time({K.pMap((k)->cubicSinusIntegral([1,0,0,0],T,k))})['time'].print;
+  time({T.pMap((t)->cubicSinusIntegral([1,0,0,0],t,K))})['time'].print;
+
+
+  time({begin
+    local TK:=T.cross(K);
+    cubicSinusIntegral([1,0,0,0],TK.getInner(0),TK.getInner(1));
+  end})['time'].print;
+
+end;

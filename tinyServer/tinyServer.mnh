@@ -1,10 +1,10 @@
-#!C:\bin\mnh\mnh.exe -GUI -quiet -headless +out D:\server\tinyServer.log(1)
+#!C:\bin\mnh\mnh.exe -GUI -quiet -headless +log D:\server\logs\tinyServer.log(1)
+private LOG_NAME:=                             'D:\server\logs\tinyServer.log';
 USE tinyServer_html,tinyServer_config,loggingRunner,serveTasks,cpuUsage;
 
 @SuppressUnusedWarning
 USE serveProcesses,serveFiles;
 
-private LOG_NAME:=changeFileExt(myPath,'.log');
 private uptimeFormat:='{floor($0/3600)}:%{floor($0/60) mod 60}2.2d:%{floor($0) mod 60}2.2d';
 
 datastore doNotStartTasksBefore:=systime;
@@ -43,7 +43,7 @@ logServeStats->
   begin
     print('+---------------------------------- - - -');
     print('| Time ',formatTime(systime));
-    print('| Uptime ',formatTime('hh:nn:ss',time/(24*60*60)));
+    print('| Uptime ',formatTime('hh:nn:ss',scriptTime/(24*60*60)));
     print('+---------------------------------- - - -');
     local list:=
     serveStatistics

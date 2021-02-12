@@ -5,7 +5,6 @@ private allProcessesStartedByMe->begin
   local pc:=0;
   while(parentPidsToConsider.size<>pc,begin
     pc:=parentPidsToConsider.size;
-    print(parentPidsToConsider);
     parentPidsToConsider:=parentPidsToConsider.each(pid,childProcessMap[pid],pid).flatten.toSet;
   end);
   parentPidsToConsider.minus([mnhInfo['PID']]);

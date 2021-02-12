@@ -124,7 +124,7 @@ startExecution(scriptName,parameters:String)->begin
     scriptName.extractFileExt.lower=='.bat'
     ? ['cmd','/C',scriptName]
     : scriptName.extractFileExt.lower=='.mnh'
-    ? [executor,'-v(1)','-headless',scriptName]
+    ? [executor,'-quiet','-headless','-convertPrintToLog','-logDateFmt','hh:mm:ss.zzz','-logLocationLength','25','+log','stdOut(1)',scriptName]
     : return void;
   logTaskStarted(logIndex,scriptName,parameters);
   writeDataStores;

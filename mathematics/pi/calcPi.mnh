@@ -10,6 +10,22 @@ private calcPiHexDigit(n)->begin
 end;
 
 private datastore calculatedDigitsOfPi:=[];
+private saveInterval:=60;
+
+private saveAfterAppendDigit(digit:Int)->begin
+  local nextTimeToSave:=scriptTime+saveInterval;
+save;
+  calculatedDigitsOfPi|=digit;
+  scriptTime>nextTimeToSave
+  ? begin
+      writeDataStores;
+      nextTimeToSave:=scriptTime+saveInterval;
+      true;
+    end
+  : false;
+end;
+
+LOG16_10:=ln(16)/ln(10);
 
 private hexToDecimal(hexDigits:IntList)->
   //Transform hexadecimal digits to decimal form:
@@ -26,7 +42,7 @@ private printNewDigits(nextHexDigit:Int)->begin
 save;
   currentSum:=currentSum*16+nextHexDigit;
   currentHexDigits+=1;
-  local newDecimalDigits:=floor(currentHexDigits*1.2041199826559246-1);
+  local newDecimalDigits:=floor(currentHexDigits*LOG16_10-1);
   newDecimalDigits>currentDecimalDigits
   ? shiftRight(currentSum*10^newDecimalDigits,4*currentHexDigits).mod(10^(newDecimalDigits-currentDecimalDigits)).printDirect
   : void;
@@ -34,43 +50,51 @@ save;
   nextHexDigit;
 end;
 
-calculate(quit:Expression(0),quiet:Boolean)->begin
-  note("Evaluation starts",
+calculate(quit:Expression(0),actionOnNewDigit:Expression(1))->begin
+  log("Evaluation starts",
        "\ninitial state : ",local initialDigits:=calculatedDigitsOfPi.size,' (hex)',
-       "\n                ",floor(calculatedDigitsOfPi.size*1.2041199826559246),' (decimal)');
-  local startOfCalculation:=time;
+       "\n                ",floor(calculatedDigitsOfPi.size*LOG16_10),' (decimal)');
+  local startOfCalculation:=scriptTime;
   local digitGen:=
   rangeGenerator(calculatedDigitsOfPi.size)
     .pMap(::calcPiHexDigit);
-  quiet
-  ? while(quit().isVoid,calculatedDigitsOfPi|=               digitGen() )
-  : while(quit().isVoid,calculatedDigitsOfPi|=printNewDigits(digitGen()));
-  note("\nEvaluation finished",
-       "\ncurrent digits: ",calculatedDigitsOfPi.size,' (hex)',
-       "\n                ",floor(calculatedDigitsOfPi.size*1.2041199826559246),' (decimal)',
-       "\ncalculated ",(calculatedDigitsOfPi.size-initialDigits)/(time-startOfCalculation),' digits per second');
+  while(quit().isVoid,begin
+    local nextDigit:=digitGen();
+    actionOnNewDigit(nextDigit);
+    saveAfterAppendDigit(nextDigit)
+    ? log("Intermediate update",
+          "\ncurrent digits: ",calculatedDigitsOfPi.size,' (hex)',
+          "\n                ",floor(calculatedDigitsOfPi.size*LOG16_10),' (decimal)',
+          "\ncalculated ",(calculatedDigitsOfPi.size-initialDigits)/(scriptTime-startOfCalculation),' digits per second')
+    : void;
+  end);
+  digitGen:=void;
+  log("Evaluation finished",
+      "\ncurrent digits: ",calculatedDigitsOfPi.size,' (hex)',
+      "\n                ",floor(calculatedDigitsOfPi.size*LOG16_10),' (decimal)',
+      "\ncalculated ",(calculatedDigitsOfPi.size-initialDigits)/(scriptTime-startOfCalculation),' digits per second');
 end;
 
 //*Calculates digits of pi until enter is pressed
-main->calculate(async(::ask,['Press Enter to quit']),false);
+main->calculate(async(::ask,['Press Enter to quit']),::printNewDigits);
 
 //*Print pi, as far as calculated
 main('show')->begin
   print(calculatedDigitsOfPi.hexToDecimal);
   print("current digits:\t",calculatedDigitsOfPi.size,"\t(hex)",
-        "\n\t",floor(calculatedDigitsOfPi.size*1.2041199826559246),"\t(decimal)");
+        "\n\t",floor(calculatedDigitsOfPi.size*LOG16_10),"\t(decimal)");
 end;
 
 //*Calculates the given number of digits of pi
 main(numberOfDigitsToCompute)->begin
-  local count:=ceil(numberOfDigitsToCompute.toInt/1.2041199826559246);
+  local count:=ceil(numberOfDigitsToCompute.toInt/LOG16_10);
   calculatedDigitsOfPi.size>=count
   ? print(calculatedDigitsOfPi.head(count).hexToDecimal)
-  : calculate({calculatedDigitsOfPi.size<count ? void : true},false);
+  : calculate({calculatedDigitsOfPi.size<count ? void : true},(digit)->void);
 end;
 
 //*Calculates digits of pi for the given time in seconds
 main('for',numberOfSeconds)->begin
-  local timeout:=time+numberOfSeconds.toInt;
-  calculate({time<timeout ? void : true},true);
+  local timeout:=scriptTime+numberOfSeconds.toInt;
+  calculate({scriptTime<timeout ? void : true},(digit)->void);
 end;

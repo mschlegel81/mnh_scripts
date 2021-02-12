@@ -21,16 +21,19 @@ save;
           [p1+BLOCK_SIZE_0+BLOCK_SIZE_1,BLOCK_SIZE_1]],'box 0.7 RGB0.5,0.35,0.25');
   addPlot([[0,BLOCK_SIZE_1],[0,0],[10,0]],'black l 0.5');
 
-  drawTextAbsolute(0,1,' Collisions: '&collisionCount,11,'TL');
-  drawText(p0+BLOCK_SIZE_0/2             ,BLOCK_SIZE_0/2,'1kg'     ,9,'C');
-  drawText(p1+BLOCK_SIZE_0+BLOCK_SIZE_1/2,BLOCK_SIZE_1/2,block1text,9,'C');
+  drawTextAbsolute(0,1,' Collisions: '&collisionCount,13,'TL');
+  drawText(p0+BLOCK_SIZE_0/2             ,BLOCK_SIZE_0/2,'1mg'     ,11,'C');
+  drawText(p1+BLOCK_SIZE_0+BLOCK_SIZE_1/2,BLOCK_SIZE_1/2,block1text,11,'C');
   outputFilename=='' ? void : renderToFile(outputFilename,960,270);
 end;
 
 newCollisionSimulation(POWER:Int)->{begin
   local MASS_RATIO:=100^POWER;
-  local BLOCK_TEXT:=POWER=0 ? '1kg' : ([1..POWER*2]*0|1).each(i,index mod 3=0<index ? '.' :void, i).reverseList.join&'kg';
-
+  local BLOCK_TEXT:=(MASS_RATIO<1000  ? [MASS_RATIO,'mg'] :
+                     MASS_RATIO<1000² ? [MASS_RATIO div 1000 ,'g' ] :
+                     MASS_RATIO<1000³ ? [MASS_RATIO div 1000²,'kg'] :
+                                        [MASS_RATIO div 1000³,'t'])
+                    .join.replace('100000','100.000');
   local p0:= 1;
   local v0:= 0;
   local p1:= 2;

@@ -1,0 +1,70 @@
+circlePoint(t)->[cos(t),sin(t)];
+DEPTH:=10;
+MAX_AMPLITUDE:=1;
+wavePoint(baseX,baseY,phase)->begin
+  local amplitude:=MAX_AMPLITUDE*(baseY/DEPTH);
+  local alpha:=baseX-phase;
+  [cos(alpha),sin(alpha)]*amplitude+[baseX,baseY];
+end;
+
+POINTS_X:=61;
+POINTS_Y:=31;
+NO_POINT_IDX:=POINTS_X*POINTS_Y;
+
+MESH_IDX:=[0..POINTS_X-1].each(i,
+          [0..POINTS_Y-1]+i*POINTS_Y,NO_POINT_IDX,|)|
+          [0..POINTS_Y-1].each(j,
+          [0..POINTS_X-1]*POINTS_Y+j,NO_POINT_IDX,|);
+
+
+mesh(p:List)->begin
+  local P:=p|[[Nan,Nan]];
+
+  P[MESH_IDX];
+end;
+
+//begin
+//clearAnimation;
+//  setOptions(["x0"=>MAX_AMPLITUDE,"x1"=>20-MAX_AMPLITUDE,"y0"=>0,"y1"=>DEPTH+MAX_AMPLITUDE,"autoscaleX"=>false,"autoscaleY"=>false,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
+//  ([0..49]/50*2*pi).each(t,begin
+//  [0..POINTS_X-1].cross([0..POINTS_Y-1])./(3).map({wavePoint($p[0],$p[1],t)}).mesh.plot('l');
+//  addAnimationFrame;
+//  end);
+//  display;
+//
+//end;
+
+inLines->
+begin
+  setOptions(["x0"=>1,"x1"=>19,"y0"=>-10,"y1"=>1,"autoscaleX"=>false,"autoscaleY"=>false,"axisStyleX"=>6,"axisStyleY"=>6].toMap);
+  clearAnimation;
+  ([0..-49]/50*2*pi).each(phaseShift,begin
+    local d:=0;
+    local a:=1;
+    ([0..100]/5).map({a*circlePoint($x+phaseShift)+[$x,d]}).plot('black 2');
+    ([1..7]*2.5).map({a*circlePoint($x+phaseShift)+[$x,d]}).addPlot('red .');
+    ([1..7]*2.5).each(cx,[cx-a,d-a],[cx+a,d+a]).addPlot('red ellipse 0.5');
+    d:=-2.5;
+    a:=0.75;
+    ([0..100]/5).map({a*circlePoint($x+phaseShift)+[$x,d]}).addPlot('black 1.5');
+    ([1..7]*2.5).map({a*circlePoint($x+phaseShift)+[$x,d]}).addPlot('red .');
+    ([1..7]*2.5).each(cx,[cx-a,d-a],[cx+a,d+a]).addPlot('red ellipse 0.5');
+    d:=-5;
+    a:=0.5;
+    ([0..100]/5).map({a*circlePoint($x+phaseShift)+[$x,d]}).addPlot('black 1');
+    ([1..7]*2.5).map({a*circlePoint($x+phaseShift)+[$x,d]}).addPlot('red .');
+    ([1..7]*2.5).each(cx,[cx-a,d-a],[cx+a,d+a]).addPlot('red ellipse 0.5');
+
+    d:=-7.5;
+    a:=0.25;
+    ([0..100]/5).map({a*circlePoint($x+phaseShift)+[$x,d]}).addPlot('black 1');
+    ([1..7]*2.5).map({a*circlePoint($x+phaseShift)+[$x,d]}).addPlot('red .');
+    ([1..7]*2.5).each(cx,[cx-a,d-a],[cx+a,d+a]).addPlot('red ellipse 0.5');
+
+    ([1..7]*2.5).each(x,circlePoint(x+phaseShift)+[x,0],[x,-10],[Nan,Nan]).addPlot('red 0.5');
+    addAnimationFrame;
+  end);
+  display;
+end;
+
+main->inLines;

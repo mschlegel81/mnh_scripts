@@ -1,3 +1,4 @@
+#!C:\bin\mnh_light.exe -silent -pauseAfter -stdout
 similarityIndex(A:StringList,B:StringList)->begin
   local stat:=diffStats(A,B);
   stat['matches']/(stat.getInner(1).agg(+));

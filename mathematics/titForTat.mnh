@@ -112,9 +112,14 @@ plotSingleRun->begin
   [0..2].each(run,begin
     local counter:=-1;
     evolutionGame(initialPool,local steps:=200,{begin
-      local a:=average($x);
-      local s:=variance($x).sqrt/2;
-      addPlot([a+s,a-s],'ellipse f 0 HUE'&(counter+=1)/steps*2/3);
+      local boxes:=[$x.getInner(0).sort[round([0.2,0.4,0.6,0.8]*($x.size-1))],
+                    $x.getInner(1).sort[round([0.2,0.4,0.6,0.8]*($x.size-1))]].transpose;
+      addPlot(boxes[[0,3]],'box 1 HUE'&(counter+=1)/steps*2/3);
+      addPlot(boxes[[1,2]],'box f 0 HUE'&counter/steps*2/3);
+
+      //local a:=average($x);
+      //local s:=variance($x).sqrt/2;
+      //addPlot([a+s,a-s],'ellipse f 0 HUE'&(counter+=1)/steps*2/3);
       postDisplay;
     end});
   end);

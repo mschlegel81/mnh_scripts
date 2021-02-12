@@ -1,7 +1,7 @@
 #!C:\bin\mnh_light.exe -silent -restrict noexe
 UNCHANGED_TIMEOUT:=10; //one day timeout - realistically this timeout is never reached
 DISPLAY_THRESHOLD:=1/24; //one hour
-LOG_FILE_PATTERN:='Y:\server\logs\log*.txt';
+LOG_FILE_PATTERN:='Y:\server\logs\*.*';
 currentLogs->files(LOG_FILE_PATTERN).fileInfo.map((info)->info['path']=>info['time']).toMap;
 
 latestLogFile->begin

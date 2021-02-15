@@ -95,7 +95,7 @@ private queryDetails(index:Int)->begin
     end).toMap.serialize.compress;
 end;
 
-private serve_('download',...)->[KEY_PLAIN_TEXT_OUTPUT=>downloadData];
+private serve_('download',...)->[KEY_PLAIN_TEXT_OUTPUT=>downloadData].toMap;
 
 private stringToId(s:String)->begin local id:=s.clean(['0'..'9'],'').softCast; id.isInt ? id : void; end;
 private stringToId(i:Int)->i;

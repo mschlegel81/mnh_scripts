@@ -95,6 +95,13 @@ private queryDetails(index:Int)->begin
     end).toMap.serialize.compress;
 end;
 
+private findSequencesContaining(parts:StringList)->begin
+  local sequencesAsString:=sequences.pMap(::toString);
+save;
+  parts.pEach(partTxt,partTxt.sequencesAsString.matches(partTxt).indexOf,|).unique;
+end;
+
+
 private serve_('download',...)->[KEY_PLAIN_TEXT_OUTPUT=>downloadData].toMap;
 
 private stringToId(s:String)->begin local id:=s.clean(['0'..'9'],'').softCast; id.isInt ? id : void; end;
@@ -106,7 +113,7 @@ private serve_('name'   ,...)-> ... .pEach(pattern,names.matches(pattern),or).in
 private serve_('part'   ,...)->begin
   local sequencesAsString:=sequences.pMap(::toString);
 save;
-  (...).pEach(partTxt,partTxt.sequencesAsString.matches(partTxt).indexOf,|).unique.pMap((id)->info(id,false));
+  (...).pEach(partTxt,sequencesAsString.matches(partTxt).indexOf,|).unique.pMap((id)->info(id,false));
 end;
 
 private serve_('continue',start:IntList,additional>0)->begin
@@ -285,7 +292,7 @@ main('name',...)->printServerResponse(queryServer@$params);
 main('continue',startOfSequence,additionals)->printServerResponse(queryServer('continue',startOfSequence.split(",").map(::toInt),additionals.toInt));
 
 //*Show sequences containing the exact part
-main('part',startOfSequence,additionals)->printServerResponse(queryServer@$params);
+main('part',startOfSequence)->printServerResponse(queryServer@$params);
 
 //*Show implementation classes
 main('class')->printServerResponse(queryServer@$params);

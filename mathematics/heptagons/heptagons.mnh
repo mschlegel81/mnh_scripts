@@ -80,7 +80,7 @@ end;
 //*Calculates all partitioned samples
 main->begin
 //  local sortOrScramble:={$L.size==0 ? $L : $L.toList[$L.size.random.sortPerm]};
-  local sortOrScramble:={$L.sort};
+  local sortOrScramble:={$L.sort.reverseList};
 //  local sortOrScramble:={$L.sort((x,y)->abs(x-DEG_120)<=abs(y-DEG_120))};
 //  local sortOrScramble:={$L.sort((x,y)->abs(x-DEG_120)>=abs(y-DEG_120))};
 
@@ -159,7 +159,16 @@ main('drop',...)->
   (...).each(k,
     begin
       curveCoefficients[k.toInt].isVoid
-      ? print('Curve coefficients ',k,' are not present')
+      ? begin
+          print('Curve coefficients ',k,' are not present');
+          partitionedCurves[k.toInt].isVoid
+          ? print('Partitioned curve ',k,' is not present')
+          : begin
+              ask('Do you really want to drop partitioned curve '&k,['Yes','No'])=='Yes'
+              ? partitionedCurves[k.toInt]:=void
+              : void;
+            end;
+        end
       : begin
           curveCoefficients[k.toInt]:=void;
           print('Curve coefficients ',k,' have been dropped');

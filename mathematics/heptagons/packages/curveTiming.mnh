@@ -204,6 +204,14 @@ c.size<=8
   local intPhaseShift:=round(phaseShift*7);
   partiallyTimedCurve:=[false,partiallyTimedCurve.pMap((pt)->[pt[0],
                                                               improveSingleSample(curveIndex,pt[1]*0.5^scale/256*pi)])];
+//partiallyTimedCurve:=[false,partiallyTimedCurve.pMap((pt)->[pt[0],
+//                                                            pt[1]*0.5^scale/256*pi])];
+  isGuiStarted ? begin
+    setOptions(["fontsize"=>6,"preserveAspect"=>false].toMap);
+    plot();
+    map([0..3],(dim)->partiallyTimedCurve[1].getInner(1).each(x,(index/partiallyTimedCurve[1].size*0.5- phaseShift*dim)=>x[dim]).addPlot());
+    addAnimationFrame;
+  end : void;
   local timedCurve:=[false,partiallyTimedCurve[1].map((pt)->pt[0].isNan ? void : pt.head(2))];
   stepDone();
   //-------------------------------------------------------:(2) Refine samples
@@ -233,8 +241,10 @@ c.size<=8
     timedCurve:=[false,(timedCurve[1]|newlyTimedSamples)];
     local numberOfRefinementRuns:=max(1,shiftRight(16,index));
     [1..numberOfRefinementRuns].each(refRun,begin
+//      PLOT_INTERMEDIATE(dft);
       timedCurve:=timedCurve.retimeCurveByFourierCoeff(dft,intPhaseShift,false)['timedSamples'];
-      dft:=timedCurve.piecewiseCubicFourierTransform(phaseShift,dft.recommendedFourierCoeffCount);
+//      PLOT_INTERMEDIATE(dft);
+      dft:=timedCurve.piecewiseCubicFourierTransform(phaseShift,min(dft.recommendedFourierCoeffCount,timedCurve[1].size));
       PLOT_INTERMEDIATE(dft);
     end);
     print('  ',timedCurve[1].size,' samples; ',dft.size,' coefficients');

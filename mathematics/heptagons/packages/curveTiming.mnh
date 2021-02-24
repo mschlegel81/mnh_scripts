@@ -86,7 +86,8 @@ timedCurveError(timedSamples:Timed4DSamples,factors:NumericList,phase:Int,doPlot
   doPlotOutput
   ? begin
       setOptions(["fontsize"=>6,"preserveAspect"=>false,"x0"=>0,"y0"=>0,"y1"=>1,"autoscaleX"=>true,"autoscaleY"=>true].toMap);
-      plot(timedSamples[1].getInner(0),D,'red 0.3 f');
+
+      [timedSamples[1].getInner(0).map(::periodicTime),D].transpose.sort.plot('red 0.5 f');
       addAnimationFrame;
       postDisplay;
     end
@@ -204,12 +205,12 @@ c.size<=8
   local intPhaseShift:=round(phaseShift*7);
   partiallyTimedCurve:=[false,partiallyTimedCurve.pMap((pt)->[pt[0],
                                                               improveSingleSample(curveIndex,pt[1]*0.5^scale/256*pi)])];
-//partiallyTimedCurve:=[false,partiallyTimedCurve.pMap((pt)->[pt[0],
-//                                                            pt[1]*0.5^scale/256*pi])];
   isGuiStarted ? begin
     setOptions(["fontsize"=>6,"preserveAspect"=>false].toMap);
     plot();
     map([0..3],(dim)->partiallyTimedCurve[1].getInner(1).each(x,(index/partiallyTimedCurve[1].size*0.5- phaseShift*dim)=>x[dim]).addPlot());
+    addAnimationFrame;
+  end : void;
     addAnimationFrame;
   end : void;
   local timedCurve:=[false,partiallyTimedCurve[1].map((pt)->pt[0].isNan ? void : pt.head(2))];
@@ -241,9 +242,8 @@ c.size<=8
     timedCurve:=[false,(timedCurve[1]|newlyTimedSamples)];
     local numberOfRefinementRuns:=max(1,shiftRight(16,index));
     [1..numberOfRefinementRuns].each(refRun,begin
-//      PLOT_INTERMEDIATE(dft);
       timedCurve:=timedCurve.retimeCurveByFourierCoeff(dft,intPhaseShift,false)['timedSamples'];
-//      PLOT_INTERMEDIATE(dft);
+      dft:=timedCurve.piecewiseCubicFourierTransform(phaseShift,min(dft.recommendedFourierCoeffCount,timedCurve[1].size));
       dft:=timedCurve.piecewiseCubicFourierTransform(phaseShift,min(dft.recommendedFourierCoeffCount,timedCurve[1].size));
       PLOT_INTERMEDIATE(dft);
     end);
@@ -427,4 +427,35 @@ resample(curveIndex:Int,coeff:CurveCoefficients,forceResampling:Boolean)->begin
    KEY_KOEFF=>coefficients,
    KEY_OPTIMIZED=>true,
    KEY_ERROR=>error].toMap.mergeMaps(coeff,::orElse);
+end;
+
+reconstructSamples(c:List,curveIndex:Int,coeff:Map)->begin
+  local currentCurve:=sampleCurve(coeff);
+  local error:=coeff[KEY_ERROR];
+  local coefficients:=coeff[KEY_KOEFF];
+  local t:=[0..currentCurve.size-1]/currentCurve.size;
+
+  log('Timing ',c.size,' discrete samples');
+  local samples:=
+    c.pMap((x)->begin local closest:=currentCurve.map((r)->euklideanNorm(r-x)).argMin; t[closest]=>x; end)
+     .filter((pt)->0<=pt[0]<=0.5)
+     .{log('Refining ',$L.size,' samples') orElse $L}
+     .pMap((pt)->[pt[0],improveSingleSample(curveIndex,pt[1])])
+     .{log('Retiming ',$L.size,' samples') orElse $L}
+     .{[false,$0]}
+     .retimeCurveByFourierCoeff(coefficients,coeff[KEY_PHASE],true)['timedSamples'];
+  printf('      Initial error : %16.10f; coeffCount: %3d',error,coefficients.size);
+  [1..16].each(i,begin
+    coefficients:=piecewiseCubicFourierTransform(samples,coeff[KEY_PHASE]/7,max(coefficients.size,recommendedFourierCoeffCount(coefficients)));
+    samples:=samples.retimeCurveByFourierCoeff(coefficients,coeff[KEY_PHASE],true)['timedSamples'];
+    printf(' #%2d/16 Curve error : %16.10f; coeffCount: %3d',
+           i,
+           error:=timedCurveError(samples,coefficients,coeff[KEY_PHASE],isGuiStarted),
+           coefficients.size);
+  end);
+
+  [KEY_REFCV=>packReferenceCurve(samples),
+   KEY_ERROR=>error,
+   KEY_KOEFF=>coefficients,
+   KEY_OPTIMIZED=>true].toMap.mergeMaps(coeff,::orElse);
 end;

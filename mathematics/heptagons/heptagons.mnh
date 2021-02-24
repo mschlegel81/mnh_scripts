@@ -304,6 +304,17 @@ main('infoTable')->begin
   : tabData.map((row)->row.join("\t")).join("\n").print;
 end;
 
+resampleFromPartitioned(curveIndex:Int,coeff:Map)->begin
+  local partitionedSamples:=getPartitionedSamples(curveIndex);
+  local scale:=partitionedSamples[0];
+  assert(!scale.isVoid);
+
+  partitionedSamples:=partitionedSamples[1,coeff[KEY_CURVE]].pMap((x)->x*0.5^scale/256*pi);
+  assert(!partitionedSamples.isVoid);
+
+  reconstructSamples(partitionedSamples,curveIndex,coeff);
+end;
+
 private canOptimizeSingleCurve(curveIdx,subCurveIdx)->begin
   assertUniqueInstance;
   local coeff  :=curveCoefficients[curveIdx,subCurveIdx];
@@ -315,6 +326,8 @@ private canOptimizeSingleCurve(curveIdx,subCurveIdx)->begin
   coeff==optimized OR optimized[KEY_ERROR]>coeff[KEY_ERROR]
   ? begin
       warn('Optimization for ',curveIdx,'/',subCurveIdx,' failed');
+      curveCoefficients[curveIdx,subCurveIdx]:=resampleFromPartitioned(curveIdx,coeff);
+      writeDatastoresLazily;
       false;
     end
   : begin
@@ -468,5 +481,3 @@ truncateLongCoefficients->begin
      .agg(|);
 end;
 
-
-truncateLongCoefficients;

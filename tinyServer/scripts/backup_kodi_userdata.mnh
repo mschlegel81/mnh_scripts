@@ -48,7 +48,7 @@ end;
 sortableSystime->formatTime('yyyymmddhhnnss',systime);
 
 private writeState(filename:String,state:FullFileInfoMap)->begin
-    note(time,' Compressing contents');
+    note(scriptTime,' Compressing contents');
     local persistedState:=state.sort.map(::flatten).transpose;//.pMap({$x.serialize.compress(1)}).serialize;
     persistedState[0]:=persistedState[0].join(#0).compress ; //filenames
     persistedState[1]:=persistedState[1].serialize.compress; //file times

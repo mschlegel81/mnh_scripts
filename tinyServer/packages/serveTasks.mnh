@@ -95,7 +95,7 @@ dequeueTask(parameters:Map)->begin
   local taskIndex:=queued.each(q,q.hash==taskHash ?index : void,head);
   isInt(taskIndex) AND (0<=taskIndex<queued.size)
   ? begin
-      tPrint('Dropping todo ',queued[taskIndex,1],' ',queued[taskIndex,2]);
+      log('Dropping todo ',queued[taskIndex,1],' ',queued[taskIndex,2]);
       queued[taskIndex]:=void;
     end
   : void;
@@ -164,17 +164,31 @@ enqueuePage(parameters:Map)->begin
   ,false).wrapTextInHttp;
 end;
 
-mutable shutdownTriggeredBySpecialTask:='';
 mutable restartScheduled:=false;
 
 SPECIAL_TASK_RESTART_SERVER:='RESTART';
 SPECIAL_TASK_RESTART_SYSTEM:='RESTART_SYSTEM';
 SPECIAL_TASK_SHUTDOWN      :='SHUTDOWN_SYSTEM';
 
-getShutdownTask(task)->{begin
-  shutdownTriggeredBySpecialTask:=task;
+doRestartSystem->begin
   restartScheduled:=true;
-end};
+  writeAllDataStores;
+  log('Restarting system');
+  execPipeless('Shutdown.exe',['-r','-t','00']);
+end;
+
+doShutdownSystem->begin
+  restartScheduled:=true;
+  writeAllDataStores;
+  log('Shutting down system');
+  execPipeless('Shutdown.exe',['-s','-t','00']);
+end;
+
+doRestartServer->begin
+  restartScheduled:=true;
+  writeAllDataStores;
+  log('Posting server stop');
+end;
 
 startNextTask->queued.size<=0 ? false : begin
   local task:=queued.head;
@@ -184,7 +198,7 @@ startNextTask->queued.size<=0 ? false : begin
   writeDataStores;
   scriptName in SPECIAL_TASKS.getInner(0)
   ? begin
-      tPrint('Executing special task ',scriptName);
+      log('Executing special task ',scriptName);
       logSpecialTaskStarted(scriptName);
       SPECIAL_TASKS[scriptName]();
       true;
@@ -197,7 +211,7 @@ forceStart(parameters:Map)->begin
   local taskIndex:=queued.each(q,q.hash==taskHash ?index : void,head);
   isInt(taskIndex) AND (0<=taskIndex<queued.size)
   ? begin
-      tPrint('Force start...');
+      log('Force start...');
       taskIndex=0
       ? void
       : queued:=queued[taskIndex|filter([0..queued.size-1],{$x<>taskIndex})];
@@ -212,7 +226,7 @@ moveToFront(parameters:Map)->begin
   local taskIndex:=queued.each(q,q.hash==taskHash ?index : void,head);
   isInt(taskIndex) AND (0<taskIndex<queued.size)
   ? begin
-      tPrint('Moving task to front: ',queued[taskIndex]);
+      log('Moving task to front: ',queued[taskIndex]);
       queued:=queued[taskIndex|filter([0..queued.size-1],{$x<>taskIndex})];
     end
   : void;
@@ -229,7 +243,7 @@ private addToPrevious(script,parameters)->begin
 end;
 
 enqueueTask(script,parameters)->begin
-  tPrint('Planned new task ',script,' ',parameters.toString);
+  log('Planned new task ',script,' ',parameters.toString);
   queued|=[[systime,script,parameters.toString]];
   addToPrevious(script,parameters.toString);
 end;

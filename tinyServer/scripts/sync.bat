@@ -10,5 +10,7 @@ rem robocopy N:\Martin D:\dokumente\Martin /FFT /S
 rem robocopy N:\Oskar D:\dokumente\Oskar /FFT /S
 
 D:
-cd dev 
-incrementalBackup.mnh
+cd \dev 
+mnh -v1 incrementalBackup.mnh restore
+robocopy D:\dev\ib D:\backup\dev\ib *.ib /MIR /NP /LEV:1 /FFT /MIR /COPY:DT
+robocopy D:\dev D:\backup\dev *.mnh /MIR /NP /LEV:1 /FFT /MIR /COPY:DT 

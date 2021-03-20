@@ -1,25 +1,15 @@
-#!C:\bin\mnh.exe -silent -headless -out ?.log
+#!C:\bin\mnh.exe -silent -headless
 WORK_IN:='D:\wip';
 //WORK_IN:=myPath.extractFileDirectory;
 
-KILL_SWITCH_NAME:=changeFileExt(myPath,'.killswitch');
-
-private killSwitchExists->begin
-  local switchFoundBefore:=false;
-save;
-  fileExists(KILL_SWITCH_NAME)
-  ? begin
-      deleteFile(KILL_SWITCH_NAME);
-      switchFoundBefore:=true;
-    end
-  : switchFoundBefore;
-end;
+MY_IPC_ID:='23f2o3od23ni_doImigToDo';
+mutable receivedKillSignal:=false;
 
 todoIterator(maxTodos:Numeric)->{begin
   local todos:=WORK_IN.allFiles('*.todo').systemSpecificFilename.sort;
   local handedOut:=0;
 save;
-  (handedOut+=1)>maxTodos OR killSwitchExists
+  (handedOut+=1)>maxTodos OR receivedKillSignal
   ? void
   : todos.size=0
     ? void
@@ -30,7 +20,7 @@ save;
       end;
 end}.toIteratableExpression;
 
-createPrintMethod(id)->{print('(Task ',id,') ',$0)};
+createPrintMethod(id)->{$0.isStringList ? print(join('(Task '&id&') '&$0,"\n")) : print('(Task ',id,') ',$0)};
 
 nextPrintMethod->begin
   local taskCounter:=rangeGenerator(1);
@@ -38,19 +28,22 @@ save;
   createPrintMethod(taskCounter());
 end;
 
-private processToDo(todo:String)->begin
+private processToDo(todo:String,delayOuput:Boolean)->receivedKillSignal ? void : begin
   local printMethod:=nextPrintMethod;
-  printMethod('+-'&todo.clean(['-'],'-')&'-+');
-  printMethod('| '&todo                 &' |');
-  printMethod('+-'&todo.clean(['-'],'-')&'-+');
-  executeTodo(todo,printMethod);
+  local log:=['+-'&todo.clean(['-'],'-')&'-+',
+              '| '&todo                 &' |',
+              '+-'&todo.clean(['-'],'-')&'-+'];
+  delayOuput
+  ? printMethod(todo&' started')
+  : printMethod(log);
+  executeTodo(todo,delayOuput ? ((line)->log|=line) : printMethod);
+  delayOuput
+  ? printMethod(log)
+  : void;
 end;
 
 //*Create kill switch - takes effect after evaluation
-main('kill')->isIpcServerRunning ? begin
-  writeFile(KILL_SWITCH_NAME,' ');
-  print(KILL_SWITCH_NAME,' created');
-end : warn('There is no instance running to kill');
+main('kill')->sendIpcRequest(MY_IPC_ID,'KILL').assert;
 
 //*List todos
 main('list')->todoIterator(Inf)
@@ -62,6 +55,9 @@ main('list')->todoIterator(Inf)
 //*  all               : process all todos
 //*  parallel          : process todos in parallel
 main(...)->begin
+  assert(!isIpcServerRunning(MY_IPC_ID),'Script is already running');
+  startIpcServer(MY_IPC_ID,(request)->begin request=='KILL' ? print('RECEIVED KILL SIGNAL!') orElse receivedKillSignal:=true : 0; end);
+
   local workInParallel:=false;
   local limit:=1;
   (...).each(parameter,
@@ -72,13 +68,14 @@ main(...)->begin
     print(helpOnMain) orElse
     fail('Unknown parameter: ',parameter));
 
-  print('Processing ',limit,' todos ',workInParallel ? 'in parallel' : void);
+  print('Processing ',limit==Inf ? todoIterator(Inf).toList.size : limit,' todos ',workInParallel ? 'in parallel' : void);
   assertUniqueInstance;
 
   workInParallel
-  ? todoIterator(limit).pMap(::processToDo).agg(|)
-  : todoIterator(limit). map(::processToDo).agg(|);
+  ? todoIterator(limit).pMap((file)->processToDo(file,true )).agg(|)
+  : todoIterator(limit). map((file)->processToDo(file,false)).agg(|);
 end;
 
 @SuppressUnusedWarning
 ensureInstance->isIpcServerRunning ? void : executor.execAsync([myPath,'all']);
+

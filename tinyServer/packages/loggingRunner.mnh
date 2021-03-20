@@ -35,7 +35,7 @@ logTaskStarted(taskIndex:Int,scriptName:String,scriptParameters:String)->
      RUNNING         =>true,
      FINISHED        =>false,
      STARTTIME       =>systime].toMap;
-     tPrint('Started task #',taskIndex,': ',scriptName,' ',scriptParameters.join(" "));
+     log('Started task #',taskIndex,': ',scriptName,' ',scriptParameters.join(" "));
   end;
 
 logSpecialTaskStarted(scriptName:String)->
@@ -51,7 +51,7 @@ logSpecialTaskStarted(scriptName:String)->
   end;
 
 setKillRequest(taskIndex)->taskHistory[taskIndex].isVoid ? void : begin
-  tPrint('Setting kill flag for task #',taskIndex,': ',taskHistory[taskIndex,SCRIPT],' ',taskHistory[taskIndex,PARAMETERS].join(" "));
+  log('Setting kill flag for task #',taskIndex,': ',taskHistory[taskIndex,SCRIPT],' ',taskHistory[taskIndex,PARAMETERS].join(" "));
   taskHistory[taskIndex,KILLREQUESTED]:=true;
 end;
 

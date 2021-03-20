@@ -11,8 +11,6 @@ START_PAGE:='/index';
 ENQUEUE_PAGE:='/enqueue';
 ADMIN_PAGE:='/admin';
 
-tPrint(...)->formatTime('hh:mm:ss.zzz ',systime).print@(...);
-
 getLogName(index)->format('%s/log%s.txt',LOG_FOLDER,index);
 fullScriptName(filename)->format('%s/%s',SCRIPT_FOLDER,filename);
 filesInScriptFolder->begin

@@ -1,4 +1,4 @@
-USE '../server/tinyServer_config.mnh','../server/loggingRunner.mnh';
+USE '../packages/tinyServer_config.mnh','../packages/loggingRunner.mnh';
 
 main('list')->begin
   local logsInHistory:=taskHistory.getInner(0).map(::getLogName).expandedFileName;

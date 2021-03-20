@@ -1,4 +1,4 @@
-#!C:\bin\mnh\mnh.exe -GUI -quiet -headless +log D:\server\logs\tinyServer.log(1)
+#!C:\bin\mnh.exe -GUI -quiet -headless -logDateFmt hh:mm:ss.zzz -logLocationLength 30 +log D:\server\logs\tinyServer.log(1)
 private LOG_NAME:=                             'D:\server\logs\tinyServer.log';
 USE tinyServer_html,tinyServer_config,loggingRunner,serveTasks,cpuUsage;
 
@@ -181,17 +181,18 @@ serve(M)->begin
 
   local serveRoutine:=PAGE_MAP[path];
   serveRoutine.isVoid
-  ? tPrint('Unhandled path: ',path) orElse return redirectTo(START_PAGE)
+  ? log('Unhandled path: ',path) orElse return redirectTo(START_PAGE)
   : void;
   local response:= //log info and redirect to start page
   try(serveRoutine,[parameters],
   {begin
-     tPrint('Unhandled path: ',path);
+     log('Unhandled path: ',path);
      $messages.map({'    '&$x.join("\t")}).join("\n").print;
      redirectTo(START_PAGE);
    end});
   serveTime+=scriptTime;
   serveStatistics[path]:=(serveStatistics[path] orElse [0,0])+[1,serveTime];
+  log('Response: ',M['request','path'],' t=',serveTime);
   response orElse fail;
 end;
 
@@ -204,16 +205,16 @@ main->begin
   loggingRunner.ensureServer;
 
   SPECIAL_TASKS:=[
-     SPECIAL_TASK_RESTART_SERVER           => getShutdownTask(SPECIAL_TASK_RESTART_SERVER),
-     SPECIAL_TASK_RESTART_SYSTEM           => getShutdownTask(SPECIAL_TASK_RESTART_SYSTEM),
-     SPECIAL_TASK_SHUTDOWN                 => getShutdownTask(SPECIAL_TASK_SHUTDOWN      ),
-     SPECIAL_TASK_DELAY_RESET              => {begin doNotStartTasksBefore:=systime; end},
-     SPECIAL_TASK_DELAY_EXECUTION_ONE_HOUR => {begin doNotStartTasksBefore:=systime+ONE_HOUR; end},
-     SPECIAL_TASK_DELAY_EXECUTION_UNTIL_22 => {begin doNotStartTasksBefore:=ceil(systime)-2*ONE_HOUR; end},
-     SPECIAL_TASK_DELAY_EXECUTION_UNTIL_23 => {begin doNotStartTasksBefore:=ceil(systime)-ONE_HOUR;   end},
-     SPECIAL_TASK_DELAY_EXECUTION_UNTIL_24 => {begin doNotStartTasksBefore:=ceil(systime);            end}].toMap;
+     SPECIAL_TASK_RESTART_SERVER           => ::doRestartServer,
+     SPECIAL_TASK_RESTART_SYSTEM           => ::doRestartSystem,
+     SPECIAL_TASK_SHUTDOWN                 => ::doShutdownSystem,
+     SPECIAL_TASK_DELAY_RESET              => {begin doNotStartTasksBefore:=systime;                  writeDataStores; end},
+     SPECIAL_TASK_DELAY_EXECUTION_ONE_HOUR => {begin doNotStartTasksBefore:=systime+ONE_HOUR;         writeDataStores; end},
+     SPECIAL_TASK_DELAY_EXECUTION_UNTIL_22 => {begin doNotStartTasksBefore:=ceil(systime)-2*ONE_HOUR; writeDataStores; end},
+     SPECIAL_TASK_DELAY_EXECUTION_UNTIL_23 => {begin doNotStartTasksBefore:=ceil(systime)-ONE_HOUR;   writeDataStores; end},
+     SPECIAL_TASK_DELAY_EXECUTION_UNTIL_24 => {begin doNotStartTasksBefore:=ceil(systime);            writeDataStores; end}].toMap;
 
-  tPrint('server is up at ',SERVE_AT_IP&':'&SERVE_AT_SOCKET);
+  log('server is up at ',SERVE_AT_IP&':'&SERVE_AT_SOCKET);
 
   while(!restartScheduled,begin
     logCpuUsage();
@@ -232,27 +233,13 @@ end;
 
 @after
 restart->begin
-  shutdownTriggeredBySpecialTask==SPECIAL_TASK_RESTART_SERVER
-  ? begin
-      tPrint('Performing restart');
-      local ipcIsUpAgain:=false;
-      local numberOfTries:=0;
-      while(!ipcIsUpAgain,begin
-        execAsync(executor,[myPath]);
-        sleep(5);
-        ipcIsUpAgain:=isLoggingRunnerIpcServerRunning;
-        assert((numberOfTries+=1)<60); //try for about 1 minute, then fail
-      end);
-    end
-  : shutdownTriggeredBySpecialTask==SPECIAL_TASK_RESTART_SYSTEM
-  ? begin
-      tPrint('Restarting system');
-      execPipeless('Shutdown.exe',['-r','-t','00']);
-    end
-  : shutdownTriggeredBySpecialTask==SPECIAL_TASK_SHUTDOWN
-  ? begin
-      tPrint('Shutting down system');
-      execPipeless('Shutdown.exe',['-s','-t','00']);
-    end
-  : fail;
+  log('Performing restart');
+  local ipcIsUpAgain:=false;
+  local numberOfTries:=0;
+  while(!ipcIsUpAgain,begin
+    execAsync(executor,[myPath]);
+    sleep(5);
+    ipcIsUpAgain:=isLoggingRunnerIpcServerRunning;
+    assert((numberOfTries+=1)<60); //try for about 1 minute, then fail
+  end);
 end;

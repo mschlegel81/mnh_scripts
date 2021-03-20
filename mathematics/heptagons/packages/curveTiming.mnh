@@ -244,7 +244,6 @@ c.size<=8
     [1..numberOfRefinementRuns].each(refRun,begin
       timedCurve:=timedCurve.retimeCurveByFourierCoeff(dft,intPhaseShift,false)['timedSamples'];
       dft:=timedCurve.piecewiseCubicFourierTransform(phaseShift,min(dft.recommendedFourierCoeffCount,timedCurve[1].size));
-      dft:=timedCurve.piecewiseCubicFourierTransform(phaseShift,min(dft.recommendedFourierCoeffCount,timedCurve[1].size));
       PLOT_INTERMEDIATE(dft);
     end);
     print('  ',timedCurve[1].size,' samples; ',dft.size,' coefficients');

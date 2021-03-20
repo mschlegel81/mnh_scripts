@@ -48,7 +48,7 @@ save;
   : void;
   local firstDone:=void;
   local sleepTime:=1E-4;
-  while(firstDone.isVoid,firstDone:=pending.each(task,task.peekFuture ? index : void,orElse) orElse sleep(sleepTime:=min(sleepTime*2,1)));
+  while(firstDone.isVoid,firstDone:=pending.each(task,task.peekFuture ? index : void,orElse) orElse sleep(sleepTime:=min(sleepTime*2,10)));
   local result:=pending[firstDone]();
   pending[firstDone]:=void;
   result;

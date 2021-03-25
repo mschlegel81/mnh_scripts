@@ -34,7 +34,6 @@ toExpression(P:Polynomial)->begin
   ? f+{0*$x}
   : f;
 end;
-toExpression(l)->typecast.toExpression;
 
 D(P:Polynomial)->
   P.size<=1 ? [0].toPolynomial : P.each(x,x*factorial(index)).tail.toPolynomial;
@@ -58,7 +57,25 @@ A.each(a_i,begin
   B.each(b_i,[index+k,a_i*b_i]);
 end,|).groupToPolynomial;
 
+//*Returns [quotient,rest]
+polyDivision(A:Polynomial,B:Polynomial)->begin
+  local quotient:=[0..max(A.size-B.size,0)]*0;
+  local rest:=A; while(rest.size<B.size,rest|=0);
+  local degB:=B.size-1;
+  [max(A.size-1 - degB,0)..0].each(i,begin
+    quotient[i]:=rest[i+degB]/B[degB];
+    [degB..0].each(j,rest[i+j]:=rest[i+j]-B[j]*quotient[i]);
+  end);
+  while(quotient.size>1 AND quotient.trailing=0,quotient:=quotient.leading);
+  while(rest    .size>1 AND rest    .trailing=0,rest    :=rest    .leading);
+  [quotient.toPolynomial,rest.toPolynomial];
+end;
 
+OPERATOR_DIVREAL(A:Polynomial,f:Numeric)->(A.toBuiltin/f).toPolynomial;
+OPERATOR_DIVREAL(f:Numeric,A:Polynomial)->[f].toPolynomial/A;
+OPERATOR_DIVREAL(A:Polynomial,B:Polynomial)->polyDivision(A,B)[0];
+
+OPERATOR_MOD    (A:Polynomial,B:Polynomial)->polyDivision(A,B)[1];
 
 //*Binominal coefficient
 memoized bc(n=0)->[1];
@@ -112,21 +129,55 @@ begin
   end).bcWeightAgg.toPolynomial;
 end;
 
+bairstowReduceBy2(P:Polynomial)->begin
+  local n:=P.size-1;
+  local a :=[P[n-1] orElse 0,P[n-2] orElse 0]/P[n];
+  local alreadySeenA:=[a];
+  while(true,begin
+    local b :=[P[n],0];
+    local q :=[0,0];
+    [n-1..0].each(j,begin
+      q:=[b[1]-(a*q).agg(+),q[0]];
+      b:=[P[j]-(a*b).agg(+),b[0]];
+      void;
+    end);
+    local M:=-(a*q).agg(+);
+    local D:= q[0]² - M  * q[1]  ;
 
-//h:=0.1;
-//X:=[-50..50]*h;
-//Y:=sin(X);
-//
-//T0:=Y.discreteTaylor(h).toExpression;
-//T1:=discreteTaylor(Y,h,12).toExpression;
-//
-//plot   (abs(T0-::sin),-1,1,1000);
-//addPlot(abs(T1-::sin),-1,1,1000);
+    local da  :=[(b[0]*q[1]-b[1]*q[0])/D,
+                 (b[1]*M   -b[0]*q[0])/D];
 
-//weights
-//     1
-//  -h   h
-//h^2   -2h^2   h^2
+    a-=da;
+    a in alreadySeenA
+    ? begin
+        local part:=[a[1],a[0],1].toPolynomial;
+        return [P/part,part];
+      end
+    : alreadySeenA|=[a];
+  end);
+end;
 
+bairstowFactorize(P:Polynomial)->begin
+  local R:=P;
+  local Q:=[];
+  while(R.size>2,begin
+    local B:=R.bairstowReduceBy2;
+    print(B);
+    Q||=B[1];
+    R:=B[0];
+  end);
+  Q||R;
+end;
 
+allRealRootsOf(P:Polynomial)->begin
+  P.size<=1 ? []:
+  P.size=2 ? [-P[0]/P[1]] :
+  P.size=3 ? begin
+    local discriminant:=P[1]²-4*P[0]*P[2];
+    discriminant>=0
+    ? ([1,-1]*sqrt(discriminant)-P[1])/(2*P[2])
+    : [];
+  end :
+  P.bairstowFactorize.map(::allRealRootsOf).agg(|);
+end;
 

@@ -1,4 +1,4 @@
-MIN_SCALE:=-200;
+MIN_SCALE:=-1000;
 
 //*Type BigDecimal is defined as IntList(2), with contents [scale,value]
 //*Represents the number given by 10^scale*value
@@ -93,25 +93,13 @@ OPERATOR_POT    (base:BigDecimal,exponent:Int)->
 sqr(x:BigDecimal)->x*x;
 
 sqrt(x:BigDecimal)->begin
-  local s:=x.toReal.sqrt.toBigDecimal;
-  local prevS:=[0,0].toBigDecimal;
-  while(!(s==prevS),begin
-    prevS:=s;
-    s:=(s+x/s)/2;
-  end);
-  s;
-end;
-
-calcEulersNumber->begin
-  local e:=toBigDecimal(1);
-  local prevE:=toBigDecimal(0);
-  local f:=toBigDecimal(1);
-  local i:=0;
-  while(!(e==prevE),begin
-    prevE:=e;
-    e+=(f/=(i+=1));
-  end);
-  e;
+  local scale:=x[0];
+  local value:=x[1];
+  (scale and 1)=1 ? begin
+    scale-= 1;
+    value*=10;
+  end : void;
+  newBigDecimal(MIN_SCALE,isqrt(value*10^(-2*MIN_SCALE-scale))[0]);
 end;
 
 calcSqrt2->begin
@@ -144,7 +132,7 @@ ramanujanPi->begin
   local f:=9801/sqrt(toBigDecimal(8));
   while(!(p0==p1),begin
     p0:=p1;
-    p1+=((factorial(4*n)*  (26390*n+1103)).toBigDecimal / (factorial(n)^4 * 396^(4*n)));
+    p1+=((factorial(4*n)*(26390*n+1103)).toBigDecimal / (factorial(n)^4 * 396^(4*n)));
     n+=1;
   end);
   f/p1;

@@ -1,0 +1,112 @@
+//f(a,x,depth<=1)->    x*(1-x)*a;
+//f(a,x,depth   )->f(a,x*(1-x)*a,depth-1);
+//
+//plot((x)->f(3.56,x,3)-x,0,1,10000);
+//halt;
+//
+findFixedPoints(a)->begin
+  printDirect("\rgenerating @a=",a,"        ");
+
+//  local y:=local x:=[0..100]/100;
+//  local K:=[].toSet;
+//  [1..48]
+//    .each(step,begin
+//      local E:=abs((y*=(1-y)*a)-x);
+//      K|=indexOf(E.tail(2)>=E.tail.leading<=E.leading(2))
+//      .+(1)
+//      .filter((i)->(y[i]-y[i+1])/(x[i]-x[i+1])<=2)
+//      .toSet;
+//      void;
+//    end);
+//  x:=y:=((K*100+[-100..100].toSet).sort/10000).filter((q)->0<=q<=1);
+//
+//  K:=[].toSet;
+//  [1..48]
+//    .each(step,begin
+//      local E:=abs((y*=(1-y)*a)-x);
+//      K|=indexOf(E.tail(2)>=E.tail.leading<=E.leading(2))
+//      .+(1)
+//      .map((i)->(y[i]-y[i+1])/(x[i]-x[i+1])<=1.4142135623730951 ? round(x[i]*1000) : void)
+//      .toSet;
+//      void;
+//    end);
+//  x:=y:=((K*10+[-10..10].toSet).sort/10000).filter((q)->0<=q<=1);
+//
+
+  local y:=local x:=random(10000).sort;
+  y:=[1..48]
+    .each(step,begin
+      local I:=(y*=(1-y)*a)-x<0;
+      I:=indexOf(I.tail xor I.leading)
+      .map((i)->begin
+        abs(local slope:=(y[i]-y[i+1])/(x[i]-x[i+1]))>1 ? void : begin
+          local x0:=x[i];
+          x0-(y[i]-x0)/(slope-1);
+        end;
+      end);
+      I.size=0 ? void : [step,I];
+    end,orElse);
+  y.isVoid
+  ? void//note('No points found for ',a)
+  : [y[0],y[1].group(round(y[1]*2000)).getInner(1).map((list)->[a,list.agg(+)/list.size])];
+end;
+
+
+private extractRange(L:IntList)->begin
+  local deltaIdx:=-1|[0..size(L)-2].get(leading(L)+1<>tail(L))|(size(L)-1);
+  [0..size(deltaIdx)-2].each(k,[L.get(deltaIdx.get(k)+1),L.get(deltaIdx.get(k+1))]);
+end;
+
+begin
+//  local X_SAMPLES:=[0..20000]/
+//                       20000;
+  local ACC:=          100;
+  local FULL_RANGE:=             [round(2.8*ACC)..round(4*ACC)];
+  local generator:=rangeGenerator(round(2.8*ACC), round(4*ACC)).pMap((i)->findFixedPoints(i/ACC));
+
+  local generating:=true;
+  local m:=[].toMap;
+  while(generating,begin
+    //collect for 10 seconds
+    local stopCollecting:=scriptTime+10;
+    while(generating AND scriptTime<stopCollecting,begin
+      local next:=generator();
+      next.isVoid ? generating:=false : begin
+        m[next[0]]|=next[1];
+      end;
+    end);
+    generating ? void : begin
+      //TODO: Expand ranges!
+      local pointsOfInterest:=m.each(entry,2*round(entry[1].getInner(0)*ACC).unique.extractRange.map((range)->entry[0]=>range),|);
+      ACC*=2;
+      pointsOfInterest:=
+      pointsOfInterest.each(entry,begin
+        print(entry);
+        [entry[1,0]..entry[1,1]].each(i,(i and 1)=1
+        ? m[entry[0]]|=[[i/ACC,0]]
+        : void);
+        entry[1].toSet+[-1,1].toSet;
+      end,|).unique;
+      showVariable(m,'m');
+      showVariable(pointsOfInterest,'pointsOfInterest');
+      halt;
+      generator:=toIteratableExpression(pointsOfInterest).pMap((i)->findFixedPoints(i/ACC));
+      generating:=true;
+    end;
+
+    (FULL_RANGE.minus(round(m.getInner(1).agg(|).getInner(0)*ACC)).sort.extractRange/ACC).each(range,0|range).|(
+    m.each(entry,map(round(entry[1].getInner(0)*ACC).unique.extractRange/ACC,(range)->entry[0]|range),|))
+     .sort(1)
+     .each(r,format('%5s: %6.8f..%6.8f (size: %6.4f)', r[0]=0 ? 'Chaos' : r[0],r[1],r[2],r[2]-r[1]))
+     .join("\n")
+     .{print("\f\n",$s)};
+
+    plot();
+    m.sort.getInner(1).map((pt)->addPlot(pt,'0.5 .'));
+    postDisplay;
+  end);
+  print(m);
+  generator:=void;
+end;
+
+

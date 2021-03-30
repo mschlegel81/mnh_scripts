@@ -1,9 +1,6 @@
-orbits:=[1,2,4,8,3,6,16,6,5,12,10,12,32,12,10,4,5,7,24,24,20,20,8,8,7,24,10,14,9,64,24,10,16,14,20,8,18,14,9,48,48,14,20,40,6,48,16,9,40,40,7,18,48,16,20,16,28,18,9,28];
-
-stepcounts:=begin
-  local x:=1;
-  orbits.each(o,x:=x*o div gcd(x,o)).unique;
-end;
+USE logEqPeriodicRegions;
+PERIODIC_REGIONS:='i]^T2m@sCPeQAL(DG4?<4OH?^UQ$9*+ymR%KG*i\T(:T^YzJT)r-v9,|G-x>kRlU\gmt$LW}Hn:+Sg%GnWcd0(o]_QXOuz=b1cE8Y4CvXtaAu-(pr^GbH;x/p^B.>Nb>>3-wH%0w1,`03Gq(%e{K!\\y#b/F[r-DALymVP>Me8u6,}5NW7*J>UNF;I3(&5On4FA.2GPR\Agx?2]7}BeH`5\Bd9u2[R&|7|EzKWjV-F5Ohx>&-JPMA?@If9s{?T*Dg3X/&2Y$0j10w1A!ci33IAkFuzc1/Ls1X@Wl.])}19kW6dUA]FNSR8nkB@]UTA#10yfnR:Co}1kqu<]O\9M8K,0t(Gr`RN+j{{:w%`(9Y<i55Ti^,XD!J*PLShrT_9#VP,c}>Cn#)JH=B+H#PVk\I5J>NVoWu$"c8o!HR[`b<X,e(=nk`cO/#9o!!_L;5>PvKUm)IP?ERc)N7Sb!,mHyA(j^1j<}(a;$g`?)E=y^BQ\!u{K/\X#ZJ{AB8iAB|UO[x`;{pfTUR;06(-lj;Py?GtI|%UeW{mPFZnhzb9XoqmAq(6QT?XEySOc\rKA&|X^teVF?'
+  .base92decode.decompress.interpret;
 
 SAMPLE_COUNT:=isGuiStarted ? 100000 : 2000000;
 FILE_NAME_FORMAT:=myPath.extractFileNameOnly&'_%4.4d.png';

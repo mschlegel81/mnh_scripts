@@ -5,7 +5,7 @@ end;
 
 PRECISION:=1000000;
 
-findFixedPoints(a)->begin
+pointsOf(a)->begin
   printDirect("\rgenerating @a=",a,"                    ");
   local ap:=a/PRECISION;
   local x:=PRECISION div 2;
@@ -20,15 +20,17 @@ findFixedPoints(a)->begin
     visited||=x;
     x:=round(x*(PRECISION-x)*ap);
   end);
-  x:=visited.flatten.unique/PRECISION;
+  visited.flatten.unique/PRECISION;
+end;
+
+findFixedPoints(a)->begin
+  local x:=pointsOf(a);
   local xDx:=[x,x*0+1];
   [1..32].each(step,begin
     xDx:=[xDx[0]*a*(1-  xDx[0]),
           xDx[1]*a*(1-2*xDx[0])];
     (xDx[1].abs<=1).agg(and)
-    ? begin
-        [step,a,xDx[0]-(x-xDx[0])/(xDx[1]-1)];
-      end
+    ? [step,a,xDx[0]-(x-xDx[0])/(xDx[1]-1)]
     : void;
   end,head);
 end;

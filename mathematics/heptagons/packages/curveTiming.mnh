@@ -211,8 +211,6 @@ c.size<=8
     map([0..3],(dim)->partiallyTimedCurve[1].getInner(1).each(x,(index/partiallyTimedCurve[1].size*0.5- phaseShift*dim)=>x[dim]).addPlot());
     addAnimationFrame;
   end : void;
-    addAnimationFrame;
-  end : void;
   local timedCurve:=[false,partiallyTimedCurve[1].map((pt)->pt[0].isNan ? void : pt.head(2))];
   stepDone();
   //-------------------------------------------------------:(2) Refine samples

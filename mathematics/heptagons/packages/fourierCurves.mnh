@@ -143,17 +143,5 @@ retimeCurveByFourierCoeff(TY:Timed4DSamples,factors:NumericList,phase:Int,normal
    'maxTimeDelta'=>abs(retimed.getInner(0)-TY[1].getInner(0)).max].toMap;
 end;
 
-begin
-  local T:=[0.1,0.2];
-  local K:=[0..50]*2+1;
-
-  time({K.pMap((k)->cubicSinusIntegral([1,0,0,0],T,k))})['time'].print;
-  time({T.pMap((t)->cubicSinusIntegral([1,0,0,0],t,K))})['time'].print;
 
 
-  time({begin
-    local TK:=T.cross(K);
-    cubicSinusIntegral([1,0,0,0],TK.getInner(0),TK.getInner(1));
-  end})['time'].print;
-
-end;

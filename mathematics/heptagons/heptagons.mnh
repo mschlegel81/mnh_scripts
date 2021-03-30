@@ -1,4 +1,4 @@
-USE curvePartitioning,curveTiming,fourierCurves;
+USE curvePartitioning,curveTiming,fourierCurves,visualization;
 DEG_120:=2/3*7000;
 
 //Constants for plotRotating
@@ -481,3 +481,9 @@ truncateLongCoefficients->begin
      .agg(|);
 end;
 
+main('animate',curveIndex,subCurveIndex)->begin
+  assertGuiStarted;
+  local coeff:=curveCoefficients[curveIndex.toInt,subCurveIndex.toInt] orElse fail('There is no such curve');
+  local alpha:=curveIndex.toInt*pi/7000;
+  animateHeptagon(alpha,coeff);
+end;

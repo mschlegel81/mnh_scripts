@@ -41,7 +41,7 @@ A0:=2.8;
 A1:=4;
 rangeInAccuracy(accuracy:Int)->[round(A0*accuracy)..round(A1*accuracy)];
 
-begin
+main->begin
   local aAccuracy:=15625;
   local toScan:=rangeInAccuracy(aAccuracy);
   local samples:=[].toMap;

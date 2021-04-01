@@ -82,3 +82,62 @@ animateHeptagon(alpha:Numeric,coeff:Map)->begin
     addAnimationFrame;
   end);
 end;
+
+makeWalk(allCoefficients:Map,startSubIdx:Int,startAngle:Numeric)->begin
+  local configs:=[].toMap;
+  local c:=allCoefficients[4500,startSubIdx];
+  local lastConfig :=sampleCurve(c[KEY_KOEFF],c[KEY_PHASE],[startAngle])[0];
+  local lastManifestation:=reconstructPoints(4.5*pi/7,lastConfig);
+
+  configs[4500]:=[lastConfig,lastManifestation];
+
+
+  local remainingAngles:=allCoefficients.getInner(0).filter((i)->4500<i<4666.666).sort;
+  local distToLast:=(phi)->euklideanNorm(lastConfig-phi);
+  local expandByRemainingAngles:={
+  while(remainingAngles.size>0,begin
+    local nextAngle:=remainingAngles.head; remainingAngles:=remainingAngles.tail;
+    log('k=',nextAngle);
+
+    local candidates:=allCoefficients[nextAngle];
+    local nextPhi:=candidates.pEach(candidate,findPointOnCurveMinimizing(candidate[KEY_KOEFF].head(30),candidate[KEY_PHASE],distToLast))
+    .min[2];
+
+    lastManifestation:=reconstructPoints(nextAngle*pi/7000,nextPhi);
+    configs[nextAngle]:=[lastConfig:=nextPhi,lastManifestation];
+  end)};
+  expandByRemainingAngles();
+
+  remainingAngles:=allCoefficients.getInner(0).filter((i)->4666.666<i).min.toList;
+  distToLast:=(phi)->(reconstructPoints(4.667*pi/7,phi)-lastManifestation).flatten.euklideanNorm;
+  expandByRemainingAngles();
+
+  remainingAngles:=allCoefficients.getInner(0).filter((i)->i>configs.getInner(0).max).sort;
+  distToLast:=(phi)->euklideanNorm(lastConfig-phi);
+  expandByRemainingAngles();
+
+  lastConfig:=configs[4500,0];
+  lastManifestation:=configs[4500,1];
+  remainingAngles:=allCoefficients.getInner(0).filter((i)->4000<=i<4500).sort.reverseList;
+  expandByRemainingAngles();
+  lastConfig;
+  lastConfig.euklideanNorm>1E-3
+  ? begin
+      remainingAngles:=allCoefficients.getInner(0).filter((i)->i<4000).sort.reverseList;
+      expandByRemainingAngles();
+    end
+  : void;
+
+  //reduce configs to equidistant steps:
+
+  local points:=configs.sort.map({$cfg[0] mod 5 = 0 ? $cfg[1,1] : void});
+  local d:=points.agg(|).{$L.agg(+)/$L.size};
+  points:=points.map((x)->x.map((p)->p-d));
+  points:=points/(points.agg(|).euklideanNorm.max);
+  points.each(p,begin
+    plot3DPoly(p);
+    addAnimationFrame;
+  end);
+
+end;
+

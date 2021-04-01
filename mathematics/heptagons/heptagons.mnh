@@ -396,7 +396,7 @@ main('coeffPlot')->begin
   local dataSets:=coefficientsByComponent((c:CurveCoefficients)->c[KEY_KOEFF]);
   setOptions(["preserveAspect"=>false].toMap);
   dataSets.each(set,begin
-    local style:=CURVE_STYLES[index];
+    local style:=CURVE_STYLES[set[0]];
     local D:=set[1].union([[DEG_120,[Nan,Nan,Nan,Nan]]]).sort;
     D.map((x)->[x[0],x[1,0] orElse 0]).addPlot(style&' 2');
     D.map((x)->[x[0],x[1,1] orElse 0]).addPlot(style&' 1');
@@ -481,6 +481,7 @@ truncateLongCoefficients->begin
      .agg(|);
 end;
 
+main('animate','walk',componentIndex)->makeWalk(curveCoefficients,componentIndex.toInt,2*pi*random);
 main('animate',curveIndex,subCurveIndex)->begin
   assertGuiStarted;
   local coeff:=curveCoefficients[curveIndex.toInt,subCurveIndex.toInt] orElse fail('There is no such curve');

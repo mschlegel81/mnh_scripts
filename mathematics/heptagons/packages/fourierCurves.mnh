@@ -151,11 +151,11 @@ findPointOnCurveMinimizing(factors:NumericList,phase:Int,toMinimize:Expression(1
      $angle,
      phi];
   end};
-  local stepSize:=2*pi*1E-3;
-  local best:=([0..999]*stepSize).pEach(a,evaluateAngle(a),min);
-  [1..10].each(run,begin
+  local stepSize:=2*pi*1E-2;
+  local best:=([0..99]*stepSize).pEach(a,evaluateAngle(a),min);
+  [1..20].each(run,begin
     stepSize*=0.5;
-    best:=(best[1]+stepSize*[-1..1]).pEach(a,evaluateAngle(a),min);
+    best:=(best[1]+stepSize*[-1..1]).each(a,evaluateAngle(a),min);
   end);
   best;
 end;

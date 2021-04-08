@@ -19,59 +19,19 @@ periodicHalfCurveSample(pt:List(2))->begin
   : [t    , pt[1]];
 end;
 
-
-//*Returns the integral of sin(a*t)*(b+c*t) over [t0,t1]
-//private analyticIntegral(a,b,c,t0,t1)->
-//  ((c*sin(a*[t1,t0])-
-//    a*cos(a*[t1,t0])*
-//       (b+c*[t1,t0]))).agg(-)/a²;
-
-cubicSinusIntegral(q:NumericList(4),t,freq)->(1/(freq^4))*(-freq*(q[0]*freq^2-6*q[3]*t+q[1]*freq^2*t+q[3]*freq^2*t^3+q[2]*(-2+freq^2*t^2))*cos(freq*t)+(freq^2*(q[1]+2*q[2]*t)+3*q[3]*(-2+freq^2*t^2))*sin(freq*t));
-
-private sortByValueInRowDescending(L:List,rowIndex:Int)->L[sortPerm(-L.getInner(rowIndex).abs)];
-private localCubicCoeff(t0:Numeric,x0:Numeric,
-                        t1>t0     ,x1:Numeric,
-                        t2>t1     ,x2:Numeric,
-                        t3>t2     ,x3:Numeric)->begin
-  //Gauss-Jordan Algorithm
-  local aid:=[[1,t0,t0²,t0³,x0],
-              [1,t1,t1²,t1³,x1],
-              [1,t2,t2²,t2³,x2],
-              [1,t3,t3²,t3³,x3]];
-  aid:=[aid[0],
-        aid[1]-aid[0],
-        aid[2]-aid[0],
-        aid[3]-aid[0]];
-  [1..3].each(rowIndex,begin
-    //Pivot
-    aid:=aid.head(rowIndex) | //upper rows remain untouched
-         aid.tail(rowIndex).sortByValueInRowDescending(rowIndex);
-    //Subtract
-    local x:=aid[rowIndex]/aid[rowIndex,rowIndex];
-    aid:=[0..3].each(i,i=rowIndex ? x : aid[i]-aid[i,rowIndex]*x);
-  end);
-  [aid.getInner(4),[t1,t2]];
-end;
-
 private piecewise1DCubicFourierTransform(timedSamples:List,coeffCount)->begin
-  //Add two samples at the start and two at the end
+  //Add samples at the start and at the end
   local prevTime:=-Inf;
   local tmp:=
-  (timedSamples.trailing(2).map((pt)->(pt[0]-1)*2*pi=>pt[1])
+  (timedSamples.trailing(5).map((pt)->(pt[0]-1)*2*pi=>pt[1])
   |timedSamples            .map((pt)-> pt[0]   *2*pi=>pt[1])
-  |timedSamples.head(2)    .map((pt)->(pt[0]+1)*2*pi=>pt[1])).filter((pt)->begin
+  |timedSamples.head(5)    .map((pt)->(pt[0]+1)*2*pi=>pt[1])).filter((pt)->begin
     local accept:=pt[0]>prevTime;
     prevTime:=pt[0];
     accept;
   end);
-  tmp:=[0..tmp.size-4].pMap((i0)->localCubicCoeff@flatten(tmp[i0+[0..3]]));
-  tmp[0,1,0]:=0;
-  tmp[tmp.size-1,1,1]:=2*pi;
-
-  //([0..coeffCount-1]*2+1).pEach(f,tmp.each(q,cubicSinusIntegral@(q|f).agg(-),+))/(-pi);
-  local F:=[0..coeffCount-1]*2+1;
-  tmp.pEach(v,cubicSinusIntegral(v[0],v[1,1],F)
-             -cubicSinusIntegral(v[0],v[1,0],F),+)*(1/pi);
+  local spline:=newSplineInterpolator(tmp);
+  pMap([0..coeffCount-1]*2+1,(k)->integrate(spline*sin({$x}*k),0,2*pi,1E-12))*(1/pi);
 end;
 
 piecewiseCubicFourierTransform(timedCurve:Timed4DSamples,realPhaseShift:Real,maxCoeff>=1)->
@@ -98,11 +58,11 @@ recommendedSampleCount(coeff:CurveCoefficients)->max(350,min(3500,(coeff[KEY_KOE
 
 private combine4D(f:Expression(1),ps1,ps2,ps3)->(t)->[f(t),f(t-ps1),f(t-ps2),f(t-ps3)];
 memoized private f4(factors:NumericList,phase:Int)->
-    combine4D(factors.pEach(a,a=0 ? void : a*sin({$t}*(index*2+1)),+) orElse {$x*0},
+    combine4D(factors.each(a,0,a).newFourierSeries,
               phase*2*pi/7,phase*4*pi/7,phase*6*pi/7);
 
 memoized private df4dt(factors:NumericList,phase:Int)->
-    combine4D((factors.pEach(a,a=0 ? void : (a*(index*2+1))*cos({$t}*(index*2+1)),+) orElse {$x*0}),
+    combine4D(factors.each(a,[0,0],[a*(2*index+1),0]).newFourierSeries,
               phase*2*pi/7,phase*4*pi/7,phase*6*pi/7);
 
 sampleCurve(factors:NumericList,phase:Int,pointsInTime:NumericList)->pointsInTime.pMap(f4(factors,phase));
@@ -114,7 +74,6 @@ sampleCurve(coeff:CurveCoefficients)->coeff.sampleCurve(recommendedSampleCount(c
 retimeCurveByFourierCoeff(TY:Timed4DSamples,factors:NumericList,phase:Int,normalize:Boolean)->begin
   local F :=f4   (factors,phase);
   local dF:=df4dt(factors,phase);
-
   local absolutePrecisionThreshold:=1E-3/TY.size;
   local stepLimit:=1/TY.size;
 
@@ -152,7 +111,7 @@ findPointOnCurveMinimizing(factors:NumericList,phase:Int,toMinimize:Expression(1
      phi];
   end};
   local stepSize:=2*pi*1E-2;
-  local best:=([0..99]*stepSize).pEach(a,evaluateAngle(a),min);
+  local best:=([0..99]*stepSize).each(a,evaluateAngle(a),min);
   [1..20].each(run,begin
     stepSize*=0.5;
     best:=(best[1]+stepSize*[-1..1]).each(a,evaluateAngle(a),min);

@@ -71,4 +71,9 @@ main(curveIndex,...)->begin
 end;
 
 //*Calculate the next 10 pending curves
-main->main@(pendingTasks.head(10));
+main->begin
+  local pending:=pendingTasks.head(10);
+  pending.size==0
+  ? print('There are no more pending tasks')
+  : main@pending;
+end;

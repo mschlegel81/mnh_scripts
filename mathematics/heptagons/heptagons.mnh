@@ -257,10 +257,10 @@ main('walk1D')->begin
 end;
 
 barVisualization(X:List,columnWidth:Int)->begin
-  local validEntries:=X.map((x)->x.isNumeric AND !(x.isNan or x.isInfinite or x<0));// !(X.isNan or X.isInfinite or X<0);
+  local validEntries:=X.map((x)->x.isNumeric AND !(x.isNan OR x.isInfinite OR x<=0));// !(X.isNan or X.isInfinite or X<0);
   trueCount(validEntries)<=1 ? return void : void;
   local intDig  :=1+floor(ln(X[validEntries].max)/ln(10));
-  local decimals:=1-floor(ln(X[validEntries].min)/ln(10));
+  local decimals:=1-floor(ln(X[validEntries].min.max(1E-6))/ln(10));
   while(format('%{$0}'&(intDig+decimals+1)&'.'&decimals&"f",X[validEntries]).unique.size<X[validEntries].unique.size/4,decimals+=1);
   local fmt:='%{$0}'&(intDig+decimals+1)&'.'&decimals&"f\v";
   local numberLength:=format(fmt,X[validEntries]).join("\n").formatTabs.map(::length).max;

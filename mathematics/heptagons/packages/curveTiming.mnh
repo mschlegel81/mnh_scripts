@@ -203,8 +203,8 @@ c.size<=8
   //(2) Refine samples:-------------------------------------------------------
   stepDone:=timer('Samples refined');
   local intPhaseShift:=round(phaseShift*7);
-  partiallyTimedCurve:=[false,partiallyTimedCurve.pMap((pt)->[pt[0],
-                                                              improveSingleSample(curveIndex,pt[1]*0.5^scale/256*pi)])];
+//  partiallyTimedCurve:=[false,partiallyTimedCurve.pMap((pt)->[pt[0],improveSingleSample(curveIndex,pt[1]*0.5^scale/256*pi)])];
+  partiallyTimedCurve:=[false,partiallyTimedCurve.pMap((pt)->[pt[0],pt[1]*0.5^scale/256*pi])];
   isGuiStarted ? begin
     setOptions(["fontsize"=>6,"preserveAspect"=>false].toMap);
     plot();
@@ -216,7 +216,7 @@ c.size<=8
   //-------------------------------------------------------:(2) Refine samples
   //(3) Interpolation of time:------------------------------------------------
   stepDone:=timer('Timing interpolated');
-  local dft:=timedCurve.piecewiseCubicFourierTransform(phaseShift,10);
+  local dft:=timedCurve.splineFourierTransform(phaseShift,10);
   local PLOT_INTERMEDIATE:=isGuiStarted
   ? {begin
       setOptions(["fontsize"=>6,"preserveAspect"=>false].toMap);
@@ -228,26 +228,34 @@ c.size<=8
       display;
     end}
   : {$dft};
-  PLOT_INTERMEDIATE(dft);
-  local refinementSteps:=getRefinementSteps(partiallyTimedCurve);
-  refinementSteps.each(refStep,begin
+  PLOT_INTERMEDIATE(dft[0]);
+  local bestDftError:=Inf;
+
+  getRefinementSteps(partiallyTimedCurve).each(refStep,begin
     local newlyTimedSamples:=refStep.each(entry,begin
       local p:=partiallyTimedCurve[1,entry[0],1];
       local t:=((timedCurve[1,entry[1,0],0]+entry[1,1])+
                 (timedCurve[1,entry[2,0],0]+entry[2,1]))*0.5;
       t=>p;
     end);
-    timedCurve:=[false,(timedCurve[1]|newlyTimedSamples)];
-    local numberOfRefinementRuns:=max(1,shiftRight(16,index));
-    [1..numberOfRefinementRuns].each(refRun,begin
-      timedCurve:=timedCurve.retimeCurveByFourierCoeff(dft,intPhaseShift,false)['timedSamples'];
-      dft:=timedCurve.piecewiseCubicFourierTransform(phaseShift,min(dft.recommendedFourierCoeffCount,timedCurve[1].size));
-      PLOT_INTERMEDIATE(dft);
-    end);
-    print('  ',timedCurve[1].size,' samples; ',dft.size,' coefficients');
-  end);
-  timedCurve:=timedCurve.retimeCurveByFourierCoeff(dft,intPhaseShift,true)['timedSamples'];
-  PLOT_INTERMEDIATE(dft);
+    timedCurve:=[false,(timedCurve[1]|newlyTimedSamples)]
+               .retimeCurveByFourierCoeff(dft[0],intPhaseShift,false)['timedSamples'];
+    local newDft:=timedCurve.splineFourierTransform(phaseShift,min(dft[0].recommendedFourierCoeffCount,timedCurve[1].size));
+    local curveError:=timedCurveError(timedCurve,newDft[0],intPhaseShift,false);
+    curveError<bestDftError
+    ? begin
+        dft:=newDft;
+        bestDftError:=curveError;
+        timedCurve:=timedCurve.retimeCurveByFourierCoeff(dft[0],intPhaseShift,false)['timedSamples'];
+      end
+    : void;
+
+
+    PLOT_INTERMEDIATE(dft[0]);
+    printf('  %5s samples; %3s coefficients; error %16.10f',timedCurve[1].size,dft[0].size,curveError);
+    [curveError,dft,timedCurve];
+  end,min);
+
   stepDone();
   //------------------------------------------------:(3) Interpolation of time
   //(4): Normalization--------------------------------------------------------
@@ -260,21 +268,23 @@ c.size<=8
                                   .map((pt)->[periodicTime(0.5-pt[0]),pt[1]])
                                   .filter((pt)->0<=pt[0]<0.5).sort;
       intPhaseShift:=round(phaseShift*7);
-      PLOT_INTERMEDIATE(dft);
+      PLOT_INTERMEDIATE(dft[0]);
     end
   : begin
       timedCurve[1]:=timedCurve[1].each(pt,pt,[periodicTime(pt[0]+0.5),-pt[1]])
                                   .filter((pt)->0<=pt[0]<0.5).sort;
     end;
-  local error:=timedCurveError(timedCurve,dft,intPhaseShift,false);
+  local error:=timedCurveError(timedCurve,dft[0],intPhaseShift,false);
   print('  Error: ',error);
   local result:=
   [KEY_PHASE=>intPhaseShift,
-   KEY_KOEFF=>dft,
+   KEY_KOEFF=>dft[0],
    KEY_ERROR=>error,
    KEY_REFCV=>timedCurve.packReferenceCurve,
    KEY_CURVE=>subCurveIndex].toMap;
   stepDone();
+  result:=resample(curveIndex,result,true);
+  result[KEY_OPTIMIZED]:=false;
   result;
 end;
 
@@ -330,7 +340,7 @@ optimizeApproximation(coeff:CurveCoefficients,curveIndex:Int)->begin
       end;
 
     while(!invalidCoefficientsFound AND movementHistory.shrinksBy(0.95) AND errorHistory.shrinksBy(0.999),begin
-      coefficients:=piecewiseCubicFourierTransform(timedCurve,phaseShift/7,coefficients.size);
+      coefficients:=splineFourierTransform(timedCurve,phaseShift/7,coefficients.size)[0];
 
       //Handle denormalized coefficients:
       !coefficients.isNan.agg(or) and !coefficients.isInfinite.agg(or)
@@ -414,7 +424,7 @@ resample(curveIndex:Int,coeff:CurveCoefficients,forceResampling:Boolean)->begin
   local timedCurve:=[false,
     sampleCurve(coefficients,phaseShift,T*2*pi).pEach(x,
       [T[index],improveSingleSample(curveIndex,x)])];
-  coefficients:=piecewiseCubicFourierTransform(timedCurve,phaseShift/7,coefficients.size);
+  coefficients:=splineFourierTransform(timedCurve,phaseShift/7,coefficients.size)[0];
   timedCurve:=timedCurve.retimeCurveByFourierCoeff(coefficients,phaseShift,true)['timedSamples'];
 
   local error:=timedCurve.timedCurveError(coefficients,phaseShift,isGuiStarted);
@@ -443,7 +453,7 @@ reconstructSamples(c:List,curveIndex:Int,coeff:Map)->begin
      .retimeCurveByFourierCoeff(coefficients,coeff[KEY_PHASE],true)['timedSamples'];
   printf('      Initial error : %16.10f; coeffCount: %3d',error,coefficients.size);
   [1..16].each(i,begin
-    coefficients:=piecewiseCubicFourierTransform(samples,coeff[KEY_PHASE]/7,max(coefficients.size,recommendedFourierCoeffCount(coefficients)));
+    coefficients:=splineFourierTransform(samples,coeff[KEY_PHASE]/7,max(coefficients.size,recommendedFourierCoeffCount(coefficients)))[0];
     samples:=samples.retimeCurveByFourierCoeff(coefficients,coeff[KEY_PHASE],true)['timedSamples'];
     printf(' #%2d/16 Curve error : %16.10f; coeffCount: %3d',
            i,

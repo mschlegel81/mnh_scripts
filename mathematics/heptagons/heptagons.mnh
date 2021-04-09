@@ -1,3 +1,4 @@
+#!C:\bin\mnh.exe -quiet -convertPrintToLog -logDateFmt hh:mm:ss -logLocationLength 15 +log stdOut(1)
 USE curvePartitioning,curveTiming,fourierCurves,visualization;
 DEG_120:=2/3*7000;
 
@@ -70,8 +71,10 @@ end;
 getCurveCoefficients(i:Int)->curveCoefficients[i] orElse begin
   assertUniqueInstance;
   local samples:=getPartitionedSamples(i);
-  local coeff:=samples[1].each(sample,print("\nCalculating curve coefficients ",i,'/',index),
-                                      resample(i,calcCurveCoeff(sample,i,index,samples[0]).optimizeApproximation(i),false));
+  local coeff:=samples[1].each(sample,begin
+    print("\nCalculating curve coefficients ",i,'/',index);
+    calcCurveCoeff(sample,i,index,samples[0]);
+  end);
   curveCoefficients[i]:=coeff.sort((x,y)->x['phaseShift']<=y['phaseShift']);
   writeDatastoresLazily;
   coeff;
@@ -80,10 +83,10 @@ end;
 //*Calculates all partitioned samples
 main->begin
 //  local sortOrScramble:={$L.size==0 ? $L : $L.toList[$L.size.random.sortPerm]};
-  local sortOrScramble:={$L.sort.reverseList};
+//  local sortOrScramble:={$L.sort.reverseList};
 //  local sortOrScramble:={$L.sort((x,y)->abs(x-DEG_120)<=abs(y-DEG_120))};
 //  local sortOrScramble:={$L.sort((x,y)->abs(x-DEG_120)>=abs(y-DEG_120))};
-
+  local sortOrScramble:={$L.toList[sortPerm($L.toList.map((i)->abs(i-[2000,4000,4666,6000]).min))]};
   print("#=============================#\n"&
         "# Updating curve coefficients #\n"&
         "#=============================#\n");
@@ -253,17 +256,16 @@ main('walk1D')->begin
    end);
 end;
 
-barVisualization(X:NumericList,columnWidth:Int)->begin
-  local validEntries:=!(X.isNan or X.isInfinite or X<0);
+barVisualization(X:List,columnWidth:Int)->begin
+  local validEntries:=X.map((x)->x.isNumeric AND !(x.isNan or x.isInfinite or x<0));// !(X.isNan or X.isInfinite or X<0);
   trueCount(validEntries)<=1 ? return void : void;
   local intDig  :=1+floor(ln(X[validEntries].max)/ln(10));
-  local decimals:=1-floor(ln(X[validEntries and (X>1E-6)].min)/ln(10));
+  local decimals:=1-floor(ln(X[validEntries].min)/ln(10));
   while(format('%{$0}'&(intDig+decimals+1)&'.'&decimals&"f",X[validEntries]).unique.size<X[validEntries].unique.size/4,decimals+=1);
-
   local fmt:='%{$0}'&(intDig+decimals+1)&'.'&decimals&"f\v";
   local numberLength:=format(fmt,X[validEntries]).join("\n").formatTabs.map(::length).max;
   local barLength:=columnWidth-numberLength-1;
-  fmt:=fmt&'%{repeat("-",round($0*'&(barLength/X.max)&'))}s|';
+  fmt:=fmt&'%{repeat("-",round($0*'&(barLength/X[validEntries].max)&'))}s|';
   X.each(x,validEntries[index] ? format(fmt,x).replace(' ','0') : "\v"&(x.isNumeric ? x : void)).join("\n").formatTabs;
 end;
 
@@ -274,7 +276,7 @@ main('infoTable')->begin
 
   local tabData:=
   [['curve','','sc','#','phase','error','opt','cc']].|(
-  union(partIdx,coefIdx).sort.each(k,
+  union(partIdx,coefIdx).sort.pEach(k,
     k in coefIdx
        ? begin
            local part :=getPartitionedSamples(k);
@@ -289,10 +291,10 @@ main('infoTable')->begin
          end
        : [k]
   ,|));
-  tabData:=tabData.transpose(Nan);
+  tabData:=tabData.transpose('');
   tabData:=tabData.each(col,
     index=5 ? col.head | col.tail.barVisualization(100)
-            : col.map((x)->x.isNumeric AND x.isNan ? '' : x));
+            : col#.map((x)->x.isNumeric AND x.isNan ? '' : x)#);
   tabData:=tabData.transpose('');
 
   isGuiStarted
@@ -450,35 +452,6 @@ main('merge','stores')->begin
   myPath.changeFileExt('.datastore*').files()
   .map(::readDatastore)
   .map((store)->store['id']='partitionedCurves' ? mergeCurves(store['content']) : mergeCoeff(store['content']));
-end;
-
-@SuppressUnusedWarning
-truncateLongCoefficients->begin
-  local d:=curveCoefficients.sort.filter((entry)->entry[0]!=4000);
-  [d.leading(2),d.leading.tail,d.tail(2)]
-    .transpose
-    .filter({($L.getInner(0)<DEG_120).trueCount in [0,3]})
-    .filter({($L.getInner(0)<4000   ).trueCount in [0,3]})
-    .{$L[$L.size.random.sortPerm]}
-    .map((triplet:List(3))->begin
-       local neighborCoeffCountByDiscriminator:=[0,2].each(n,triplet[n,1].map((c)->[discriminator(c),c[KEY_KOEFF].size]),|);
-       neighborCoeffCountByDiscriminator:=neighborCoeffCountByDiscriminator.getInner(1).group(neighborCoeffCountByDiscriminator.getInner(0));
-
-       local curveIdx:=triplet[1,0];
-       triplet[1,1].each(subcurve,begin
-         local coeffCount        :=subcurve[KEY_KOEFF].size;
-         local neighborCoeffCount:=neighborCoeffCountByDiscriminator[discriminator(subcurve)] orElse fail('No matching neighbors for curve ',curveIdx,'/',index);
-         (coeffCount>neighborCoeffCount+2).agg(AND)
-         ? begin
-             warn('Oversized curve ',curveIdx,'/',index,'; size is ',coeffCount,' should be between ',neighborCoeffCount);
-             //local newCoeffCount:=max(1,neighborCoeffCount.agg(+) div neighborCoeffCount.size-1);
-             //curveCoefficients[curveIdx,index]:=[KEY_KOEFF=>subcurve[KEY_KOEFF].head(newCoeffCount),KEY_ERROR=>subcurve[KEY_ERROR]*10].toMap.mergeMaps(subcurve,::orElse).optimizeApproximation;
-             //writeDatastoresLazily;
-           end
-         : void;
-       end);
-     end)
-     .agg(|);
 end;
 
 main('animate','walk',componentIndex)->makeWalk(curveCoefficients,componentIndex.toInt,2*pi*random);

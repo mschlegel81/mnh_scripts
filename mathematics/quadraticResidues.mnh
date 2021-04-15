@@ -1,0 +1,80 @@
+
+
+//quadraticResidues(i:Int)->begin
+//  local X:=[1..i div 2];
+//  local Y:=X² mod i;
+//  round((
+//    (i and 1)=1
+//    ? [X|(i-X.reverseList),
+//       Y|Y.reverseList]
+//    : [X|(i-X.leading.reverseList),
+//       Y|   Y.leading.reverseList]).transpose*500/i);
+//end;
+//
+//setOptions(["axisStyleX"=>0,"axisStyleY"=>0].toMap);
+//primes(2000).pMap(::quadraticResidues).chunkMap(50,(chunk)->chunk.agg(|).elementFrequency)
+//         .agg((freq)->begin
+//            local F:=[].toMap;
+//            local lastDisplay:=0;
+//          save;
+//            F:=mergeMaps(F,freq,::+);
+//            log(F.getInner(1).agg(+));
+//            scriptTime>lastDisplay
+//            ? begin
+//                local P:=F.toList.transpose;
+//                P[1]:=ln(P[1]);
+//                local fMax:=2*P[1].agg(+)/P[1].size;
+//                P[1]:=round(1-P[1]/fMax,3).map((x)->max(0,min(1,x)));
+//                plot;
+//                group(P[0],P[1]).sort.reverseList.each(g,addPlot(g[1].each(x,x-0.5,x+0.5),'box fs 0 GREY'&g[0]));
+//                addAnimationFrame;
+//                postDisplay;
+//                lastDisplay:=scriptTime;
+//              end
+//            : void;
+//          end);
+
+quadraticResidues(i:Int)->begin
+  local X:=[1..i div 2];
+  local Y:=X² mod i;
+  ((i and 1)=1
+   ? [X|(i-X.reverseList),
+      Y|Y.reverseList]
+   : [X|(i-X.leading.reverseList),
+      Y|   Y.leading.reverseList]).transpose/i;
+end;
+
+
+
+setOptions(["x0"=>0,"x1"=>1,"y0"=>0,"y1"=>1,"autoscaleX"=>false,"autoscaleY"=>false,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
+[1..100].each(k,begin
+  local X:=[0..100]/100;
+  local Y:=k*X²;
+  local mask:=intersect([0..100],indexOf(Y<1).toSet+[-1..1].toSet).sort;
+  [X,Y].transpose[mask];
+end,
+[[Nan,Nan]],
+begin
+  local X:=[0..100]/100;
+  local Y:=k*(1-X)²;
+  local mask:=intersect([0..100],indexOf(Y<1).toSet+[-1..1].toSet).sort;
+  [X,Y].transpose[mask];
+end,
+[[Nan,Nan]],|).addPlot('red 0.5');
+
+[1..100].each(k,begin
+  local X:=[0..100]/100;
+  local Y:=k*((1-(X-0.5)²)-(0.75));
+  local mask:=intersect([0..100],indexOf(Y<1).toSet+[-1..1].toSet).sort;
+  [X,Y].transpose[mask] | [[Nan,Nan]];
+end,|).addPlot('blue 0.5');
+
+
+
+cross([1..10],
+      [1..10]).filter((xy)->xy.agg(<) AND gcd@xy=1).each(rat,begin
+  local x:=rat.agg(/);
+  map([1..rat[1]²]/rat[1]²,(y)->[x,y]);
+end,|).addPlot('red . 0.5');
+[2..2000].pMap(::quadraticResidues).agg(|).addPlot('. 0.2 black');
+

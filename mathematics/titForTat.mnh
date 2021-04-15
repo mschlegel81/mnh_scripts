@@ -1,5 +1,21 @@
 ducktype Probability(p:Numeric)->0<=p<=1;
 
+convexHull(points:List)->begin
+  local rest:=points.sort;
+  local P:=rest.head(1);
+
+  while(rest.size>0,begin
+    local dp:=P.size==1 ? [0,1] : -P.trailing(2).agg(-); dp/=dp.euklideanNorm;
+    local q:=P.trailing;
+    local i:=rest.map((p)->begin local delta:=p-q; (delta/delta.euklideanNorm*dp).agg(+); end).argMax;
+    P||=rest[i];
+    i==0
+    ? return P
+    : rest[i]:=void;
+  end);
+  P;
+end;
+
 memoized
 modifiedTitForTat(pTitForTat:Probability, pNice:Probability)->{
     random<=pTitForTat
@@ -57,11 +73,11 @@ roundRobin(models:List,rounds>=1,doPrintout:Boolean)->begin
     .map({[models[ $g[0]],$g[1,1]]})
     .sort(1)
     .{doPrintout
-      ? $L.map({format("score: \t%5.3f\t  ",$x[1])&$x[0].modelToString}).join("\n").{print("\n",$x)}
+      ? $L.map({format("score: \t%5.3f\t  ",$x[1])&$x[0].modelToString}).join("\n").{print("\n",$x)} orElse $L
       : $L};
 end;
 
-DEFAULT_POOL:=([0..10].cross([0..10])/10).filter({$x[0]<1 or $x[1]=1});
+DEFAULT_POOL:=([0..20].cross([0..20])/20).filter({$x[0]<1 or $x[1]=1});
 
 roundRobin(rounds>=1,doPrintout:Boolean)->DEFAULT_POOL.roundRobin(rounds,doPrintout);
 
@@ -107,21 +123,27 @@ end;
 
 plotSingleRun->begin
   resetOptions;
-  local initialPool:=DEFAULT_POOL;// [random(20),random(20)].transpose;
-  plot();
-  [0..2].each(run,begin
+  local initialPool:=[random(50),random(50)].transpose;
+  [0..20].each(run,begin
+    plot();
     local counter:=-1;
-    evolutionGame(initialPool,local steps:=200,{begin
-      local boxes:=[$x.getInner(0).sort[round([0.2,0.4,0.6,0.8]*($x.size-1))],
-                    $x.getInner(1).sort[round([0.2,0.4,0.6,0.8]*($x.size-1))]].transpose;
-      addPlot(boxes[[0,3]],'box 1 HUE'&(counter+=1)/steps*2/3);
-      addPlot(boxes[[1,2]],'box f 0 HUE'&counter/steps*2/3);
+    evolutionGame(initialPool,local steps:=100,{begin
+      local hull:=convexHull($x);
+      addPlot(hull,'polygon f HUE'&(counter+=1)/steps*2/3);
+//      print($x);
+//      halt;
+
+//      local boxes:=[$x.getInner(0).sort[round([0.2,0.4,0.6,0.8]*($x.size-1))],
+//                    $x.getInner(1).sort[round([0.2,0.4,0.6,0.8]*($x.size-1))]].transpose;
+//      addPlot(boxes[[0,3]],'box 1 HUE'&(counter+=1)/steps*2/3);
+//      addPlot(boxes[[1,2]],'box f 0 HUE'&counter/steps*2/3);
 
       //local a:=average($x);
       //local s:=variance($x).sqrt/2;
       //addPlot([a+s,a-s],'ellipse f 0 HUE'&(counter+=1)/steps*2/3);
-      postDisplay;
     end});
+    addAnimationFrame;
+    postDisplay;
   end);
 end;
 
@@ -142,3 +164,15 @@ end;
 
 main->plotSingleRun;
 
+begin
+  local P:=roundRobin(50,true);
+
+  local h:=0.5*P.getInner(0).transpose.map(::unique).map({max($x.tail-$x.leading)}).max;
+  local highScore:=P.getInner(1).max;
+  local lowScore:=P.getInner(1).min;
+
+  P.each(entry,addPlot([entry[0]-h,entry[0]+h],'box fs 0 HUE'&(2/3*(entry[1]-lowScore)/(highScore-lowScore))));
+
+
+
+end;

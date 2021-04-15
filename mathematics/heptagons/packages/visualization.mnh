@@ -32,8 +32,7 @@ private reconstructPoints(alpha:Numeric,phi:NumericList(4),x0:NumericList(3),ini
   a*=rx(phi[3])*rotZ; d ||=a[[0,3,6]];
   local x:=x0;
   x:=[x0]|d.each(edge,x+=edge);
-  local avgZ:=x.getInner(2).agg(+)/x.size;
-  x.map((p)->[p[0],p[1],p[2]-avgZ]);
+  x;
 end;
 private reconstructPoints(alpha:Numeric,phi:NumericList(4))->reconstructPoints(alpha,phi,[0,0,0],[1,0,0,0,1,0,0,0,1].toMatrix);
 
@@ -106,11 +105,7 @@ private plot3DPoly(points:List)->begin
     local j:=(i+1) mod 7;
     local avgZ:=(pointData[i,4]+pointData[j,4])/2;
     avgZ|broadLine(pointData[i,0],pointData[i,3],
-                   pointData[j,0],pointData[j,3])
-        |[[pointData[i,0],pointData[i,1],[Nan,Nan],
-           pointData[j,0],pointData[j,1]],
-          [pointData[i,0],pointData[i,2],[Nan,Nan],
-           pointData[j,0],pointData[j,2]]];
+                   pointData[j,0],pointData[j,3]);
     end)
   .sort
   .each(edge,addPlot(edge[1],'GREY0.8 polygon fs'),
@@ -124,10 +119,16 @@ animateHeptagon(alpha:Numeric,coeff:Map)->begin
   local realPeriod:=-coeff[KEY_PHASE]*2*pi/7;
 
   local rotationCenter:=[1/2,-0.5/tan(alpha/2),0];
+
   local rotationRadius:=euklideanNorm(rotationCenter);
   local rotatedX0:=(t)->rotationCenter+rotationRadius*[sin((t-0.5)*alpha),-cos((t-0.5)*alpha),0];
-  local rotate:=0;
-  //TODO: Find heuristic to determine if rotation is to be applied - corner case is 6pi/7
+
+  local centerZ:=reconstructPoints(alpha,
+             sampleCurve(coeff[KEY_KOEFF],coeff[KEY_PHASE],[realPeriod/2])[0],
+             rotatedX0(1/2),
+             rz(alpha/2))[4,2];
+
+  local rotate:=1;
   log('Phase          = ',coeff[KEY_PHASE],'*2*pi/7');
   log('rotatedX0(0  ) = ',rotatedX0(0));
   log('rotatedX0(0.5) = ',rotatedX0(0.5));
@@ -144,55 +145,22 @@ animateHeptagon(alpha:Numeric,coeff:Map)->begin
     ]
     .transpose
     .map((phi_T)->reconstructPoints(alpha,phi_T[0],rotatedX0(phi_T[1]),rz(alpha*phi_T[1])));
-    local d:=rotate==0
-    ? P.agg(|).{$L.agg(+)/$L.size}
-    : rotationCenter;
+    local d:=rotationCenter;
+    d[2]:=centerZ;
     P.map((hept)->hept.map((p)->p-d));
   end};
   points:=makePoints();
 
   local walkedDistance:=0;
-  walkedDistance:=0|(points.tail-points.leading).map((d)->d.euklideanNorm.euklideanNorm).each(delta,walkedDistance+=delta);
-  local totalWalkedWithoutRotation:=walkedDistance.trailing;
+  walkedDistance:=0|(points.tail-points.leading).map((d)->d.euklideanNorm.agg(+)).each(delta,walkedDistance+=delta);
+  local toWalkPerStep:=0.2;
 
-  log('Total walked (no rotation)  = ',totalWalkedWithoutRotation);
-
-  local toWalkPerStep:=0.05;
-  local totalWalkedWithRotation:=Inf;
-  totalWalkedWithoutRotation>0
-  ? begin
-      pointCount:=ceil(walkedDistance.trailing/toWalkPerStep).max(2);
-      toWalkPerStep:=walkedDistance.trailing/pointCount;
-      walkedDistance:=newSplineInterpolator([walkedDistance,curveTime].transpose);
-      curveTime:=walkedDistance([0..pointCount-1]*toWalkPerStep);
-      rotate:=1;
-      points:=makePoints();
-
-      totalWalkedWithRotation:=((points.tail|points.head(1))-points).map((d)->d.euklideanNorm.euklideanNorm).agg(+);
-      log('Total walked (with rotation)  = ',totalWalkedWithRotation);
-    end
-  : void;
-
-  totalWalkedWithoutRotation*7/coeff[KEY_PHASE]<totalWalkedWithRotation
-  ? begin
-      pointCount:=200;
-      curveTime:=[0..pointCount]/pointCount*2*pi;
-      rotate:=0;
-      points:=makePoints();
-      walkedDistance:=0;
-      walkedDistance:=0|(points.tail-points.leading).map((d)->d.euklideanNorm.euklideanNorm).each(delta,walkedDistance+=delta);
-      pointCount:=ceil(walkedDistance.trailing/toWalkPerStep).max(2);
-      toWalkPerStep:=walkedDistance.trailing/pointCount;
-      walkedDistance.trailing=0
-      ? curveTime:=[0]
-      : begin
-          walkedDistance:=newSplineInterpolator([walkedDistance,curveTime].transpose);
-          curveTime:=walkedDistance([0..pointCount-1]*toWalkPerStep);
-        end;
-      points:=makePoints();
-    end
-  : void;
-
+  pointCount:=ceil(walkedDistance.trailing/toWalkPerStep).max(2);
+  toWalkPerStep:=walkedDistance.trailing/pointCount;
+  walkedDistance:=newSplineInterpolator([walkedDistance,curveTime].transpose);
+  curveTime:=walkedDistance([0..pointCount-1]*toWalkPerStep);
+  rotate:=1;
+  points:=makePoints();
   points/=(points.agg(|).euklideanNorm.max);
   points.each(p,begin
     plot3DPoly(p);
@@ -252,7 +220,7 @@ makeWalk(allCoefficients:Map,startSubIdx:Int,startAngle:Numeric)->begin
   : void;
 
   //reduce configs to equidistant steps:
-  configs:=configs.sort.filter({$cfg[0] mod 5 = 0});
+  configs:=configs.sort;//.filter({$cfg[0] mod 5 = 0});
   local points:=configs.map({$cfg[1,1]})
   .map((hepta)->begin
      local P:=hepta.agg(+)/hepta.size;

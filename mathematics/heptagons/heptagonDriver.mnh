@@ -5,6 +5,7 @@ curveName(i)->'dc'&i&'.txt';
 printMethod(i:Int)->{log(i,' ',$0)};
 
 private calcCurve(i:Int)->begin
+  fileExists('heptagon.exe').assert('heptagon.exe does not exist! Compile and place in folder \packages');
   local calcMethod:='d';
   print('Calculating curve: ',i);
   local exitCode:='heptagon.exe'.teeExec([calcMethod,i.toString],printMethod(i),true).trailing;
@@ -36,7 +37,8 @@ POINTS_OF_INTEREST:=[2000,4000,6000,2/3*7000];
 private taskIsPending(curveIndex)->curveIndex not in partitionedCurves.getInner(0);
 
 pendingTasks->begin
-  local tbc:=unique([2000..2010,5990..6000,4660..4670]|(5*[400..1200])|[2001..2004]|[5996..5999]).minus([4001..4005]).toList;
+  local tbc:=unique([2000..2010,5990..6000,4002..4010,4660..4670]#|(5*[400..1200])
+   |(10*[200..600]));
   tbc[tbc.map((i)->2^(5-trueCount((i mod [1000,500,100,50,10,5])=0))+(abs(i-POINTS_OF_INTEREST).min/200)-32*ord(i in [2001,5999,4010,3500])).sortPerm];
 end.filter(::taskIsPending);
 

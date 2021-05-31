@@ -1,0 +1,16 @@
+plain script;
+samples:=
+'Y:/server/logs/tinyServer.log'
+.fileLineIterator
+.filter((line)->line.matches('Response.*t='))
+.map((line)->line.split('t=').trailing.softCast)
+.toList.sort;
+
+print('Total size: ',samples.size) orElse
+print('max: ',samples.trailing(5)) orElse
+print('99%ile: ',samples[round(samples.size*0.99)]) orElse
+print('95%ile: ',samples[round(samples.size*0.95)]) orElse
+print('90%ile: ',samples[round(samples.size*0.9)]) orElse
+print('75%ile: ',samples[round(samples.size*0.75)]) orElse
+print('50%ile: ',samples[round(samples.size*0.5)]) orElse
+print('25%ile: ',samples[round(samples.size*0.25)]);

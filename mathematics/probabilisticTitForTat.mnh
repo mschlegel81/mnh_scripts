@@ -6,16 +6,21 @@ titForTat(M:NumericList(2),prevResponse:Probability)->
 titForTat(M:NumericList(2),prevResponse:Boolean)->
   random<=M[0] ? prevResponse : random<=M[1];
 
-SCORE:=[[true , true]=>[-1,-1]+3/2,
-        [false,false]=>[-2,-2]+3/2,
-        [true ,false]=>[-3, 0]+3/2,
-        [false, true]=>[ 0,-3]+3/2].toMap;
+SCORE_11:=[-1,-1]+3/2;
+SCORE_00:=[-2,-2]+3/2;
+SCORE_10:=[-3, 0]+3/2;
+SCORE_01:=[ 0,-3]+3/2;
+
+SCORE:=[[true , true]=>SCORE_11,
+        [false,false]=>SCORE_00,
+        [true ,false]=>SCORE_10,
+        [false, true]=>SCORE_01].toMap;
 
 score(L:NumericList(2))->
-  SCORE[[false,false]]*(1-L[0])*(1-L[1])+
-  SCORE[[false,true ]]*(1-L[0])*   L[1] +
-  SCORE[[true ,false]]*   L[0] *(1-L[1])+
-  SCORE[[true ,true ]]*   L[0] *   L[1];
+  (1-L[0])*(SCORE_00*(1-L[1])+
+            SCORE_01*   L[1])+
+     L[0] *(SCORE_10*(1-L[1])+
+            SCORE_11*   L[1]);
 
 scoreRand(ModelA,ModelB,rounds>=1)->begin
   local res:=[true,true];
@@ -31,7 +36,6 @@ scoreProb(ModelA,ModelB,rounds>=1)->begin
     res:=[titForTat(ModelA,res[1]),
           titForTat(ModelB,res[0])])
   .map(::score).transpose;
-//  .elementFrequency.each(f,score(f[0])*f[1],+)/rounds;
 end;
 
 modelToString(p:NumericList(2))->p[0]=1 ? "p[tft]=\t1\t\t\t" :
@@ -46,10 +50,10 @@ end;
 testSquarePopulation->
 begin
   local rounds:=100;
-  local h:=      0.5/20;
-  local M:=cross([0..20],
-                 [0..20])/
-                     20;
+  local h:=      0.5/10;
+  local M:=cross([0..10],
+                 [0..10])/
+                     10;
   local pairs:=cross([0..M.size-1],[0..M.size-1]).filter((p)->p.agg(<));
 
   local progressDot:=print(repeat("------------------------|",4)) orElse round([1..100]*pairs.size/100)-1;
@@ -194,21 +198,55 @@ evolutionGame(initialPool:List,generations,poolDisplay:Expression(1))->begin
 end;
 
 
-begin
-  resetOptions;
-  [0..200].each(run,begin
-    local initialPool:=[0.5+0.5*(1-2*random(32)),
-                        0.5+0.5*(1-2*random(32))].transpose;
-    plot();
-    local counter:=-1;
-    evolutionGame(initialPool,local steps:=100,{begin
-      local hull:=convexHull($x);
-      addPlot(hull,'polygon f HUE'&(counter+=1)/steps*2/3);
-      $x;
-    end}.trailing).trailing.{print('Best: ',$x)};
-    addAnimationFrame;
-    postDisplay;
-  end);
-end;
+//begin
+//  resetOptions;
+//  [0..200].each(run,begin
+//    local initialPool:=[0.5+0.5*(1-2*random(32)),
+//                        0.5+0.5*(1-2*random(32))].transpose;
+//    plot();
+//    local counter:=-1;
+//    evolutionGame(initialPool,local steps:=100,{begin
+//      local hull:=convexHull($x);
+//      addPlot(hull,'polygon f HUE'&(counter+=1)/steps*2/3);
+//      $x;
+//    end}.trailing).trailing.{print('Best: ',$x)};
+//    addAnimationFrame;
+//    postDisplay;
+//  end);
+//end;
 
-//testSquarePopulation;
+
+[1..50].each(r,begin
+  plot;
+  [0..399].pEach(scan,
+  begin
+    local M0:=([scan mod 20,scan div 20]+0.5)/20;
+    local way:=[M0];
+    while(!M0.isVoid AND way.size<4,begin
+//      M0:=M0;
+      way||=M0;
+      local D:=[scoreProb(M0+[1E-3,0],M0,r).map((S)->S.agg(+)).agg(-),
+                scoreProb(M0+[0,1E-3],M0,r).map((S)->S.agg(+)).agg(-)];
+      D*=1E-2/D.euklideanNorm;
+      M0+=D;
+      M0[0].isProbability AND
+      M0[1].isProbability ? void : M0:=void;
+
+
+      //M0:=
+      //([0..15]/8*pi)
+      //.map((phi)->M0+1E-2*[cos(phi),sin(phi)])
+      //.filter((M)->M[0].isProbability AND M[1].isProbability)
+      //.each(M1,begin
+      //   local score:=scoreProb(M0,M1,r).map((S)->S.agg(+));
+      //   score[1]>score[0]
+      //   ? [score[1],M1]
+      //   : void;
+      // end,max);
+    end);
+    way.addPlot('red 0.5');
+    addPlot(way.trailing(1),'red .');
+  end);
+  addAnimationFrame;
+  display;
+end);

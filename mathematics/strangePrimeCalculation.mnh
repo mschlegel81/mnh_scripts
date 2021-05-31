@@ -1,0 +1,12 @@
+
+
+
+
+f(x)->2+[2..floor(2*x*ln(x)+2)].each(k,
+    1-floor(1/x*[2..k].each(j,
+      1+floor((2-[1..j].each(i,floor(j/i)-floor((j-1)/i),+))/j),+)),+);
+
+f(1);
+f(2);
+f(3);
+f(4);

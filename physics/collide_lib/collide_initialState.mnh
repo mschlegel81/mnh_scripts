@@ -1,9 +1,12 @@
 USE collide_types;
 @SuppressUnusedWarning=all
 
+TIME_STEP_SIZE:=0.3;
+DOWNWARD_ACCEL:=-0.1;
+
 GEOMETRIES:=[['simple'    ,[[-5,6],[-5,0],[5,0],[5,6]]],
-             ['hour glass',  [[-6,24],[-1.5,14],[-6,4],[-6,0],[6,0],[6,4],[1.5,14],[6,24]]],
-             ['hour glass 2',[[-6,30],[-1.5,14],[-6,4],[-6,0],[6,0],[6,4],[1.5,14],[6,30]]],
+             ['hourGlass', [[-6,24],[-1.2,14],[-6,4],[-6,0],[6,0],[6,4],[1.2,14],[6,24]]],
+             ['hourGlass2',[[-6,26],[-1.2,14],[-6,4],[-6,0],[6,0],[6,4],[1.2,14],[6,26]]],
              ['six'       ,(([0..19]/10*pi).map({[-(6-$x/pi)*cos($x),6-(6-$x/pi)*sin($x)]})|([10..0]/20*pi).map({[5-9*sin($x),8+9*cos($x)]}))],
              ['dented'    ,[[-4*sin(2*pi/3)-1,6],
                             [-4*sin(2*pi/3)-1,0],
@@ -34,7 +37,7 @@ GEOMETRIES:=[['simple'    ,[[-5,6],[-5,0],[5,0],[5,6]]],
                             [ 4    ,6.1961524227066329],//[ 4   ,5.464101615137755],
                             [ 4    ,6.9282032302755105],
                             [ 5    ,6.9282032302755105]]],
-             ['zig zag'   ,[[-(1+5*sin(2*pi/3)),23.25],[1  ,20.25],
+             ['zigZag'    ,[[-(1+5*sin(2*pi/3)),23.25],[1  ,20.25],
                             [-(1+5*sin(2*pi/3)),17.25],
                             [-(1+5*sin(2*pi/3)),13.75], [0,11],
                             [-(1+5*sin(2*pi/3)),11],
@@ -43,16 +46,18 @@ GEOMETRIES:=[['simple'    ,[[-5,6],[-5,0],[5,0],[5,6]]],
                             [ (1+5*sin(2*pi/3)),12],[-2,15.5],
                             [ (1+5*sin(2*pi/3)),19]]],
              ['snail',      begin
-                              local f1:={[-cos($t),-sin($t)]*(9-1.2*$t/pi)};
+                              local f1:={[-cos($t),-sin($t)]*(9-1.2*$t/pi) };
                               local f2:={begin
                                       local r:=f1($t);
                                       local a:=r.sqr.agg(+).sqrt;
                                       r/a*(a-2.2);
                                     end};
-                            (([0..110]/10*pi/2).map(f1)|
-                             ([70..-10]/10*pi/2).map(f2));
+                            (([ 0..110]/10*pi/2).map(f1)|
+                             ([70..0]/10*pi/2).map(f2)|
+                             ([-1..-10]/10*pi/2).map((t)->f2(t)-[0,3*t]));
                             end],
-             ['vial'      ,[[-5,10],[0,0],[5,10]]],
+             ['vial'      ,[[-6,12*sin(pi/3)],[0,0],
+                           [  6,12*sin(pi/3)]]],
              ['tubes'     ,[[-4,6],
                             [-4.0               ,0                   +1.414],
                             [-3.9498558243636475,-0.44504186791262856+1.414],
@@ -177,7 +182,7 @@ randomInitialState(geometry:Geometry,count)->begin
   local result:=[[randomX(),y]];
   local accept:={result.each(r,(r-$0).sqr.agg(+)>=4,AND) ? [$0] : void};
   while(result.size<count,
-    result|=accept([randomX(),y+=0.01]));
+    result|=accept([randomX(),y+=0.2]));
   result;
 end;
 
@@ -201,13 +206,10 @@ getInitialSystemName(geometryName,
                      ballPosName,
                      numberOfBalls)->format('%s, %s, %s',geometryName,ballPosName,numberOfBalls);
 
-GEOMETRIES['tubes'].plot('blue 2 . l');
+GEOMETRIES['zig zag'].plot('blue 2 . l');
 
 
-addPlot({[2*cos($t)-2,2*sin($t)]},pi,3*pi/2,8,'red');
 
-
-([0..7]/7*pi/2+pi).map({[2*cos($t)-2,2*sin($t)]});
 
 
 //plotBall(xy)->([0..100]/100*2*pi).map({[sin($t)+xy[0],cos($t)+xy[1]]}).addPlot("red polygon");

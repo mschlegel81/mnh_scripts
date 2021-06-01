@@ -3,7 +3,7 @@ convexHull(points:List)->begin
   local P:=rest.head(1);
 
   while(rest.size>0,begin
-    local dp:=P.size==1 ? [0,1] : -P.trailing(2).agg(-); dp/=dp.euklideanNorm;
+    local dp:=P.size==1 ? [0,-1] : -P.trailing(2).agg(-); dp/=dp.euklideanNorm;
     local q:=P.trailing;
     local i:=rest.map((p)->begin local delta:=p-q; (delta/delta.euklideanNorm*dp).agg(+); end).argMax;
     P||=rest[i];
@@ -17,7 +17,7 @@ end;
 
 begin
   local P:=[random(1000),
-            random(1000)].transpose.filter((x)->0.5<x.euklideanNorm<1);
+            random(1000)].transpose.filter((x)->0.7<x.euklideanNorm<1);
   plot(P,'.');
   addPlot(P.convexHull);
   P.convexHull;

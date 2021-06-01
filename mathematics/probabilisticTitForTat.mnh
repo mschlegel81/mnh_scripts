@@ -67,7 +67,8 @@ begin
         [pair[1],s[1]]];
      end,|)
     .group(0,::+)
-    .map({$g[0]=>runningAverage($g[1,1])});
+    .map({$g[0]=>$g[1,1]});
+//    .map({$g[0]=>runningAverage($g[1,1])});
   setOptions(["axisStyleX"=>0,"axisStyleY"=>0].toMap);
   clearAnimation;
   [0..rounds-1].each(r,begin
@@ -113,7 +114,8 @@ begin
         [pair[1],s[1]]];
      end,|)
     .group(0,::+)
-    .map({$g[0]=>runningAverage($g[1,1])});
+    //.map({$g[0]=>runningAverage($g[1,1])});
+    .map({$g[0]=>$g[1,1]});
 
   setOptions(["axisStyleX"=>0,"axisStyleY"=>0].toMap);
   clearAnimation;
@@ -144,7 +146,7 @@ scoreSort(population)->population.size=1 ? population : begin
     local A:=pair[0];
     local B:=pair[1];
     B.isVoid ? [[A,Inf]] : begin
-      local score:=scoreProb(A,B,30);
+      local score:=scoreProb(A,B,5);
       [[A,score[0].agg(+)/score[0].size],
        [B,score[1].agg(+)/score[1].size]];
     end;

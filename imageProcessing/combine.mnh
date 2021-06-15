@@ -60,6 +60,27 @@ combineImages2x4(filename1:String,filename2:String,filename3:String,filename4:St
   : void;
 end;
 
+combineImages3x2(filename1:String,filename2:String,filename3:String,
+                 filename4:String,filename5:String,filename6:String,
+                 output   :String)->begin
+  fileExistsVerbose(filename1) AND
+  fileExistsVerbose(filename2) AND
+  fileExistsVerbose(filename3) AND
+  fileExistsVerbose(filename4) AND
+  fileExistsVerbose(filename5) AND
+  fileExistsVerbose(filename6) AND
+  fileNExistsVerbose(output)
+  ? print('Creating ',output) orElse
+    executeWorkflow(['crop:0,2x0,3'  ,            'stash:0',
+   'load:'&filename2,'crop:0,2x-1,2' , '+stash:0','stash:0',
+   'load:'&filename3,'crop:0,2x-2,1' , '+stash:0','stash:0',
+   'load:'&filename4,'crop:-1,1x0,3' , '+stash:0','stash:0',
+   'load:'&filename5,'crop:-1,1x-1,2', '+stash:0','stash:0',
+   'load:'&filename6,'crop:-1,1x-2,1', '+stash:0','stash:0'],
+   filename1,output)
+  : void;
+end;
+
 combineImages3x1(filename1:String,
                  filename2:String,
                  filename3:String,

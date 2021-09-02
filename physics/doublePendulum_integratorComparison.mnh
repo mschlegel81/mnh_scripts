@@ -61,10 +61,10 @@ end;
 evolveAngles(modifier:Numeric)->
 begin
   print(modifier);
-  local state:=[pi/2+cos(modifier*2*pi)*0.00001,
-               -pi/2+sin(modifier*2*pi)*0.00001,0,0];
+  local state:=[pi/2+modifier*0.000001,
+               -pi/2,0,0];
   local hist:=[state[[0,1]]];
-  local step:=integrator(CASH_KARP,::accel,timeStepPerFrame,1E-9);
+  local step:=integrator(CASH_KARP,::accel,timeStepPerFrame,1E-7);
   [2..2000].each(counter,begin
     state:=state.step;
     hist|=[state[[0,1]]];
@@ -72,15 +72,12 @@ begin
   hist;
 end;
 
-memoized traceStyle(index,part)->format('0.75 HSV%s,1,1,%s',index/INT_MAX,1-part/64);
-//traceStyle1   :=format('0.75 HSV%s,1,1,1',[0..INT_MAX]/INT_MAX);
-//traceStyle2   :=format('0.75 HSV%s,1,1,0.66',[0..INT_MAX]/INT_MAX);
-//traceStyle3   :=format('0.75 HSV%s,1,1,0.33',[0..INT_MAX]/INT_MAX);
+memoized traceStyle(index,part)->format('c 0.75 HSV%s,1,1,%s',index/INT_MAX,1-part/64);
 pendulumStyle:=format('2 . l HUE%s',[0..INT_MAX]/INT_MAX);
 
 animate->begin
-  local A:=([0..INT_MAX]/INT_MAX*0.5+0.5).pMap({evolveAngles(RK2($a))});
-  //local A:=([0..INT_MAX]/(INT_MAX+1)).pMap({evolveAngles($a)});
+//  local A:=([0..INT_MAX]/INT_MAX*0.5+0.5).pMap({evolveAngles(RK2($a))});
+  local A:=([0..INT_MAX]/(INT_MAX+1)).pMap({evolveAngles($a)});
   local traces:=A.pMap({$part.map({$state.plottable.trailing})});
   begin
     local globalX0:=traces.pEach(trace,trace.getInner(0).min,min);
@@ -104,6 +101,7 @@ animate->begin
     plot();
     frame.map({addPlot@$f});
     addAnimationFrame;
+    postDisplay;
   end);
   display;
 end;

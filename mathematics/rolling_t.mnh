@@ -1,0 +1,70 @@
+getPoints(rotation,dx)->begin
+  local a:=[cos(-rotation),sin(-rotation)]/sqrt(2);
+  local b:=[-a[1],a[0]];
+//  local P:=
+  [[-1,1],
+   [ 1   ,1],
+   [ 1   ,0.5],
+   [ 0.25,0.5],
+   [ 0.25,-sqrt(2-0.25²)],
+   [-0.25,-sqrt(2-0.25²)],
+   [-0.25,0.5],
+   [-1   ,0.5],
+   [-1,1]].map((x)->x[0]*a+x[1]*b+[dx,0]);
+end;
+
+lowPointAt(P,x)->begin
+  [P.leading,P.tail]
+  .transpose
+  .each(pair,begin
+    local x0:=pair[0,0];
+    local x1:=pair[1,0];
+    x0<x<x1 OR x0>x>x1
+    ? begin
+        local y0:=pair[0,1];
+        local y1:=pair[1,1];
+        y0+(y1-y0)/(x1-x0)*(x-x0);
+      end : void;
+  end,min);
+end;
+
+begin
+  local dx:=1E-2;
+  local base:=[];
+  local rotation:=0;
+  local x:=0;
+
+  [0..500].each(i,begin
+
+  local P:=getPoints(rotation,x);
+  local y:=P.lowPointAt(x);
+  base|=[[x,y]];
+
+  rotation-=dx/y;
+  x+=dx;
+
+  P.plot('polygon f');
+  base.addPlot;
+  addAnimationFrame;
+  end);
+
+
+
+
+
+
+  //local forms:=([-10..110]/100*2*pi).each(t,getPoints(t,t));
+  //local baseLineX:=[-10..110]/99*2*pi;
+  //local baseLineY:=baseLineX.pMap((x)->
+  //  forms.each(f,f.lowPointAt(x),min) orElse 0);
+  //
+  //
+  //
+  //([0..99]/100*2*pi).each(t,begin
+  //  getPoints(t,t).plot('polygon f');
+  //  addPlot(baseLineX,baseLineY);
+  //  addAnimationFrame;
+  //
+  //end);
+
+end;

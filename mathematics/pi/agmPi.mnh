@@ -1,5 +1,22 @@
 //*Compute pi
 //*Method of Gauss, Salamin and Brent
+//*Floating point version
+agmPi->begin
+  local a:=[1,sqrt(1/2)];
+  local prevDelta:=Inf;
+  local quotient:=0;
+  local quotFactor:=2;
+  while(a.agg(-)!=prevDelta,begin
+    prevDelta:=a.agg(-);
+    a:=[a.agg(+)/2,a.agg(*).sqrt];
+    quotient+=sqr(a).agg(-)*(quotFactor*=2);
+  end);
+  4*a[0]²/(1-quotient);
+end;
+
+//*Compute pi
+//*Method of Gauss, Salamin and Brent
+//*Fixed point version
 agmPi(scale:Int)->begin
   //We use a fixed point representation
   local a:=[local SCALE_FACTOR:=10^scale,isqrt(10^(scale*2-1)*5)[0]]; //=1 * 10^scale, sqrt(1/2)* 10^scale
@@ -7,6 +24,7 @@ agmPi(scale:Int)->begin
   local quotient:=0;
   local quotFactor:=2;
   while(quotient!=prevQuotient,begin
+    note(a.agg(-));
     a:=[a.agg(+).shiftRight(1),a.agg(*).isqrt[0]];
     prevQuotient:=quotient;
     quotient+=sqr(a).agg(-)*(quotFactor*=2) div SCALE_FACTOR;
@@ -17,3 +35,9 @@ end;
 
 //*Computes and outputs pi based on the method of Gauss, Salamin and Brent
 main(digitsToCompute)->digitsToCompute.toInt.agmPi.print;
+
+//*Computes and outputs pi based on the method of Gauss, Salamin and Brent
+main->agmPi.print;
+
+
+

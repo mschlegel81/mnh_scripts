@@ -110,7 +110,7 @@ replaceFixPointPlot(x,y)->begin
   postDisplay;
 end;
 
-USE customFormUtil;
+USE customFormUtil,GUI;
 main->begin
 ['autoscaleFactor'=>1.0,
  'autoscaleX'=>false,

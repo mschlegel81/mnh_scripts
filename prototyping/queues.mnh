@@ -1,12 +1,14 @@
-@SuppressUnusedParameterWarning
-type Queue(E:StatefulExpression(2))->true;
+//*Queue
+type Queue(E:StatefulExpression(2))->E('CHECK','VALIDITY');
 
-newQueue->toQueue((method in ['put','putEnd','next','hasEnded'],value)->begin
+newQueue->toQueue((method in ['put','putEnd','next','hasEnded','size','CHECK'],value)->begin
   local queued:=[];
   local hasEndMarker:=false;
 save;
+  method=='CHECK' AND value=='VALIDITY' ? true :
   method=='put'    ? queued|=[value] :
   method=='putEnd' ? hasEndMarker:=true :
+  method=='size'   ? queued.size :
   method=='next'   ? begin
     local r:=queued[0];
     queued:=queued.tail;
@@ -14,10 +16,11 @@ save;
   end : hasEndMarker;
 end);
 
-put   (Q:Queue,value)->Q('put'   ,value);
-putEnd(Q:Queue)      ->Q('putEnd'    ,'');
-next  (Q:Queue)      ->Q('next'      ,'');
-hasEnd(Q:Queue)      ->Q('hasEnded'  ,'');
+put   (Q:Queue,value)->Q('put'       ,value);
+putEnd(Q:Queue)      ->Q('putEnd'    ,false);
+next  (Q:Queue)      ->Q('next'      ,false);
+hasEnd(Q:Queue)      ->Q('hasEnded'  ,false);
+size  (Q:Queue)      ->Q('size'      ,false);
 
 queueIterator(Q:Queue)->{begin
   local result:=void;
@@ -30,10 +33,13 @@ begin
   local queue:=newQueue;
   local iterator:=queueIterator(queue);
 
-  localAsync({iterator.map(::factorize).agg((x)->print(x))});
 
-  [1..100].map((i)->begin queue.put(i); sleep(0.05); end);
+  localAsync({iterator.pMap(::factorize).agg((x)->print(x))});
+  [1..1000].map((i)->begin queue.put(i); sleep(1E-2); end);
+  log(queue.size);
   queue.putEnd;
+  while(queue.size>0,sleep(1));
+
 end;
 
 

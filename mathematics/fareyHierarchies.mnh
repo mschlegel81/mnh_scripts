@@ -81,6 +81,6 @@ end;
 
 
 
-fareyHierarchy(777,1324,false);
+fareyHierarchy(777,1324,true);
 //fareyHierarchy(77756,1324577,true);
 

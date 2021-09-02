@@ -85,7 +85,7 @@ STYLES:='box fs 0 TI 0 '&['',
     ''];
 
 convPlot()->begin
-  local points:=500;
+  local points:=200;
   local h:=1/points;
   local RE:=([0..points-1]+0.5)/points*2-1.5;
   local IM:=([0..points-1]+0.5)/points*2-1;

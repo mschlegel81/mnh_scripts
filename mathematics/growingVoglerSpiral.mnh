@@ -1,0 +1,97 @@
+#!C:\dev\private\mnh5\target\Win64\mnh.exe -GUI
+
+
+
+FIBONACCI_DELTAS:=begin
+  local f:=[1,1];
+  [0..30].each(i,f|=f.trailing(2).agg(+));
+  f.tail;
+end;
+//
+//findNearest(points:List,index)->begin
+//  local p0:=points[index] orElse fail;
+//  points[index-FIBONACCI_DELTAS].each(p,euklideanNorm(p-p0)=>p,min)[1];
+//end;
+
+RADIUS_FACTOR:=1.2;
+
+pointGenerator:=rangeGenerator(0).map((n)->begin
+  local FIBFAK:=2*pi/sqr((sqrt(5)-1)/2);
+save;
+  [cos(FIBFAK*n),sin(FIBFAK*n)]*sqrt(n);
+end);
+
+main->begin
+  clearAnimation(true);
+  local points:=pointGenerator.head(1);
+  local pairs:=[];
+
+  while(true,begin
+    local newPoint:=pointGenerator();
+    local other:=points[points.size-FIBONACCI_DELTAS].each(p,euklideanNorm(p-newPoint)=>p,min)[1];
+
+    local nd:=other-newPoint; nd/=nd.euklideanNorm; nd:=[nd[1],-nd[0]];
+    local i0:=newPoint.euklideanNorm²;
+    local i1:=other.euklideanNorm²;
+
+    pairs ||=[newPoint,other,i0,i1,nd];
+    points||=newPoint;
+
+   ['preserveAspect' => true,'axisStyleX'=>0,'axisStyleY'=>0,
+    'strictInput'=>true,'autoscaleX'=>false,'autoscaleY'=>false,
+     'y0'=>-(sqrt(points.size)),
+     'x0'=>-(sqrt(points.size)),
+     'y1'=> (sqrt(points.size)),
+     'x1'=> (sqrt(points.size))].toMap.setOptions;
+    points.each(p,p-RADIUS_FACTOR*(1-sqrt(index/points.size)),
+                  p+RADIUS_FACTOR*(1-sqrt(index/points.size))).plot('e fs 0');
+    pairs.each(pair,begin
+      local p0:=pair[0];
+      local p1:=pair[1];
+      local nd:=pair[4];
+      local r0:=RADIUS_FACTOR*(1-sqrt(pair[2]/points.size));
+      local r1:=RADIUS_FACTOR*(1-sqrt(pair[3]/points.size));
+       [p0+r0*nd ,p1+r1*nd,
+        p1-r1*nd ,p0-r0*nd,
+       [Nan,Nan]];
+    end,|).addPlot('polygon fs 0 black');
+    addAnimationFrame;
+    note(points.size,' ready');
+    postDisplay;
+  end);
+
+
+end;
+
+
+
+//
+////clearAnimation(true);
+//rangeGenerator(2).each(k,
+//begin
+//  ['preserveAspect' => true,'axisStyleX'=>0,'axisStyleY'=>0,
+//   'strictInput'=>true,'autoscaleX'=>false,'autoscaleY'=>false,
+//    'y0'=>-(sqrt(1+k)),
+//    'x0'=>-(sqrt(1+k)),
+//    'y1'=> (sqrt(1+k)),
+//    'x1'=> (sqrt(1+k))].toMap.setOptions;
+//
+//  local P:=voglerSpiral(k);
+//  P.each(p,p-RADIUS_FACTOR*(1-index/P.size),
+//           p+RADIUS_FACTOR*(1-index/P.size)).plot('e fs 0');
+//
+//  P.tail.pEach(p0,begin
+//    local p1:=P.findNearest(index+1);
+//    local nd:=p1-p0; nd/=nd.euklideanNorm; nd:=[nd[1],-nd[0]];
+//    local r0:=RADIUS_FACTOR*(1-p0.euklideanNorm²/P.size);
+//    local r1:=RADIUS_FACTOR*(1-p1.euklideanNorm²/P.size);
+//     [p0+r0*nd ,p1+r1*nd,
+//      p1-r1*nd ,p0-r0*nd,
+//     [Nan,Nan]];
+//  end,|).addPlot('polygon fs 0 black');
+//  addAnimationFrame;
+//  note(k,' ready');
+//  index=0 ? display : postDisplay;
+//end);
+
+

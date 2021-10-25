@@ -1,0 +1,12 @@
+
+
+main->
+  while(scriptTime<10,begin
+    sleep(1);
+    local s:=round(scriptTime);
+    print(s);
+//    s>=10 ? halt : void;
+  end);
+
+@after
+RESTART->execAsync(executor,[myPath]);

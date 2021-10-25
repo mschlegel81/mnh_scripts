@@ -1,0 +1,18 @@
+GIT_PATH:='c:\Program Files\Git\bin\git.exe';
+WORK_ROOT:='C:\dev';
+
+git(...)->execPipeless(GIT_PATH,...);
+
+//*Shows git status for all directories under {WORK_ROOT} and calls the garbage collector
+main->allFolders(WORK_ROOT)
+.filter((f)->f.extractFileName=='.git')
+.map(::extractFileDirectory)
+.map(::systemSpecificFilename)
+.each(folder,begin
+  changeDirectory(folder);
+  print(repeat('-',100));
+  print("Status of: ",folder);
+  git('status');
+  print('GC: ',folder);
+  git('gc');
+end);

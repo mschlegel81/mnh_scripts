@@ -1,0 +1,18 @@
+private allProcessesStartedByMe->begin
+  local taskInfo:=getTaskInfo;
+  local childProcessMap:=taskInfo.getInner('PID').group(taskInfo.getInner('parentPID'));
+  local parentPidsToConsider:=[mnhInfo['PID']].toSet;
+  local pc:=0;
+  while(parentPidsToConsider.size<>pc,begin
+    pc:=parentPidsToConsider.size;
+    parentPidsToConsider:=parentPidsToConsider.each(pid,childProcessMap[pid],pid).flatten.toSet;
+  end);
+  parentPidsToConsider.minus([mnhInfo['PID']]);
+end;
+
+stopProcess(pid:Int)->execAsync('taskkill',['/f','/PID',toString(pid)]);
+
+killAllMyChildren->begin
+  allProcessesStartedByMe.map(::stopProcess);
+  void;
+end;

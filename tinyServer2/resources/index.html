@@ -1,0 +1,18 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<head>
+<meta content="text/html; charset=UTF-8" http-equiv="content-type">
+<title>Index</title>
+<link rel="stylesheet" type="text/css" href="home.css">
+</head>
+<body>
+<script type="text/javascript" src="basicSupport.js"></script>
+<div w3-include-html="navigationbar.html"></div>
+<h2>Status</h2>
+<span w3-include-html="api/uptime" include-interval=1000></span>
+<span w3-include-html="/api/cpuDiagram" include-interval=5000></span>
+<h2>Tasks</h2>
+<div w3-include-html="/api/tasktable" include-interval=5000></div>
+<script>
+includeHTML();
+</script>
+</body>

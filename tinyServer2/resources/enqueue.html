@@ -1,0 +1,42 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<head>
+<meta content="text/html; charset=UTF-8" http-equiv="content-type">
+<title>Enqueue task</title>
+<link rel="stylesheet" type="text/css" href="home.css">
+</head>
+<body>
+<div w3-include-html="navigationbar.html"></div>
+<script type="text/javascript" src="basicSupport.js"></script>
+<h1>Queued tasks</h1>
+<span w3-include-html="/api/queuedSection" include-interval=5000></span>
+<h1>Enqueue task</h1>
+<span w3-include-html="/api/scriptSection"></span>
+<div>
+<h1>Special tasks</h1>
+<button onclick="...">kill</button>
+<button onclick="...">kill</button>
+<button onclick="...">kill</button>
+<button onclick="...">kill</button>
+</div>
+
+<script>
+  function onSelect(){
+     for (let i=0; true; i++){
+       var select = document.getElementById("select"+i);
+       if (select) {
+         var x = select.value;
+         document.getElementById("input"+i).value = x;
+       } else {return;}
+     }
+  }
+
+  function enqueueClick(idx,scriptname){
+    var parameters = document.getElementById("input"+idx).value;
+    var xmlHttp = new XMLHttpRequest();
+    xmlHttp.open("POST", "/api/enqueue", true);
+    xmlHttp.send(JSON.stringify({"script": scriptname, "parameters": parameters}));
+  }
+
+  includeHTML();
+</script>
+</body>

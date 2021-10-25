@@ -1,0 +1,263 @@
+USE loggingRunner,server_html,server_config;
+
+datastore queued  :=[];
+datastore previous:=[];
+
+private fmtT(pointInTime)->'<class="right">'&
+                               formatTime(floor(pointInTime)==floor(systime)
+                               ? 'hh:nn:ss'
+                               : 'yyyy/mm/dd hh:nn:ss',pointInTime)&"</class>";
+
+STATUS_BOX_QUEUED        :='<div style="background-color: #00C; padding: 0px">&nbsp;&nbsp;<br><br></div>';
+STATUS_BOX_RUNNING       :='<div style="background-color: #8F0; padding: 0px">&nbsp;&nbsp;<br><br></div>';
+STATUS_BOX_KILLED        :='<div style="background-color: #800; padding: 0px">&nbsp;&nbsp;<br><br></div>';
+STATUS_BOX_CANCELLED     :='<div style="background-color: #F00; padding: 0px">&nbsp;&nbsp;<br><br></div>';
+STATUS_BOX_FINISHED      :='<div style="background-color: #090; padding: 0px">&nbsp;&nbsp;<br><br></div>';
+STATUS_BOX_KILL_REQUESTED:='<div style="background-color: #F80; padding: 0px">&nbsp;&nbsp;<br><br></div>';
+
+scriptDefInTable(script)   ->tag(script in SPECIAL_TASKS.getInner(0) ? script : script.extractFileName,'code');
+scriptDefInTable(script,'')->tag(script in SPECIAL_TASKS.getInner(0) ? script : script.extractFileName,'code');
+scriptDefInTable(script,param)->begin
+  local parameters:=(param orElse '').trim;
+  parameters.length>30 ? parameters:=parameters.copy(0,27)&'...' : void;
+  tag(script.extractFileName,'code')&(parameters==''
+                                      ? ''
+                                      : '<br>'& tag('   '&parameters,'code'));
+end;
+
+getQueuedTable(forOverviewPage:Boolean)->
+  [['','Enqueued','Script','','',''].map({$x.tag('b')})] |
+    queued.reverseList.each(x,['',fmtT(x[0]),
+                   scriptDefInTable(x[1],x[2]),
+                   htmlLink('remove','dequeue?taskHash='&hash(x)&'&mainView='&ord(forOverviewPage)),
+                   STATUS_BOX_QUEUED,
+                   '<button onClick="postForceStart('&hash(x)&')">force start</button>'&
+                   (index=queued.size-1 ? '' :
+                   ('<br><button onClick="postMoveToFront('&hash(x)&')">next to execute</button>'))]);
+
+//getQueuedSection(withLink:Boolean)->
+//  tag(
+//  tag('Queue'&(withLink ? '    '&htmlLink('(+)','enqueue') : void), 'h2')&
+//  htmlTable(getQueuedTable(false)),'div');
+
+getTasksTable->begin
+  local report:=getTaskReport;
+  htmlTable(getQueuedTable(true)| [['#','Started','Script','Log','','Status'].map({$x.tag('b')})]|
+    report.each(r,
+      begin
+        local statusBox:=
+          r[SCRIPT] in SPECIAL_TASKS.getInner(0)
+          ? STATUS_BOX_FINISHED
+          : r[RUNNING]
+            ? r[KILLREQUESTED] orElse false
+              ? STATUS_BOX_KILL_REQUESTED
+              : STATUS_BOX_RUNNING
+          : r[KILLREQUESTED] orElse false
+            ? STATUS_BOX_KILLED
+            : r[FINISHED]
+              ? STATUS_BOX_FINISHED
+              : STATUS_BOX_CANCELLED;
+        local stateMessage:=
+          r[SCRIPT] in SPECIAL_TASKS.getInner(0)
+          ? ''
+          : r[RUNNING]
+            ? r[KILLREQUESTED] orElse false
+              ? 'kill requested'
+              : 'running '&htmlLink('kill',encodeRequest('','kill',['index'=>r['index'],'mainView'=>1].toMap))
+          : r[KILLREQUESTED] orElse false
+            ? 'killed'
+            : r[FINISHED]
+              ? 'finished'
+              : 'cancelled';
+        r[SCRIPT] in SPECIAL_TASKS.getInner(0) ? void : stateMessage&='<br>'&fmtT(r[FINISHTIME] orElse systime);
+        [r['index'],
+         fmtT(r[STARTTIME]),
+         scriptDefInTable(r[SCRIPT],r[PARAMETERS]),
+         r[FILESTATS]==[0.0,-1] ? '- log missing -' : htmlLink(getLogName(r['index']).extractFileName,
+                                                         encodeRequest('','displayFile',['filename'=>getLogName(r['index'])].toMap)),
+         statusBox,
+         stateMessage];
+      end));
+end;
+
+killTask(parameters:Map)->begin
+  local indexToKill:=parameters['index'];
+  indexToKill.isInt
+  ? setKillRequest(indexToKill)
+  : void;
+  redirectTo(parameters['mainView']==1 ? START_PAGE : ENQUEUE_PAGE);
+end;
+
+dequeueTask(parameters:Map)->begin
+  local taskHash:=parameters['taskHash'];
+  local taskIndex:=queued.each(q,q.hash==taskHash ?index : void,head);
+  isInt(taskIndex) AND (0<=taskIndex<queued.size)
+  ? begin
+      log('Dropping todo ',queued[taskIndex,1],' ',queued[taskIndex,2]);
+      queued[taskIndex]:=void;
+    end
+  : void;
+  redirectTo(parameters['mainView']=1 ? START_PAGE : ENQUEUE_PAGE);
+end;
+
+addTask(parameters:Map)->begin
+  enqueueTask(parameters['scriptName'],
+              parameters['cmdLineParameters'] orElse '');
+  redirectTo(ENQUEUE_PAGE);
+end;
+
+getQueuableTable->begin
+  local prevMap:=previous;
+  prevMap:=prevMap.getInner(1).group(previous.getInner(0));
+  htmlOuterTable(
+    filesInScriptFolder
+    .each(script,["\n"&htmlLink(script.tag('code'),encodeRequest('','api/scriptInfoPage',['scriptname'=>script].toMap)),
+                  "\n"&'<select name="'&script&'" id="select'&index&'" onChange="onSelect()">'&
+                  (prevMap[script] orElse []).each(par,'<option value="',par,'">',par,'</option>',&)&
+                  '</select>',
+                  "\n"&'<input id="'&'input'&index&'"></input>',
+                  "\n"&'<button onClick="enqueueClick('&index&",'"&script&"')\">enqueue</button>'
+                    ]
+                 ));
+
+end;
+
+//enqueuePage(parameters:Map)->begin
+//  local prevMap:=previous;
+//  local selectedScript:=parameters['scriptName'];
+//  local scriptParameters:=parameters['cmdLineParameters'];
+//
+//  !(selectedScript  .isVoid) AND
+//  !(scriptParameters.isVoid)
+//  ? begin
+//      enqueueTask(selectedScript,
+//                  scriptParameters);
+//      return redirectTo(ENQUEUE_PAGE);
+//    end
+//  : void;
+//
+//  prevMap:=previous.getInner(1).group(previous.getInner(0));
+//
+//  htmlPage('Enqueue task',
+//  '<FORM name="myForm">'&
+//  getHeadLinks&
+//  getQueuedSection(false)&
+//  tag(
+//  tag('Enqueue task','h2')&htmlOuterTable(
+//    filesInScriptFolder
+//    .each(script,[htmlLink(script.tag('code'),encodeRequest('','displayFile',['filename'=>script.fullScriptName].toMap)),
+//                  htmlLink(tag('[customize]','b'),'enqueue?scriptName='&script),
+//                  script==selectedScript
+//                  ? begin
+//                      ((prevMap[script] orElse []).each(par,
+//                        htmlLink(trim(par)='' ? '&lt;no parameters&gt;' : tag(par,'code'),
+//                                 encodeRequest('','addTask',['scriptName'=>script,'cmdLineParameters'=>par].toMap)),
+//                        '<br>',&))&
+//                      jsTextInputField('cmdLineParameters','',parameters,100);
+//                    end
+//                  : begin
+//                      local par:=prevMap[script,0] orElse '';
+//                      htmlLink(trim(par)='' ? '&lt;no parameters&gt;' : tag(par,'code'),
+//                               encodeRequest('','addTask',['scriptName'=>script,'cmdLineParameters'=>par].toMap));
+//                    end]
+//                 ))&
+//  tag(tag('Special actions', 'h2')&htmlTable(
+//   [[htmlLink('<br>DELAY EXECUTION FOR 1h<br>','delay1h')],
+//    [htmlLink('<br>DELAY EXECUTION UNTIL 22:00<br>','delay22')],
+//    [htmlLink('<br>DELAY EXECUTION UNTIL 23:00<br>','delay23')],
+//    [htmlLink('<br>DELAY EXECUTION UNTIL 00:00<br>','delay24')],
+//    [htmlLink('<br>RESET DELAY<br>','delay0h')],
+//    [htmlLink('<br>RESTART SERVER<br>','restart')    ],
+//    [htmlLink('<br>RESTART SYSTEM<br>','restartsys') ],
+//    [htmlLink('<br>SHUTDOWN SYSTEM<br>','shutdown')  ]]),'div')&
+//
+//  jsHiddenInputFields(parameters).join
+//  ,'div')&
+//  (parameters['scriptName'].isVoid ? void : '<br>'&htmlLink('enqueue task',http.encodeRequest('','addTask',parameters)))
+//  &'</FORM>'
+//  ,false).wrapTextInHttp;
+//end;
+
+mutable restartScheduled:=false;
+
+SPECIAL_TASK_RESTART_SERVER:='RESTART';
+SPECIAL_TASK_RESTART_SYSTEM:='RESTART_SYSTEM';
+SPECIAL_TASK_SHUTDOWN      :='SHUTDOWN_SYSTEM';
+
+doRestartSystem->begin
+  restartScheduled:=true;
+  writeAllDataStores;
+  log('Restarting system');
+  execPipeless('Shutdown.exe',['-r','-t','00']);
+end;
+
+doShutdownSystem->begin
+  restartScheduled:=true;
+  writeAllDataStores;
+  log('Shutting down system');
+  execPipeless('Shutdown.exe',['-s','-t','00']);
+end;
+
+doRestartServer->begin
+  restartScheduled:=true;
+  writeAllDataStores;
+  log('Posting server stop');
+end;
+
+startNextTask->queued.size<=0 ? false : begin
+  local task:=queued.head;
+  local scriptName  :=task[1];
+  local scriptParams:=task[2];
+  queued:=queued.tail;
+  writeDataStores;
+  scriptName in SPECIAL_TASKS.getInner(0)
+  ? begin
+      log('Executing special task ',scriptName);
+      logSpecialTaskStarted(scriptName);
+      SPECIAL_TASKS[scriptName]();
+      true;
+    end
+  : loggingRunner.startExecution(scriptName.fullScriptName.systemSpecificFilename,scriptParams);
+end;
+
+forceStart(parameters:Map)->begin
+  local taskHash:=parameters['taskHash'];
+  local taskIndex:=queued.each(q,q.hash==taskHash ?index : void,head);
+  isInt(taskIndex) AND (0<=taskIndex<queued.size)
+  ? begin
+      log('Force start...');
+      taskIndex=0
+      ? void
+      : queued:=queued[taskIndex|filter([0..queued.size-1],{$x<>taskIndex})];
+      startNextTask;
+    end
+  : void;
+  redirectTo(parameters['mainView']=1 ? START_PAGE : ENQUEUE_PAGE);
+end;
+
+moveToFront(parameters:Map)->begin
+  local taskHash:=parameters['taskHash'];
+  local taskIndex:=queued.each(q,q.hash==taskHash ?index : void,head);
+  isInt(taskIndex) AND (0<taskIndex<queued.size)
+  ? begin
+      log('Moving task to front: ',queued[taskIndex]);
+      queued:=queued[taskIndex|filter([0..queued.size-1],{$x<>taskIndex})];
+    end
+  : void;
+   redirectTo(parameters['mainView']=1 ? START_PAGE : ENQUEUE_PAGE);
+end;
+
+private addToPrevious(script,parameters)->begin
+  previous:=[[script,parameters]]|previous;
+  previous.size>1
+  ? [1..previous.size-1].each(i,previous[i]==previous[0] ? previous[i]:=void
+                                                         : void)
+  : void;
+  previous:=head(previous,MAX_HISTORY_SIZE);
+end;
+
+enqueueTask(script,parameters)->begin
+  log('Planned new task ',script,' ',parameters.toString);
+  queued|=[[systime,script,parameters.toString]];
+  addToPrevious(script,parameters.toString);
+end;

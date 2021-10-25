@@ -1,0 +1,175 @@
+#!C:\bin\mnh.exe -v1 -quiet -headless -convertPrintToLog -logDateFmt hh:mm:ss.zzz -logLocationLength 10 +log stdOut(10)
+plain script;
+
+PLOT_TO_FILE:=true;
+sysWidth :=16*20;   //1,2,3,4,5,6,8,10,12,15,20,24,30,40,60,120
+sysHeight:= 9*20;
+exportResolution:=[sysWidth,sysHeight]; //[1920,1080]
+
+//PLOT_TO_FILE:=false;
+//sysWidth :=50;
+//sysHeight:=50;
+//exportResolution:=[sysWidth,sysHeight]; //[1920,1080]
+
+BRANCH_THRESHOLD:=1;
+EAT_PER_ROUND:=0.1;
+DIE_THRESHOLD:=EAT_PER_ROUND;
+
+mutable food:=random(sysWidth*sysHeight)*2.2*BRANCH_THRESHOLD
+*([sysHeight*sysWidth..1]/(sysHeight*sysWidth));
+              //euklideanNorm(cross([0..sysHeight-1]-sysHeight/2,
+              //                    [0..sysWidth -1]-sysWidth/2)/min(sysWidth,sysHeight))
+              //.map((d)->d<0.2 ? 2*BRANCH_THRESHOLD : random);
+limitIndex(i,j)->max(0,min(sysWidth-1,i))+max(0,min(sysHeight-1,j))*sysWidth;
+mutable consumers:=food*0;
+
+//di00:=[0..sysWidth*sysHeight-1].pMap((k)->[k mod sysWidth,k div sysWidth]+[-1,-1]).map((k)->limitIndex@k);
+di10:=[0..sysWidth*sysHeight-1].pMap((k)->[k mod sysWidth,k div sysWidth]+[ 0,-1]).map((k)->limitIndex@k);
+//di20:=[0..sysWidth*sysHeight-1].pMap((k)->[k mod sysWidth,k div sysWidth]+[ 1,-1]).map((k)->limitIndex@k);
+di01:=[0..sysWidth*sysHeight-1].pMap((k)->[k mod sysWidth,k div sysWidth]+[-1, 0]).map((k)->limitIndex@k);
+di21:=[0..sysWidth*sysHeight-1].pMap((k)->[k mod sysWidth,k div sysWidth]+[ 1, 0]).map((k)->limitIndex@k);
+//di02:=[0..sysWidth*sysHeight-1].pMap((k)->[k mod sysWidth,k div sysWidth]+[-1, 1]).map((k)->limitIndex@k);
+di12:=[0..sysWidth*sysHeight-1].pMap((k)->[k mod sysWidth,k div sysWidth]+[ 0, 1]).map((k)->limitIndex@k);
+//di22:=[0..sysWidth*sysHeight-1].pMap((k)->[k mod sysWidth,k div sysWidth]+[ 1, 1]).map((k)->limitIndex@k);
+
+
+diffuse(X,diffusionCoeff)->(X[di10]+X[di12]+
+                            X[di01]+X[di21]-4*X)*diffusionCoeff+X;
+
+calculateFoodGradient->begin
+ local yGrad:=(food[di21]-food)*10;
+ local xGrad:=(food[di12]-food)*10;
+ local grad:=[yGrad,xGrad];
+// ([0..sysWidth  -1]+(sysHeight-1)*sysWidth).each(i,grad[i]:=grad[i-sysWidth]);
+// ([0..sysHeight-1]*sysWidth+sysWidth-1).each(j,grad[j]:=grad[j-1]);
+// [grad,grad.euklideanNorm].transpose.map((p)->p[1]<1 ? p[0] : p[0]/p[1]).transpose;
+end;
+
+//calculateFoodGradientLT->begin
+// local yGrad:=(food[di21]-food[di01])*5;
+// local xGrad:=(food[di12]-food[di10])*5;
+// [yGrad,xGrad].transpose;
+//end;
+
+diffuseFood->begin
+
+  local gradient:=calculateFoodGradient*0.3;
+  local advectionSubSteps:=max(1.5*gradient[0].abs+gradient[1].abs).ceil;
+  gradient*=(1/advectionSubSteps);
+//  advectionSubSteps>1 ? log('Using ',advectionSubSteps,' steps for advection') : void;
+
+  [advectionSubSteps..1].map((R)->begin
+    food:=food.diffuse(0.001/advectionSubSteps)-(EAT_PER_ROUND/advectionSubSteps)*consumers;
+
+    local flow:=gradient[1];       flow*=ord(flow>0)*consumers; local delta:=flow[di10]-flow;
+          flow:=gradient[1][di10]; flow*=ord(flow<0)*consumers;       delta-=flow[di12]-flow;
+          flow:=gradient[0];       flow*=ord(flow>0)*consumers;       delta+=flow[di01]-flow;
+          flow:=gradient[0][di01]; flow*=ord(flow<0)*consumers;       delta-=flow[di21]-flow;
+    consumers+=delta;
+    R>1
+    ? gradient:=calculateFoodGradient*(0.3/advectionSubSteps)
+    : void;
+
+  end);
+
+  //consumers:=[consumers,0.3*calculateFoodGradientLT]
+  //.transpose
+  //.pEach(X,begin
+  //   local c:=X[0];
+  //   local xy:=X[1]+[index mod sysWidth,index div sysWidth];
+  //   local xy_:=floor(xy);
+  //   local w  :=xy-xy_;
+  //
+  //   [[c*(1-w[0])*(1-w[1]),limitIndex(xy_[0]  ,xy_[1])],
+  //    [c*   w[0] *(1-w[1]),limitIndex(xy_[0]+1,xy_[1])],
+  //    [c*(1-w[0])*   w[1] ,limitIndex(xy_[0]  ,xy_[1]+1)],
+  //    [c*   w[0] *   w[1] ,limitIndex(xy_[0]+1,xy_[1]+1)]];
+  // end,|)
+  //.transpose
+  //.{groupToList($L[0],$L[1],0,::+,food.size)};
+
+  void;
+end;
+
+//--------------------------------------------------------
+properColor(rgb:NumericList(3))->round(rgb.map((c)->max(0,min(1,c)))*255)/255;
+
+foodCol:=[0,0.5,1];
+consCol:=[1,0.5,0];
+WHITE_LEVEL:=max(BRANCH_THRESHOLD,EAT_PER_ROUND*5) *1.5;
+CWHITE_LEVEL:=0.2;
+foodCoordinates:=[0..sysWidth*sysHeight-1]
+    .map((k)->[k mod sysWidth,k div sysWidth])
+    .map((p)->[p,p+1]);
+
+prepareForPlot(food_,consumers_)->
+  group(foodCoordinates,[food_,consumers_].transpose
+     .map((f)->properColor(foodCol*(f[0].max(0).min( WHITE_LEVEL)*2/ WHITE_LEVEL)
+                          +consCol*(f[1].max(0).min(CWHITE_LEVEL)*2/CWHITE_LEVEL))))
+     .map((g)->[g[1].agg(|),'box fs 0 RGB'&join(g[0],',')]);
+
+executePlot(prepared:List)->begin
+  setOptions(["axisStyleX"=>0,"axisStyleY"=>0,
+              "x0"=>0,"x1"=>sysWidth,
+              "y0"=>0,"y1"=>sysHeight,
+              "autoscaleX"=>false,
+              "autoscaleY"=>false].toMap);
+  plot();
+  prepared.map((par)->addPlot@par);
+  PLOT_TO_FILE
+  ? plotToNextFile
+  : begin
+      addAnimationFrame;
+      postDisplay;
+    end;
+  void;
+end;
+
+plotToNextFile->begin
+  local i:=0;
+  while(fileExists(myPath.changeFileExt(format('_%4.4d.png',i))),i+=1);
+  i-=1;
+save;
+  local filename:=myPath.changeFileExt(format('_%4.4d.png',i+=1));
+  note('Rendering to ',filename);
+  renderToFile(filename,exportResolution[0],exportResolution[1],true);
+end;
+
+begin
+  food:=diffuse(food,0.125);
+  consumers:=euklideanNorm(cross([0..sysHeight-1],
+                                 [0..sysWidth -1])/min(sysWidth,sysHeight))
+                       .map((d)->d<0.1 ? 1 : 0);
+  local pendingDeltas:=(food-food.agg(+)/food.size)*0;//EAT_PER_ROUND*0.5;
+  pendingDeltas:=[1..200].map(()->pendingDeltas);
+
+  prepareForPlot(food,consumers).executePlot;
+
+  rangeGenerator(1,6000).map((step)->begin
+    local eat:=consumers*EAT_PER_ROUND;
+    local foodDelta:=pendingDeltas.head;
+    pendingDeltas:=pendingDeltas.tail|[eat.reverseList];//[eat.agg(+)/eat.size*2*random(eat.size)];
+
+    food+=foodDelta*ord(foodDelta>0);
+//    food+=3E-3*random(food.size)-eat;
+    food*=ord(food>=0);
+    local dieMask :=food<DIE_THRESHOLD*consumers;
+    local growMask:=(food>BRANCH_THRESHOLD) and (consumers>0.02) and !dieMask;
+    local stayMask:=!(dieMask or growMask);
+    consumers:=ord(stayMask)*consumers
+             // +ord(dieMask)*(consumers-0.01)
+              +ord(growMask)*consumers*food/BRANCH_THRESHOLD;
+    diffuseFood;
+    consumers*=ord(consumers>=0);
+    //plotFuture();
+    //plotFuture:=future({
+    //  prepareForPlot($0,$1).executePlot
+    //  orElse true},[food,consumers]);
+    print(step,' ',consumers.agg(+));
+    [food,consumers];
+  end)
+  .pMap((o)->prepareForPlot@o)
+  .agg(::executePlot);
+//  plotFuture();
+
+end;

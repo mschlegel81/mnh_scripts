@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta name="viewport" content="width=624">
+
+<title>MathQuill-basic Demo</title>
+
+<link rel="stylesheet" type="text/css" href="support/home.css">
+<link rel="stylesheet" type="text/css" href="../build/mathquill.css">
+
+</head>
+<body>
+<div id="body">
+
+
+<p><span id="basic">\sqrt{2}</span>
+<p><textarea id="basic-latex"></textarea>
+
+</div>
+<script type="text/javascript" src="support/jquery-1.7.2.js"></script>
+<script type="text/javascript" src="../build/mathquill.js"></script>
+<script type="text/javascript">
+
+MQ = MathQuill.getInterface(2);
+
+var latex = $('#basic-latex').on('keydown keypress', function() {
+  var prev = latex.val();
+  setTimeout(function() {
+    var now = latex.val();
+    if (now !== prev) mq.latex(now);
+  });
+});
+var mq = MQ.MathField($('#basic')[0], {
+  handlers: { 
+  edit: function() {    latex.val(mq.latex());  } 
+  }
+});
+//latex.val(mq.latex());
+</script>
+</body>
+</html>

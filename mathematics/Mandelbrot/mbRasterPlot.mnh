@@ -1,0 +1,57 @@
+BOX_COUNT:=plotImageSize.min.div(4).max(100);
+note(BOX_COUNT,' ',plotImageSize);
+DXY:=2.1;
+X0:=-1.6;
+Y0:=-DXY/2;
+
+//STEPS:=20;
+//memoized indexes(n)->[1..STEPS-1].filter((i)->i mod n=0);
+
+colorOf(D:NumericList(6))->begin
+  local q:=(1/D);
+  q:=q^5;
+  q/=q.agg(+);
+  q[0]*[1,0,0]+ //2
+  q[1]*[0,1,0]+ //3
+  q[4]*[1,1,0]+ //6
+  q[2]*[1,0.5,0.5]+ //4
+  q[3]*[0,0,1]+ //5
+  q[5]*[0,1,1]; //7
+end;
+
+plotWithSteps(STEPS:Int)->begin
+  local PeriodicIndexes:=[2..7].map((n)->[1..STEPS-1].filter((i)->i mod n=0));
+  cross(Y0+([0..BOX_COUNT-1]+0.5)/BOX_COUNT*DXY,
+        X0+([0..BOX_COUNT-1]+0.5)/BOX_COUNT*DXY)
+  .chunkMap(1000)
+  .pMap((X)->begin
+    local cRe:=local yRe:=X.getInner(1);
+    local cIm:=local yIm:=X.getInner(0);
+    [1..STEPS].map(()->begin
+      local tmp:=2*yIm*yRe+cIm;
+      yRe:=yRe²-yIm²+cRe;
+      yIm:=tmp;
+      [yRe,yIm];
+    end)
+    .map(::transpose)
+    .transpose
+    .map((path)->begin
+       local p:=path.trailing;
+       p.isNan.agg(or) ? 0.7
+       : begin
+           p:=path.reverseList.each(q,euklideanNorm(p-q));
+           local q:=PeriodicIndexes.each(I,p[I].agg(+)/I.size);
+           colorOf(q);
+         end;
+     end);
+   end)
+  //.agg(|).filter(::isList).filter((L)->L.max<10).filter((L)->L.min<1E-3);//.map(::addPlot);
+  .agg(|).plotRasterImage(BOX_COUNT);
+end;
+
+[8..100].each(depth,begin
+  plotWithSteps(depth);
+  drawTextAbsolute(0,0,depth.toString,12,'BL');
+  addAnimationFrame;
+  display;
+end);

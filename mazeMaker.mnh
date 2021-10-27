@@ -1,143 +1,117 @@
-private STITCH_CROSS:=[[0,2],[0,-2],[2,0],[-2,0]].toSet;
-private NEIGHBOR_CROSS:=[[0,1],[0,-1],[1,0],[-1,0]].toSet;
-private isStitchable(c0:Set,c1:Set)->intersect(c0+STITCH_CROSS,c1).size>0;
-private isStitchable(c0:Set,c1:Set,forbiddenStitchPoints:Set)->
-  //Find neighbor points for c0 and c1, subtract forbidden points.
-  //If the remaining set is not empty, sets are stitchable
-  intersect(c0+NEIGHBOR_CROSS,c1+NEIGHBOR_CROSS).minus(forbiddenStitchPoints).size>0;
+private randomOf(collection:Collection)->collection.toList[intRandom(collection.size)];
+private CROSS_D1:=[[-1,0],[1,0],[0,-1],[0,1]].toSet;
+private CROSS_D2:=[[-2,0],[2,0],[0,-2],[0,2]].toSet;
+//private findStitchPoint(runA:Set,runB:Set,allowedStitchPoints:Set)->
+//  intersect(runA+CROSS_D1,
+//            runB+CROSS_D1,
+//            allowedStitchPoints).randomOf;
 
-private randomListElement(L:Collection)->L.toList[intRandom(L.size)] orElse [];
+makeMaze(width,height)->makeMaze(width,height,[]);
+makeMaze(width,height,mask:BooleanList)->begin
+  local toBeVisited:=cross([0..ceil(height/2)-1]*2,
+                           [0..ceil(width /2)-1]*2);
+  toBeVisited:=
+    mask.size=0
+    ? toBeVisited.toSet
+    : toBeVisited.intersect(indexOf(mask).divMod(width));
 
-private unvisitedNeighbor(p:IntList(2),visited,forbidden:Map(0))->
-  ([p].toSet+NEIGHBOR_CROSS).minus(visited).randomListElement;
-private unvisitedNeighbor(p:IntList(2),visited,forbidden)->
-  ([p].toSet+NEIGHBOR_CROSS).minus(forbidden[p] orElse []).minus(visited).randomListElement;
+  local allowedMidPoints:=cross([0..ceil(height/2)-1]*2+1,[0..ceil(width/2)-1]*2  ).union(
+                          cross([0..ceil(height/2)-1]*2  ,[0..ceil(width/2)-1]*2+1));
+  allowedMidPoints:=
+    mask.size=0
+    ? allowedMidPoints.toSet
+    : allowedMidPoints.intersect(indexOf(mask).divMod(width));
 
-private memoized allOf(width,height)->[0..width-1].cross([0..height-1]);
-private randomUnvisitedCell(width,height,visited)->begin
-  local L:=allOf(width,height).minus(visited).toList;
-  log(L.size,' unvisited cells remain...');
-  L.size=0 ? [] : L[intRandom(L.size)];
-end;
+  local runs:=[];
+  begin
+    local p:=
+    local next:=
+    local currentRun:=void;
+    local walk:={
+      while(next.size>0,begin
+        next:=randomOf(next);
+        local midPoint:=(p+next).shiftRight(1);
+        midPoint in allowedMidPoints
+        ? begin
+            currentRun|=[midPoint,p:=next];
+            toBeVisited>>p;
+            next:=intersect([p].toSet+CROSS_D2,toBeVisited);
+          end
+        : next:=[];
+      end)};
 
-makeMaze(width,height,scaling>=1,keepBoundary:Boolean)->makeMaze(width,height,scaling,keepBoundary,[]);
-makeMaze(width,height,scaling>=1,keepBoundary:Boolean,mask)->
-begin
-  local mazeWidth :=width  div (scaling*2); mazeWidth +=ord(mazeWidth *scaling*2<width -ord(keepBoundary));
-  local mazeHeight:=height div (scaling*2); mazeHeight+=ord(mazeHeight*scaling*2<height-ord(keepBoundary));
+    while(toBeVisited.size>0,begin
+      local runSeed:=
+      p:=randomOf(toBeVisited);
+      currentRun:=[p];
+      toBeVisited>>p;
 
-  local visited:=
-  mask.size=0
-  ? (map([-1..  mazeWidth],{[$i   ,-1]})|
-     map([-1.. mazeHeight],{[mazeWidth,$j]})|
-     map([mazeWidth..  -1],{[$i   ,mazeHeight]})|
-     map([mazeHeight.. -1],{[-1   ,$j]})).toSet
-  : cross([-1..mazeWidth  ],
-          [-1..mazeHeight ]).minus(indexOf(mask).divMod(width).transpose.reverseList.transpose div (scaling*2)).toSet;
-  local forbiddenTransitions:=
-  mask.size=0 ? [].toMap : begin
-    local tmp:=
-    //consider all transition points, i.e. all points which have
-    //an odd x-index XOR an odd y-index in double maze resolution
-             cross([0..mazeWidth-1]*2  ,[0..mazeHeight-1]*2+1)
-      .union(cross([0..mazeWidth-1]*2+1,[0..mazeHeight-1]*2  ))
-      .minus(indexOf(mask).divMod(width).transpose.reverseList.transpose div scaling);
-    tmp:=tmp.each(x,(x[0] and 1)=1
-                    ? [[x[0]-1,x[1]],[x[0]+1,x[1]]] div 2
-                    : [[x[0],x[1]-1],[x[0],x[1]+1]] div 2).unique;
-    tmp:=tmp.each(x,x,x.reverseList);
-    tmp.getInner(0).group(tmp.getInner(1))
-       .toMap;
-  end;
+      next:=intersect([p].toSet+CROSS_D2,toBeVisited);
+      walk();
 
-  local position:=randomUnvisitedCell(mazeWidth,mazeHeight,visited);
-  local sets:=[];
-  local currentRun:=[position];
-
-  while(!(position==[]),begin
-    visited||=position;
-    local continue:=true;
-    while(continue,begin
-      local next:=unvisitedNeighbor(position,visited,forbiddenTransitions);
-      next==[] ? continue:=false : begin
-        position:=next;
-        currentRun||=position;
-        visited||=next;
-      end;
+      currentRun:=currentRun.reverseList;
+      p:=runSeed;
+      next:=intersect([p].toSet+CROSS_D2,toBeVisited);
+      walk();
+      runs||=currentRun;
     end);
-    position:=randomUnvisitedCell(mazeWidth,mazeHeight,visited.toSet);
-    sets||=currentRun;
-    currentRun:=[position];
-  end);
+  end;
+  toBeVisited:=void;
 
-  sets:=sets.map((run)->begin
-    [run*2,
-    [run.leading,run.tail].transpose.map((p)->p.agg(+))]
-    .transpose
-    .agg(|).filter((ij)->0<=ij[0]*scaling<width -ord(keepBoundary) AND
-                         0<=ij[1]*scaling<height-ord(keepBoundary)).toSet;
-  end);
-
-  local p:=
-  sets.size=1
-  ? sets.agg(|)
-  : begin
-      local forbiddenStitchPoints:=
-      mask.size=0
-      ? void
-      : cross([0..mazeWidth*2-1] ,[0..mazeHeight*2-1]).minus(indexOf(mask).divMod(width).transpose.reverseList.transpose div scaling);
-
-      log('Potential merges: ',(sets.size*(sets.size-1))/2,' - scanning distances');
-      local merges:=[1..sets.size-1].pEach(idx0,
-                    [0..idx0-1]     .each(idx1, isStitchable(sets[idx0],sets[idx1],forbiddenStitchPoints) ? [idx0,idx1] : void),|);
-      merges:=merges[merges.size.random.sortPerm];
-      log('Naive     merges: ',merges.size,' - reducing');
-      local willBeMerged:=[merges[0].sort].toSet;
-      merges:=merges.each(m,
-        index=0 ? m : m.sort in willBeMerged ? void : begin
-          willBeMerged:=
-          willBeMerged.each(q,q[0]=m[0] ? [q[1],m[1]].sort : void,
-                              q[0]=m[1] ? [q[1],m[0]].sort : void,
-                              q[1]=m[0] ? [q[0],m[1]].sort : void,
-                              q[1]=m[1] ? [q[0],m[0]].sort : void,q).||(m.sort).toSet;
-          m;
+  local merges:=runs.size<2 ? [] : begin
+    allowedMidPoints:=allowedMidPoints.minus(runs.agg(|));
+    log('Potential merges: ',(runs.size*(runs.size-1))/2,' along ',allowedMidPoints.size,' stitch points');
+    local runSurrounds:=runs.pMap((run)->(run.toSet+CROSS_D1).intersect(allowedMidPoints));
+    allowedMidPoints:=void;
+    [runs.size-1..1].pEach(idx0,begin
+      local run0s:=runSurrounds  [idx0];
+      [0..idx0-1].each(idx1,
+        begin
+          local stitchPointCandidates:=intersect(run0s,runSurrounds[idx1]);
+          stitchPointCandidates.size=0
+          ? void
+          : [idx0,idx1,randomOf(stitchPointCandidates)];
         end);
-      log('Minimal   merges: ',merges.size);
-      merges.pEach(m,begin
-        local s0:=sets[m[0]];
-        local s1:=sets[m[1]];
+    end,|);
+  end;
+  allowedMidPoints:=void;
 
-        local processPair:=
-          forbiddenStitchPoints.isVoid
-          ? {$pair.agg(-).abs.agg(+)=2 ? $pair.agg(+) div 2 : void}
-          : {$pair.agg(-).abs.agg(+)=2
-             ? begin
-                 local newPoint:=$pair.agg(+) div 2;
-                 newPoint in forbiddenStitchPoints
-                 ? void
-                 : newPoint;
-               end
-             : void};
 
-        cross(s0,s1).{$L[sortPerm($L.size.random)]}.each(pair,processPair(pair),orElse);
-      end).union(sets.agg(|));
-    end;
+  log('Naive     merges: ',merges.size);
+  merges.size>0 ? merges:=merges[merges.size.random.sortPerm] : void;
 
-  cross([0..height-1] div scaling,
-        [0..width -1] div scaling).pMap((i)->begin
-    i.reverseList in p;
-  end).ord;
-
+  local mazePoints:=[];
+  while(merges.size>0,begin
+    local connected:=[merges[0,0]].toSet;
+    local mergeSizeBefore:=0;
+    while(merges.size!=mergeSizeBefore,begin
+      mergeSizeBefore:=merges.size;
+      note(mergeSizeBefore);
+      merges:=
+      merges.each(m,
+        m[0] in connected xor m[1] in connected
+        ? begin
+            local idx0:=m[0];
+            local idx1:=m[1];
+            mazePoints||=m[2];
+            connected|=idx0;
+            connected|=idx1;
+          end
+        : m[0] in connected AND m[1] in connected ? void : m);
+    end);
+  end);
+  mazePoints:=runs.agg(|).union(mazePoints);
+  cross([0..height-1],[0..width-1]).pMap((p)->p in mazePoints);
 end;
 
 shrinkMaze(maze:List,width>1)->begin
-  local nonzeroEntries:=indexOf(maze>0).pMap((i)->i.divMod(width)).toSet;
+  local nonzeroEntries:=indexOf(maze).pMap((i)->i.divMod(width)).toSet;
   local N:=cross([-1..1],[-1..1]).toSet;
-  [0..maze.size-1].divMod(width).pMap((q)->isSubsetOf([q].toSet+N,nonzeroEntries)).ord;
+  [0..maze.size-1].divMod(width).pMap((q)->isSubsetOf([q].toSet+N,nonzeroEntries));
 end;
 
 growMaze(maze:List,width>1)->begin
-  local zeroEntries:=indexOf(maze=0).pMap((i)->i.divMod(width)).toSet;
+  local zeroEntries:=indexOf(!maze).pMap((i)->i.divMod(width)).toSet;
   zeroEntries:=zeroEntries.union(begin
     local height:=maze.size div width;
      map([-1..  width],{[-1    ,$i   ]})|
@@ -146,7 +120,20 @@ growMaze(maze:List,width>1)->begin
      map([height.. -1],{[$j    ,-1   ]});
   end);
   local N:=cross([-1..1],[-1..1]).toSet;
-  [0..maze.size-1].divMod(width).pMap((q)->!isSubsetOf([q].toSet+N,zeroEntries)).ord;
+  [0..maze.size-1].divMod(width).pMap((q)->!isSubsetOf([q].toSet+N,zeroEntries));
+end;
+
+halfGrowMaze(maze:List,width>1)->begin
+  local zeroEntries:=indexOf(!maze).pMap((i)->i.divMod(width)).toSet;
+  zeroEntries:=zeroEntries.union(begin
+    local height:=maze.size div width;
+     map([-1..  width],{[-1    ,$i   ]})|
+     map([-1.. height],{[$j    ,width]})|
+     map([width..  -1],{[height,$i   ]})|
+     map([height.. -1],{[$j    ,-1   ]});
+  end);
+  local N:=cross([0..1],[0..1]).toSet;
+  [0..maze.size-1].divMod(width).pMap((q)->!isSubsetOf([q].toSet+N,zeroEntries));
 end;
 
 scaleMaze(maze:List,width>1,scalingFactor>1)->begin
@@ -171,161 +158,207 @@ cropMaze(maze:List,currentWidth,newWidth<=currentWidth,newHeight)->begin
   maze[(C.transpose*[currentWidth,1]).agg(+)];
 end;
 
-//begin
-//  local res:=5;
-//
-////  local circle:=(radius)->cross([0..res-1]/(res-1)-0.5,
-////                                [0..res-1]/(res-1)-0.5).euklideanNorm<=euklideanNorm([0.5,1/(res-1)]);
-//
-//  local M:=makeMaze(res,res,1,false);
-//  (1-M).plotRasterImage(res);
-//  addAnimationFrame;
-//
-//  [1..3].each(refinementStep,begin
-//    M:=M.scaleMaze(res,5);
-//    res*=5;
-//    M:=growMaze(M,res);//*ord(circle(0.5));
-//    (1-M).plotRasterImage(res);
-//    addAnimationFrame;
-//    M:=makeMaze(res,res,1,false,M>0);
-//    (1-M).plotRasterImage(res);
-//    addAnimationFrame;
-//  end);
-//end;
+plotMaze(maze:BooleanList,width)->begin
+  maze.map((m)->m?0:0.9).plotRasterImage(width);
+  setOptions(["x0"=>-1,"x1"=>1,"y0"=>-1,"y1"=>1,"fontsize"=>8.264462809917354,"preserveAspect"=>true,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>1,"axisStyleY"=>1].toMap);
+  addAnimationFrame;
+end;
 
-//begin
-//  local res:=7;
-//
-//  local circle:=(radius)->cross([0..res-1]/(res-1)-0.5,
-//                                [0..res-1]/(res-1)-0.5).euklideanNorm<=euklideanNorm([0.5,1/(res-1)]);
-//  local M:=makeMaze(res,res,1,false);
-//  (1-M).plotRasterImage(res);
-//  addAnimationFrame;
-//
-//  [1..2].each(refinementStep,begin
-//    M:=M.scaleMaze(res,5);
-//    res*=5;
-//    M:=M.shiftMazeUpRight(res).reverseList; res+=1;
-//    M:=M.shiftMazeUpRight(res).reverseList; res+=1;
-//    M:=M.growMaze(res);
-//
-//    M:=makeMaze(res,res,1,false,M>0 and circle(0.51));
-//    (1-M).plotRasterImage(res);
-//    addAnimationFrame;
-//  end);
-//  res;
-//end;
-
-//begin
-//  local res:=7;
-//
-//  local circle:=(radius)->cross([0..res-1]/(res-1)-0.5,
-//                                [0..res-1]/(res-1)-0.5).euklideanNorm<=euklideanNorm([0.5,1/(res-1)]);
-//  local M:=makeMaze(res,res,1,false);
-//  (1-M).plotRasterImage(res);
-//  addAnimationFrame;
-//
-//  [1..2].each(refinementStep,begin
-//    M:=M.scaleMaze(res,3);
-//    res*=3;
-//    M:=M.shiftMazeUpRight(res).reverseList; res+=1;
-//    M:=M.shiftMazeUpRight(res).reverseList; res+=1;
-//    M:=M.growMaze(res);
-//    (1-M).plotRasterImage(res);
-//    addAnimationFrame;
-//
-//    M:=makeMaze(res,res,1,false,M>0);
-//    (1-M).plotRasterImage(res);
-//    addAnimationFrame;
-//  end);
-//  res;
-//end;
-
-makeLongRangeMaze(targetWidth,targetHeight,keepBoundary:Boolean)->
-  targetWidth<12 OR targetHeight<12
-  ? makeMaze(targetWidth,targetHeight,1,keepBoundary)
+private makeFractalMaze_(width,height)->
+  width<=20 OR height<=20
+  ? [makeMaze(width-ord((width and 1)=0),height-ord((height and 1)=0)),
+             [width-ord((width and 1)=0),height-ord((height and 1)=0)]]
   : begin
-      local r:=ceil(([targetWidth,targetHeight]-2)/3);
-      log(r,' - aiming at : ',[targetWidth,targetHeight]);
-      local M:=makeLongRangeMaze(r[0],r[1],keepBoundary).scaleMaze(r[0],3);
-      r*=3;
-      log(r,' - aiming at : ',[targetWidth,targetHeight]);
-      r[0]<targetWidth OR r[1]<targetHeight
-      ? begin
-          M:=M.reverseList.shiftMazeUpRight(r[0]).reverseList;
-          r+=1;
-          r[0]<targetWidth OR r[1]<targetHeight
-          ? begin
-              M:=M.shiftMazeUpRight(r[0]);
-              r+=1;
-            end
-          : void;
-        end
-      : void;
-      M:=M.growMaze(r[0]);
-      M:=M.cropMaze(r[0],targetWidth,targetHeight);
-      makeMaze(targetWidth,targetHeight,1,keepBoundary,M>0);
+      local r:=([width,height]-1) div 4;
+      r-=ord((r and 1)=0);
+      local
+      M:=  makeFractalMaze_(r[0],r[1]);
+      r:=M[1];
+      M:=M[0].scaleMaze(r[0],4); r*=4;
+      M:=M.halfGrowMaze(r[0]).shiftMazeUpRight(r[0]); r+=1;
+      [makeMaze(r[0],r[1],M),r];
     end;
 
-makeFractalMaze(targetWidth,targetHeight,keepBoundary:Boolean)->
-  targetWidth<22 OR targetHeight<22
-  ? makeMaze(targetWidth,targetHeight,1,keepBoundary)
-  : begin
-      local r:=ceil(([targetWidth,targetHeight]-2)/5);
-      log(r,' - aiming at : ',[targetWidth,targetHeight]);
-      local M:=makeFractalMaze(r[0],r[1],keepBoundary).scaleMaze(r[0],5);
-      r*=5;
-      log(r,' - aiming at : ',[targetWidth,targetHeight]);
-      r[0]<targetWidth OR r[1]<targetHeight
-      ? begin
-          M:=M.reverseList.shiftMazeUpRight(r[0]).reverseList;
-          r+=1;
-          r[0]<targetWidth OR r[1]<targetHeight
-          ? begin
-              M:=M.shiftMazeUpRight(r[0]);
-              r+=1;
-            end
-          : void;
-        end
-      : void;
-      M:=M.growMaze(r[0]);
-      M:=M.cropMaze(r[0],targetWidth,targetHeight);
-      makeMaze(targetWidth,targetHeight,1,keepBoundary,M>0);
-    end;
-
-
-
-begin
-  local targetWidth :=480;
-  local targetHeight:=270;
-
-  (1-makeFractalMaze(targetWidth,targetHeight,true)).plotRasterImage(targetWidth);
-
-  //local r:=ceil(([targetWidth,targetHeight]-2)/3);
-  //log(r);
-  //r:=r*3+2;
-  //log(r);
-
-
-  //local width :=52;
-  //local height:=36;
-  //local M:=makeMaze(width,height,1,false);
-  //(1-M).plotRasterImage(width);
-  //addAnimationFrame;
-  //    M:=M.scaleMaze(width,3)
-  //         .reverseList
-  //         .shiftMazeUpRight(width*3)
-  //         .reverseList
-  //         .shiftMazeUpRight(width*3+1)
-  //         .growMaze(width*3+2);
-  //
-  //(1-M).plotRasterImage(width*3+2);
-  //addAnimationFrame;
-  //
-  //M:=makeMaze(width*3+2,height*3+2,1,false,M>0);
-  //(1-M).plotRasterImage(width*3+2);
-  //addAnimationFrame;
-
+makeFractalMaze(width,height)->begin
+  local m:=makeFractalMaze_(width,height);
+  local currentResolution:=m[1];
+  local centerDiff:=[height-currentResolution[1],
+                     width -currentResolution[0]] div 2;
+  cross([0..height-1]-centerDiff[0],
+        [0..width-1 ]-centerDiff[1]).pMap((K)->
+    0<=K[0]<currentResolution[1] AND
+    0<=K[1]<currentResolution[0] ?
+    m[0,K[0]*currentResolution[0]+K[1]] : false);
 end;
 
 
+//makeFractalMaze(16*24,9*24).plotMaze(16*24);
+
+//
+//2: LONG RANGE:
+//begin
+//  local res:=[5,5];
+//  local M:=makeMaze(res[0],res[1],[]);
+//  M.plotMaze(res[0]);
+//
+//  M:=M.scaleMaze(res[0],3); res*=3;
+//  M:=M.growMaze(res[0]).shiftMazeUpRight(res[0]); res+=1;
+//  M:=M.reverseList.shiftMazeUpRight(res[0]).reverseList; res+=1;
+//  M.plotMaze(res[0]);
+//  M:=makeMaze(res[0],res[1],M);
+//  M.plotMaze(res[0]);
+//
+//  M:=M.scaleMaze(res[0],3); res*=3;
+//  M:=M.growMaze(res[0]).shiftMazeUpRight(res[0]); res+=1;
+//  M:=M.reverseList.shiftMazeUpRight(res[0]).reverseList; res+=1;
+//  M.plotMaze(res[0]);
+//  M:=makeMaze(res[0],res[1],M);
+//
+//  M:=M.reverseList.shiftMazeUpRight(res[0]).reverseList; res+=1;
+//  M.plotMaze(res[0]);
+//  log(res);
+//  M.ord;
+//end;
+
+//longRangeMaze->begin
+//  local res:=[5,5];
+//  local M:=makeMaze(res[0],res[1],[]);
+//  M:=M.scaleMaze(res[0],3); res*=3;
+//  M:=M.growMaze(res[0]).shiftMazeUpRight(res[0]); res+=1;
+//  M:=M.reverseList.shiftMazeUpRight(res[0]).reverseList; res+=1;
+//  M:=makeMaze(res[0],res[1],M);
+//  M:=M.scaleMaze(res[0],3); res*=3;
+//  M:=M.growMaze(res[0]).shiftMazeUpRight(res[0]); res+=1;
+//  M:=M.reverseList.shiftMazeUpRight(res[0]).reverseList; res+=1;
+//  M:=makeMaze(res[0],res[1],M);
+////  M:=M.reverseList.shiftMazeUpRight(res[0]).reverseList; res+=1;
+//  M;
+//end;
+
+
+//hueOf(h<1.0)->[1,h,0];
+//hueOf(h<2.0)->[1-(h-1),1,0];
+//hueOf(h<3.0)->[0,1,h-2];
+//hueOf(h<4.0)->[0,1-(h-3),1];
+//hueOf(h<5.0)->[h-4,0,1];
+//hueOf(h  )->[1,0,1-(h-5)];
+//HUE(h)->hueOf((h-floor(h))*6);
+//
+//colorMaze(maze:BooleanList,width:Int)->begin
+//  local mazePoints:=maze.indexOf.divMod(width);
+//  local c:=[(maze.size div width)/2,width/2]*0;
+//  local seedPoint:=mazePoints.pEach(p,euklideanNorm(p-c)=>p,min)[1];
+//
+//  local v:=[seedPoint=>0].toMap;
+//  mazePoints:=mazePoints.minus(v.getInner(0));
+//
+//  while(mazePoints.size>0,begin
+//    mazePoints:=mazePoints.each(p,begin
+//      local X:=v.getAll(CROSS_D1.each(d,d+p)).min;
+//      X.isInt
+//      ? begin
+//          v[p]:=X+1;
+//          void;
+//        end
+//      : p;
+//    end);
+//  end);
+//  begin
+//    local D:=v.getInner(1).sort;
+//    note('DIST: ',D[D.size div 2],' / ',D.trailing);
+//  end;//
+//  v:=v.pEach(e,e[0]=>HUE(e[1]/200)).toMap;
+//
+//
+//  [0..maze.size-1].divMod(width).pEach(c,v[c] orElse 0).plotRasterImage(width);
+//
+//end;
+//
+//begin
+//  makeMaze(53,53).colorMaze(53);  addAnimationFrame;
+//  makeMaze(53,53).colorMaze(53);  addAnimationFrame;
+//  makeMaze(53,53).colorMaze(53);  addAnimationFrame;
+//  makeMaze(53,53).colorMaze(53);  addAnimationFrame;
+//  makeMaze(53,53).colorMaze(53);  addAnimationFrame;
+//  longRangeMaze.colorMaze(53);    addAnimationFrame;
+//  longRangeMaze.colorMaze(53);    addAnimationFrame;
+//  longRangeMaze.colorMaze(53);    addAnimationFrame;
+//  longRangeMaze.colorMaze(53);    addAnimationFrame;
+//  longRangeMaze.colorMaze(53);    addAnimationFrame;
+//end;
+
+////1: FRACTAL MAZE zoomin!!
+begin
+  local res:=[5,
+              5];
+  local M:=makeMaze(res[0],res[1]);
+  local center:=res/2;
+  local SCALE_THRESHOLD:=0.004;
+  local scale:=SCALE_THRESHOLD;
+
+  local BOXES:=indexOf(M).divMod(res[0]).each(b,b-center,b-center+1);
+  local COARSER_BOXES:=[[0,0],[1,1]];
+
+  [0..1000].each(zoomStep,begin
+    scale*=4^(1/50);
+    log(index,'/',ln(SCALE_THRESHOLD/scale)/ln(4));
+
+    scale>SCALE_THRESHOLD ? begin
+      local cropBound:=floor(center.reverseList-1-[9/16,1]/scale);
+
+
+      cropBound-=ord((cropBound and 1)=1);
+      log('cropBound= ',cropBound);
+      (cropBound>0).agg(or)
+      ? begin
+          cropBound:=cropBound*ord(cropBound>0);
+          local startOfCropping:=scriptTime;
+          warn('Cropping @',res,' by ',cropBound);
+          local halfCrop:=res-cropBound;
+          local fullCrop:=res-cropBound*2;
+
+          M:=M.cropMaze(res[0],halfCrop[0],halfCrop[1])
+              .reverseList
+              .cropMaze(halfCrop[0],fullCrop[0],fullCrop[1])
+              .reverseList;
+          log('Time for cropping: ',scriptTime-startOfCropping);
+          res:=fullCrop;
+          center:=res.reverseList/2;
+          //Will be carried on in COARSER_BOXES
+          BOXES:=indexOf(M).divMod(res[0]).each(b,b-center,b-center+1);
+        end
+      : void;
+
+      M:=M.scaleMaze(res[0],4); res*=4; scale/=4;
+      M:=M.halfGrowMaze(res[0]).shiftMazeUpRight(res[0]); res+=1;
+      center:=res.reverseList/2;
+      M:=makeMaze(res[0],res[1],M);
+      COARSER_BOXES:=BOXES;
+      BOXES:=indexOf(M).divMod(res[0]).each(b,b-center,b-center+1);
+      callMemoryCleaner;
+    end : void;
+
+    ['autoscaleFactor'=>1,
+     'autoscaleX'=>false,
+     'autoscaleY'=>false,
+     'axisStyleX'=>0,
+     'axisStyleY'=>0,
+     'fontsize'=>10,
+     'logscaleX'=>false,
+     'logscaleY'=>false,
+     'preserveAspect'=>true,
+     'x0'=>-1,
+     'x1'=> 1,
+     'y0'=>-9/16,
+     'y1'=> 9/16].toMap.setOptions;
+
+    local fineAlpha  :=max(0,min(1,1-ln(SCALE_THRESHOLD/scale)/ln(4)));
+    local coarseAlpha:=max(0,min(1,  2*ln(SCALE_THRESHOLD/scale)/ln(4)));
+    plot();
+    fineAlpha  >0 ? addPlot(BOXES           *scale ,'box 0 fs RGB0,0,0,'&fineAlpha  ) : void;
+    coarseAlpha>0 ? addPlot(COARSER_BOXES*(4*scale),'box 0 fs RGB0,0,0,'&coarseAlpha) : void;
+//    addPlot([-[1,9/16],[1,9/16]],'red box');
+
+    addAnimationFrame;
+  end);
+end;

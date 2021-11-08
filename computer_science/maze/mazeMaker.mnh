@@ -1,10 +1,11 @@
-
+#!C:\bin\mnh.exe -quiet -convertPrintToLog -logDateFmt hh:mm:ss -logLocationLength 10 +log stdOut(1)
 private randomOf(collection:Collection)->collection.toList[intRandom(collection.size)];
 private CROSS_D1:=[[-1,0],[1,0],[0,-1],[0,1]].toSet;
 private CROSS_D2:=[[-2,0],[2,0],[0,-2],[0,2]].toSet;
 
-makeMaze(width,height)->makeMaze(width,height,[]);
-makeMaze(width,height,mask:BooleanList)->begin
+makeMaze(width,height)->makeMaze(width,height,[],[]);
+makeMaze(width,height,mask:BooleanList)->makeMaze(width,height,mask,[]);
+makeMaze(width,height,mask:BooleanList,initialSet:BooleanList)->begin
   local lastOutput:=scriptTime;
 
   local toBeVisited:=cross([0..ceil(height/2)-1]*2,
@@ -22,6 +23,11 @@ makeMaze(width,height,mask:BooleanList)->begin
     : allowedMidPoints.intersect(indexOf(mask).divMod(width));
 
   local runs:=[];
+
+  initialSet.size==0
+  ? void
+  : runs||=indexOf(initialSet).divMod(width);
+
 
   begin
     local p:=
@@ -181,7 +187,7 @@ end;
 
 plotMaze(maze:BooleanList,width)->begin
   maze.map((m)->m?0:0.9).plotRasterImage(width);
-  //setOptions(["x0"=>-1,"x1"=>1,"y0"=>-1,"y1"=>1,"fontsize"=>8.264462809917354,"preserveAspect"=>true,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>1,"axisStyleY"=>1].toMap);
+  setOptions(["x0"=>-1,"x1"=>1,"y0"=>-1,"y1"=>1,"fontsize"=>8.264462809917354,"preserveAspect"=>true,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>7,"axisStyleY"=>7].toMap);
   addAnimationFrame;
 end;
 
@@ -224,11 +230,31 @@ makeFractalMaze(width,height)->begin
     m[0,K[0]*currentResolution[0]+K[1]] : false);
 end;
 
+makePeriodicFractalMaze(depth=0)->begin
+  local M:=makeMaze(5,5,[],[]);
+  [M,5];
+end;
 
-makeMaze(500,500).plotMaze(500);
+makePeriodicFractalMaze(depth>0)->begin
+  local smallerMaze:=makePeriodicFractalMaze(depth-1);
+  local smallerSize:=smallerMaze[1];
+  smallerMaze:=smallerMaze[0];
 
-//makeFractalMaze(16*24,9*24).plotMaze(16*24);
-//makeFractalMaze(500,500).plotMaze(500);
+  local largerSize:=smallerSize;
+  local mask:=smallerMaze.scaleMaze(largerSize,4); largerSize*=4;
+  mask:=mask.halfGrowMaze(largerSize);
+  mask:=mask.shiftMazeUpRight(largerSize); largerSize+=1;
+
+  local D:=-(largerSize-smallerSize) div 2;
+
+  local initialSet:=cross([0..largerSize-1],
+                          [0..largerSize-1])
+    .pMap((I)->0<=I[0]+D<smallerSize AND 0<=I[1]+D<smallerSize
+               ? smallerMaze[(I[0]+D)*smallerSize+I[1]+D]
+               : false);
+  [makeMaze(largerSize,largerSize,mask and !initialSet,initialSet),largerSize];
+end;
+
 
 
 

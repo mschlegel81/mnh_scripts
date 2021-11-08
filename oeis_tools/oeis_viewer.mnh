@@ -39,17 +39,7 @@ circleAnimation(generator:Iteratable)->begin
   end);
 end;
 
-USE customFormUtil,'oeis\oeis_server.mnh';
-
-queryServer(...)->begin
-  isIpcServerRunning(oeis_server.ipcId)
-  ? void
-  : begin
-      executor.execAsync([inspect['uses'].each(i,i[0].matches('(?i)oeis_server') ? i[1] : void,head)]);
-      while(!isIpcServerRunning(oeis_server.ipcId),sleep(0.1));
-    end;
-  sendIpcRequest(oeis_server.ipcId,...);
-end;
+USE customFormUtil,oeis;
 
 formatList(S:IntList)->begin
   local line:='';
@@ -72,8 +62,8 @@ main->begin
     id:=retrievedId:=$retrieved['ID'];
     name:=retrievedName:=$retrieved['Name'];
     sequence:=$retrieved['Sequence'];
-    info:=$retrieved['Info']&' series of '&sequence.size&' elements';
-    sequenceAsString:=sequence.formatList;
+    info:=$retrieved['Info']&' series of '&sequence.orElse([]).size&' elements';
+    sequenceAsString:=sequence.orElse([]).formatList;
     genClass:=($retrieved['genClass'] orElse ['',''])[0];
     genString:=($retrieved['genClass'] orElse ['',''])[1];
   end};
@@ -93,7 +83,7 @@ main->begin
              local queryCount:=$0.trim.softCast;
              queryCount.isInt AND queryCount>sequence.size
              ? begin
-                 sequence:=sendIpcRequest(oeis_server.ipcId,['gen',id,queryCount]);
+                 sequence:=sendIpcRequest(oeis.ipcId,['gen',id,queryCount]);
                  sequenceAsString:=sequence.formatList;
                end
              : void;

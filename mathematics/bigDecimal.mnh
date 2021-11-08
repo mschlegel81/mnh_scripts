@@ -125,6 +125,19 @@ end;
 factorial(n<=1)->1;
 factorial(n> 1)->[2..n].agg(*);
 
+calcEulersNumber->begin
+  local ONE:=
+  local e0:=toBigDecimal(1);
+  local e1:=toBigDecimal(2);
+  local k:=2;
+  local f:=2;
+  while(!(e0==e1),begin
+    e0:=e1;
+    e1:=e1+ONE/(f*=(k+=1));
+  end);
+  e1;
+end;
+
 ramanujanPi->begin
   local p0:=1;
   local p1:=0;

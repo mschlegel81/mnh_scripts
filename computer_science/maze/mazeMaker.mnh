@@ -1,13 +1,12 @@
+
 private randomOf(collection:Collection)->collection.toList[intRandom(collection.size)];
 private CROSS_D1:=[[-1,0],[1,0],[0,-1],[0,1]].toSet;
 private CROSS_D2:=[[-2,0],[2,0],[0,-2],[0,2]].toSet;
-//private findStitchPoint(runA:Set,runB:Set,allowedStitchPoints:Set)->
-//  intersect(runA+CROSS_D1,
-//            runB+CROSS_D1,
-//            allowedStitchPoints).randomOf;
 
 makeMaze(width,height)->makeMaze(width,height,[]);
 makeMaze(width,height,mask:BooleanList)->begin
+  local lastOutput:=scriptTime;
+
   local toBeVisited:=cross([0..ceil(height/2)-1]*2,
                            [0..ceil(width /2)-1]*2);
   toBeVisited:=
@@ -23,6 +22,7 @@ makeMaze(width,height,mask:BooleanList)->begin
     : allowedMidPoints.intersect(indexOf(mask).divMod(width));
 
   local runs:=[];
+
   begin
     local p:=
     local next:=
@@ -41,6 +41,13 @@ makeMaze(width,height,mask:BooleanList)->begin
       end)};
 
     while(toBeVisited.size>0,begin
+      scriptTime>lastOutput+10
+      ? begin
+          note('toBeVisited: ',toBeVisited.size,' runs: ',runs.size);
+          lastOutput:=scriptTime;
+        end
+      : void;
+
       local runSeed:=
       p:=randomOf(toBeVisited);
       currentRun:=[p];
@@ -57,50 +64,56 @@ makeMaze(width,height,mask:BooleanList)->begin
     end);
   end;
   toBeVisited:=void;
+  allowedMidPoints:=allowedMidPoints.minus(runs.agg(|));
 
-  local merges:=runs.size<2 ? [] : begin
-    allowedMidPoints:=allowedMidPoints.minus(runs.agg(|));
-    log('Potential merges: ',(runs.size*(runs.size-1))/2,' along ',allowedMidPoints.size,' stitch points');
-    local runSurrounds:=runs.pMap((run)->(run.toSet+CROSS_D1).intersect(allowedMidPoints));
-    allowedMidPoints:=void;
-    [runs.size-1..1].pEach(idx0,begin
-      local run0s:=runSurrounds  [idx0];
-      [0..idx0-1].each(idx1,
-        begin
-          local stitchPointCandidates:=intersect(run0s,runSurrounds[idx1]);
-          stitchPointCandidates.size=0
-          ? void
-          : [idx0,idx1,randomOf(stitchPointCandidates)];
-        end);
-    end,|);
-  end;
-  allowedMidPoints:=void;
+  local runBox:=runs.map((r)->r.transpose.map((X)->[X.min,X.max]).agg(|)).transpose;
+  local runSurrounds:=runs.pMap((run)->(run.toSet+CROSS_D1).intersect(allowedMidPoints));
+  local runAdjacency:=map([0..runs.size-1],(i)->[i].toSet);
 
+  local mergeChunksTotal:=(1+width div 32)*(1+height div 32);
 
-  log('Naive     merges: ',merges.size);
-  merges.size>0 ? merges:=merges[merges.size.random.sortPerm] : void;
+  local mazePoints:=
+  cross([0..width  div 32]*32,
+        [0..height div 32]*32).each(section,begin
+    scriptTime>lastOutput+10
+    ? begin
+        note('Stitching at chunk ',index,'/',mergeChunksTotal);
+        lastOutput:=scriptTime;
+      end
+    : void;
 
-  local mazePoints:=[];
-  while(merges.size>0,begin
-    local connected:=[merges[0,0]].toSet;
-    local mergeSizeBefore:=0;
-    while(merges.size!=mergeSizeBefore,begin
-      mergeSizeBefore:=merges.size;
-      note(mergeSizeBefore);
-      merges:=
-      merges.each(m,
-        m[0] in connected xor m[1] in connected
+    local K:=indexOf(runBox[0]<=section[0]+32 and
+                     runBox[1]>=section[0]    and
+                     runBox[2]<=section[1]+32 and
+                     runBox[3]>=section[1]);
+    K.size>0 ? begin
+      K.tail.pEach(k0,begin
+        local run0s:=runSurrounds[k0];
+        K.head(index+1).each(k1,
+          begin
+            local stitchPointCandidates:=intersect(run0s,runSurrounds[k1]);
+            stitchPointCandidates.size=0
+            ? void
+            : [k1,k0,randomOf(stitchPointCandidates)];
+          end);
+      end,|).each(merge,begin
+        local k0:=merge[0];
+        local k1:=merge[1];
+        local pt:=merge[2];
+        intersect(runAdjacency[k0],runAdjacency[k1]).size=0
         ? begin
-            local idx0:=m[0];
-            local idx1:=m[1];
-            mazePoints||=m[2];
-            connected|=idx0;
-            connected|=idx1;
+            local shared:=union(runAdjacency[k0],runAdjacency[k1]);
+            runAdjacency[k0]:=shared;
+            runAdjacency[k1]:=shared;
+            pt;
           end
-        : m[0] in connected AND m[1] in connected ? void : m);
-    end);
-  end);
-  mazePoints:=runs.agg(|).union(mazePoints);
+        : void;
+      end);
+    end : void;
+  end,|);
+  note('Stitching lead to ',mazePoints.size,' additional points merging ',runs.size,' runs');
+  mazePoints:=union@(runs||mazePoints);
+  note('Total maze points: ',mazePoints.size);
   cross([0..height-1],[0..width-1]).pMap((p)->p in mazePoints);
 end;
 
@@ -123,20 +136,28 @@ growMaze(maze:List,width>1)->begin
   [0..maze.size-1].divMod(width).pMap((q)->!isSubsetOf([q].toSet+N,zeroEntries));
 end;
 
-halfGrowMaze(maze:List,width>1)->begin
-  local zeroEntries:=indexOf(!maze).pMap((i)->i.divMod(width)).toSet;
-  zeroEntries:=zeroEntries.union(begin
-    local height:=maze.size div width;
-     map([-1..  width],{[-1    ,$i   ]})|
-     map([-1.. height],{[$j    ,width]})|
-     map([width..  -1],{[height,$i   ]})|
-     map([height.. -1],{[$j    ,-1   ]});
-  end);
-  local N:=cross([0..1],[0..1]).toSet;
-  [0..maze.size-1].divMod(width).pMap((q)->!isSubsetOf([q].toSet+N,zeroEntries));
+halfGrowMaze(maze:BooleanList,width>1)->begin
+  //local zeroEntries:=indexOf(!maze).divMod(width).union(begin
+  //  local height:=maze.size div width;
+  //   map([-1..  width],{[-1    ,$i   ]})|
+  //   map([-1.. height],{[$j    ,width]})|
+  //   map([width..  -1],{[height,$i   ]})|
+  //   map([height.. -1],{[$j    ,-1   ]});
+  //end);
+  //zeroEntries:=zeroEntries.intersect(zeroEntries.map((e)->e-[1,0]));
+  //zeroEntries:=zeroEntries.intersect(zeroEntries.map((e)->e-[0,1]));
+  //[0..maze.size-1].divMod(width).map((q)->q not in zeroEntries);
+
+  local nonZeroEntries:=indexOf(maze).divMod(width).toSet-[[0,0],[1,0],[0,1],[1,1]].toSet;
+  [0..maze.size-1].divMod(width).map((q)->q in nonZeroEntries);
+  //[0..maze.size-1].divMod(width).pMap((q)->
+  //  q       not in zeroEntries OR
+  //  q+[0,1] not in zeroEntries OR
+  //  q+[1,0] not in zeroEntries OR
+  //  q+1     not in zeroEntries);
 end;
 
-scaleMaze(maze:List,width>1,scalingFactor>1)->begin
+scaleMaze(maze:BooleanList,width>1,scalingFactor>1)->begin
   local height:=maze.size div width;
   local C:=
   cross([0..height*scalingFactor-1] div scalingFactor,
@@ -144,7 +165,7 @@ scaleMaze(maze:List,width>1,scalingFactor>1)->begin
   maze[(C.transpose*[width,1]).agg(+)];
 end;
 
-shiftMazeUpRight(maze:List,width>1)->begin
+shiftMazeUpRight(maze:BooleanList,width>1)->begin
   local height:=maze.size div width;
   local C:=
   cross([0,0..height-1],
@@ -152,7 +173,7 @@ shiftMazeUpRight(maze:List,width>1)->begin
   maze[(C.transpose*[width,1]).agg(+)];
 end;
 
-cropMaze(maze:List,currentWidth,newWidth<=currentWidth,newHeight)->begin
+cropMaze(maze:BooleanList,currentWidth,newWidth<=currentWidth,newHeight)->begin
   local C:=cross([0..newHeight-1],
                  [0.. newWidth-1]);
   maze[(C.transpose*[currentWidth,1]).agg(+)];
@@ -160,13 +181,14 @@ end;
 
 plotMaze(maze:BooleanList,width)->begin
   maze.map((m)->m?0:0.9).plotRasterImage(width);
-  setOptions(["x0"=>-1,"x1"=>1,"y0"=>-1,"y1"=>1,"fontsize"=>8.264462809917354,"preserveAspect"=>true,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>1,"axisStyleY"=>1].toMap);
+  //setOptions(["x0"=>-1,"x1"=>1,"y0"=>-1,"y1"=>1,"fontsize"=>8.264462809917354,"preserveAspect"=>true,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>1,"axisStyleY"=>1].toMap);
   addAnimationFrame;
 end;
 
 private makeFractalMaze_(width,height)->
   width<=20 OR height<=20
-  ? [makeMaze(width-ord((width and 1)=0),height-ord((height and 1)=0)),
+  ? [note('Building initial maze @',width,'x',height),
+     makeMaze(width-ord((width and 1)=0),height-ord((height and 1)=0)),
              [width-ord((width and 1)=0),height-ord((height and 1)=0)]]
   : begin
       local r:=([width,height]-1) div 4;
@@ -174,13 +196,24 @@ private makeFractalMaze_(width,height)->
       local
       M:=  makeFractalMaze_(r[0],r[1]);
       r:=M[1];
+      local T:=scriptTime;
       M:=M[0].scaleMaze(r[0],4); r*=4;
-      M:=M.halfGrowMaze(r[0]).shiftMazeUpRight(r[0]); r+=1;
-      [makeMaze(r[0],r[1],M),r];
+      note('Scaled maze to ',r.join('x'),' in ',scriptTime-T,'sec'); T:=scriptTime;
+
+      M:=M.halfGrowMaze(r[0]);
+      note('Half grow maze in ',scriptTime-T,'sec'); T:=scriptTime;
+
+      M:=M.shiftMazeUpRight(r[0]); r+=1;
+      note('Shift maze to ',r.join('x'),' in ',scriptTime-T,'sec'); T:=scriptTime;
+
+      M:=makeMaze(r[0],r[1],M);
+      note('Make maze @',r.join('x'),' in ',scriptTime-T,'sec');
+      [M,r];
     end;
 
 makeFractalMaze(width,height)->begin
   local m:=makeFractalMaze_(width,height);
+  log('MAZE READY : RECENTERING...');
   local currentResolution:=m[1];
   local centerDiff:=[height-currentResolution[1],
                      width -currentResolution[0]] div 2;
@@ -192,7 +225,12 @@ makeFractalMaze(width,height)->begin
 end;
 
 
+makeMaze(500,500).plotMaze(500);
+
 //makeFractalMaze(16*24,9*24).plotMaze(16*24);
+//makeFractalMaze(500,500).plotMaze(500);
+
+
 
 //
 //2: LONG RANGE:
@@ -288,77 +326,25 @@ end;
 //end;
 
 ////1: FRACTAL MAZE zoomin!!
-begin
-  local res:=[5,
-              5];
-  local M:=makeMaze(res[0],res[1]);
-  local center:=res/2;
-  local SCALE_THRESHOLD:=0.004;
-  local scale:=SCALE_THRESHOLD;
 
-  local BOXES:=indexOf(M).divMod(res[0]).each(b,b-center,b-center+1);
-  local COARSER_BOXES:=[[0,0],[1,1]];
+//
+//begin
+//  local res:=100;
+//  local M:=makeMaze2(res,res,[]);
+//  M.plotMaze(res);
+//  M:=M.scaleMaze(res,4); res*=4;
+//  M.plotMaze(res);
+//  M:=M.halfGrowMaze(res);
+//  M.plotMaze(res);
+//  M:=M.shiftMazeUpRight(res); res+=1;
+//  M.plotMaze(res);
+//  M:=makeMaze2(res,res,M);
+//  M.plotMaze(res);
+//
+//end;
+//
+//
+//
+//halt;
+//
 
-  [0..1000].each(zoomStep,begin
-    scale*=4^(1/50);
-    log(index,'/',ln(SCALE_THRESHOLD/scale)/ln(4));
-
-    scale>SCALE_THRESHOLD ? begin
-      local cropBound:=floor(center.reverseList-1-[9/16,1]/scale);
-
-
-      cropBound-=ord((cropBound and 1)=1);
-      log('cropBound= ',cropBound);
-      (cropBound>0).agg(or)
-      ? begin
-          cropBound:=cropBound*ord(cropBound>0);
-          local startOfCropping:=scriptTime;
-          warn('Cropping @',res,' by ',cropBound);
-          local halfCrop:=res-cropBound;
-          local fullCrop:=res-cropBound*2;
-
-          M:=M.cropMaze(res[0],halfCrop[0],halfCrop[1])
-              .reverseList
-              .cropMaze(halfCrop[0],fullCrop[0],fullCrop[1])
-              .reverseList;
-          log('Time for cropping: ',scriptTime-startOfCropping);
-          res:=fullCrop;
-          center:=res.reverseList/2;
-          //Will be carried on in COARSER_BOXES
-          BOXES:=indexOf(M).divMod(res[0]).each(b,b-center,b-center+1);
-        end
-      : void;
-
-      M:=M.scaleMaze(res[0],4); res*=4; scale/=4;
-      M:=M.halfGrowMaze(res[0]).shiftMazeUpRight(res[0]); res+=1;
-      center:=res.reverseList/2;
-      M:=makeMaze(res[0],res[1],M);
-      COARSER_BOXES:=BOXES;
-      BOXES:=indexOf(M).divMod(res[0]).each(b,b-center,b-center+1);
-      callMemoryCleaner;
-    end : void;
-
-    ['autoscaleFactor'=>1,
-     'autoscaleX'=>false,
-     'autoscaleY'=>false,
-     'axisStyleX'=>0,
-     'axisStyleY'=>0,
-     'fontsize'=>10,
-     'logscaleX'=>false,
-     'logscaleY'=>false,
-     'preserveAspect'=>true,
-     'x0'=>-1,
-     'x1'=> 1,
-     'y0'=>-9/16,
-     'y1'=> 9/16].toMap.setOptions;
-
-    local fineAlpha  :=max(0,min(1,1-ln(SCALE_THRESHOLD/scale)/ln(4)));
-    local coarseAlpha:=max(0,min(1,  2*ln(SCALE_THRESHOLD/scale)/ln(4)));
-    plot();
-    fineAlpha  >0 ? addPlot(BOXES           *scale ,'box 0 fs RGB0,0,0,'&fineAlpha  ) : void;
-    coarseAlpha>0 ? addPlot(COARSER_BOXES*(4*scale),'box 0 fs RGB0,0,0,'&coarseAlpha) : void;
-//    addPlot([-[1,9/16],[1,9/16]],'red box');
-
-    addAnimationFrame;
-  end);
-end;

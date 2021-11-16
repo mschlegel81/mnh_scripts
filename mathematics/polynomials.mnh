@@ -181,3 +181,16 @@ allRealRootsOf(P:Polynomial)->begin
   P.bairstowFactorize.map(::allRealRootsOf).agg(|);
 end;
 
+gregoryNewton(X:NumericList)->begin
+  local D:=X;
+  local S:=D[0];
+  while(D.unique.size>1,begin
+    D:=D.tail-D.leading;
+    S|=D[0];
+  end);
+  local p:=[1].toPolynomial;
+  S.each(s,s*p/factorial(index),begin
+    p*=shift([0,1].toPolynomial,-index);
+    void;
+  end,+);
+end;

@@ -183,8 +183,8 @@ end;
 
 partitions(L:List)->
   partMasks(L.size)
-   .pEach(m,cross@(group(L,m).getInner(1).map({$list.permutations.toList})),|)
-   .pMap((partition)->partition.map(::composeDigits).sort)
+   .each(m,cross@(group(L,m).getInner(1).map({$list.permutations.toList})),|)
+   .map((partition)->partition.map(::composeDigits).sort)
    .unique
    .filter((partition)->0 not in partition OR partition.size>2)
    .filter((partition)->partition.digits.flatten.sort==L.sort);
@@ -208,7 +208,7 @@ findAllFormulas(candidates:List   ,value:Numeric)->
                candidates[idx[1]],
                candidates.each(c,index in idx ? void : c)])
   .unique
-  .pEach(input,
+  .each(input,
      [0,2..6].each(operatorIndex, begin
                    local v:=op(operatorIndex,input[0],input[1]);
                    v[0]>=0
@@ -226,10 +226,11 @@ findAllFormulas(candidates:List   ,value:Numeric)->
    ,|);
 
 findAllFormulas(i>=10)->begin
+  note('Starting scan for ',i);
   local start:=scriptTime;
   local P:=i.digits.partitions;
   local result:=P
-   .pEach(p,findAllFormulas(p.map((value)->[value,value]),i)
+   .each(p,findAllFormulas(p.map((value)->[value.toReal,value]),i)
      .map((tree)->//validateTree(tree,i)
             tree
             .expandSymmetries
@@ -274,23 +275,40 @@ save;
     end);
 end;
 
-main->begin
-//  foundFormulas:=foundFormulas.filter((entry)->entry[1].size>0).toMap;
+processValues(values:Iteratable)->values
+  .pMap((i)->[i,i.findAllFormulas])
+  .agg((entry)->entry[1].size=0 ? warn('Scan failed for ',entry[0]) : begin
+         foundFormulas[entry[0]]:=entry[1];
+         printNicely(entry);
+         postUpdateDatastores;
+       end);
 
-  foundFormulas.sort.map(::printNicely);
-  fNum.toIteratableExpression
-      .filter((i)->foundFormulas[i].isVoid)
-      .map((i)->[i,i.findAllFormulas])
-      .agg((entry)->entry[1].size=0 ? warn('Scan failed for ',entry[0]) : begin
-             foundFormulas[entry[0]]:=entry[1];
-             printNicely(entry);
-             postUpdateDatastores;
-           end);
+//*List found formulas
+main('list')->foundFormulas.sort.map(::printNicely);
+
+//*List "nice" found formulas
+main('nice')->foundFormulas
+  .map((f)->f[0]=>f[1].filter((q)->q[0]))
+  .filter((f)->f[1].size>0)
+  .sort
+  .map(::printNicely);
+
+
+//*Find a Friedman-Representation for given number(s)
+main(n:String,...)->begin
+  (n|...).toIteratableExpression
+      .map(::toInt)
+      .filter((i)->i>=10)
+      .map((i)->foundFormulas[i].isVoid ? i : [i,foundFormulas[i]].printNicely)
+      .processValues;
 end;
 
-begin
-  foundFormulas.sort.map(::printNicely);
-  foundFormulas.sort.showVariable;
+//*Find Friedman-Representations for numbers
+main->begin
+  print('Found ',foundFormulas.size,' entries before; call with parameter "list" to display');
+  fNum.toIteratableExpression
+      .filter((i)->foundFormulas[i].isVoid)
+      .processValues;
 end;
 
 

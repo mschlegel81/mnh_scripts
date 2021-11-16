@@ -1,26 +1,32 @@
 #!C:\bin\mnh.exe -quiet -convertPrintToLog -logDateFmt hh:mm:ss -logLocationLength 10 +log stdOut(1)
 USE mazeMaker;
 
-main->begin
+
+main(initialSize_,depth_)->begin
   local TARGET_SIZE:=512;
   local FRAME_COUNT:=50;
   local TEMP_SIZE:=min(4,floor(9999/TARGET_SIZE))*TARGET_SIZE;
-  local DEPTH:=4;
+  local DEPTH:=depth_.toInt;
+  assert(DEPTH>=1);
+  local INITIAL_SIZE:=initialSize_.toInt;
+  assert(INITIAL_SIZE>0);
+  assert(INITIAL_SIZE mod 4=1);
 
 
-  local M:=makePeriodicFractalMaze(DEPTH);
+  local M:=makePeriodicFractalMaze(DEPTH,INITIAL_SIZE);
   local center:=M[1]/2;
-  local BOXES:=indexOf(M[0]).divMod(M[1])
-         .pEach(b,b-center,b-center+1);
+  local BOXES:=indexOf(M[0]).divMod(M[1]).toSet;
+
+  BOXES:=BOXES.sort.each(b,b-center,b-center+1);
 
   setOptions(["x0"=>-M[1]/2,"x1"=>M[1]/2,"y0"=>-M[1]/2,"y1"=>M[1]/2,"preserveAspect"=>true,"autoscaleX"=>false,"autoscaleY"=>false,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
   ([FRAME_COUNT-1..0]/FRAME_COUNT).each(relativeStep,begin
     log('DRAWING FRAME #',index,'/',FRAME_COUNT);
-    local zoom:=4^relativeStep;
-    plot    (BOXES*zoom   ,'box fs 0 RGB0,0,0,'&(  relativeStep.sqrt));
-    addPlot(BOXES*(zoom*4),'box fs 0 RGB0,0,0,'&(1-relativeStep.sqrt));
+    local zoom:=0.5*4^relativeStep;
+    plot    (BOXES*zoom   ,'box fs 0 RGB0,0,0,'&(  relativeStep));
+    addPlot(BOXES*(zoom*4),'box fs 0 RGB0,0,0,'&(1-relativeStep));
     isGuiStarted ? addAnimationFrame : void;
     renderPlotToCurrentImage(TEMP_SIZE,TEMP_SIZE);
-    executeWorkflow(['resize:'&TARGET_SIZE&'x'&TARGET_SIZE,'quantize:32,2,0'],'-',myPath.changeFileExt(format('_%2.2d.png',index)));
+    executeWorkflow(['resize:'&TARGET_SIZE&'x'&TARGET_SIZE,'quantize:32,2,0'],'-',myPath.changeFileExt(format('_%sr%s_%2.2d.png',INITIAL_SIZE,DEPTH,index)));
   end);
 end;

@@ -76,11 +76,11 @@ makeMaze(width,height,mask:BooleanList,initialSet:BooleanList)->begin
   local runSurrounds:=runs.pMap((run)->(run.toSet+CROSS_D1).intersect(allowedMidPoints));
   local runAdjacency:=map([0..runs.size-1],(i)->[i].toSet);
 
-  local mergeChunksTotal:=(1+width div 32)*(1+height div 32);
+  local mergeChunksTotal:=(1+width div 50)*(1+height div 50);
 
   local mazePoints:=
-  cross([0..width  div 32]*32,
-        [0..height div 32]*32).each(section,begin
+  cross([0..width  div 50]*50,
+        [0..height div 50]*50).each(section,begin
     scriptTime>lastOutput+10
     ? begin
         note('Stitching at chunk ',index,'/',mergeChunksTotal);
@@ -88,10 +88,10 @@ makeMaze(width,height,mask:BooleanList,initialSet:BooleanList)->begin
       end
     : void;
 
-    local K:=indexOf(runBox[0]<=section[0]+32 and
-                     runBox[1]>=section[0]    and
-                     runBox[2]<=section[1]+32 and
-                     runBox[3]>=section[1]);
+    local K:=indexOf(runBox[0]<=section[1]+50 and
+                     runBox[1]>=section[1]    and
+                     runBox[2]<=section[0]+50 and
+                     runBox[3]>=section[0]);
     K.size>0 ? begin
       K.tail.pEach(k0,begin
         local run0s:=runSurrounds[k0];
@@ -163,7 +163,7 @@ halfGrowMaze(maze:BooleanList,width>1)->begin
   //  q+1     not in zeroEntries);
 end;
 
-scaleMaze(maze:BooleanList,width>1,scalingFactor>1)->begin
+scaleMaze(maze:BooleanList,width>=1,scalingFactor>1)->begin
   local height:=maze.size div width;
   local C:=
   cross([0..height*scalingFactor-1] div scalingFactor,
@@ -230,13 +230,13 @@ makeFractalMaze(width,height)->begin
     m[0,K[0]*currentResolution[0]+K[1]] : false);
 end;
 
-makePeriodicFractalMaze(depth=0)->begin
-  local M:=makeMaze(5,5,[],[]);
-  [M,5];
+makePeriodicFractalMaze(depth=0,initialSize>=1)->begin
+  local M:=makeMaze(initialSize,initialSize,[],[]);
+  [M,initialSize];
 end;
 
-makePeriodicFractalMaze(depth>0)->begin
-  local smallerMaze:=makePeriodicFractalMaze(depth-1);
+makePeriodicFractalMaze(depth>0,initialSize>=1)->begin
+  local smallerMaze:=makePeriodicFractalMaze(depth-1,initialSize);
   local smallerSize:=smallerMaze[1];
   smallerMaze:=smallerMaze[0];
 
@@ -247,15 +247,15 @@ makePeriodicFractalMaze(depth>0)->begin
 
   local D:=-(largerSize-smallerSize) div 2;
 
-  local initialSet:=cross([0..largerSize-1],
-                          [0..largerSize-1])
-    .pMap((I)->0<=I[0]+D<smallerSize AND 0<=I[1]+D<smallerSize
-               ? smallerMaze[(I[0]+D)*smallerSize+I[1]+D]
-               : false);
+  local initialSet:=cross([0..largerSize-1]+D,
+                          [0..largerSize-1]+D)
+    .map((I)->0<=I[0]<smallerSize AND 0<=I[1]<smallerSize
+              ? smallerMaze[(I[0])*smallerSize+I[1]]
+              : false);
   [makeMaze(largerSize,largerSize,mask and !initialSet,initialSet),largerSize];
 end;
 
-
+makeFractalMaze(480,270).plotMaze(480);
 
 
 //

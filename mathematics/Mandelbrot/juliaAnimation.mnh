@@ -1,0 +1,70 @@
+#!C:\bin\mnh.exe -v1 -logDateFmt hh:mm -logLocationLength 11 +log ?.log(11)
+bgFilename:=myPath.changeFileExt('.bg.vraw');
+
+@SuppressUnusedWarning
+ensureBg:=fileExists(bgFilename)
+  ? void
+  : executeWorkflow(['Mandelbrot / Julia[centerx:-0.5;depth:200;source:max.chaos;style:greyscale / gold]',
+                     '*RGB:0,1,1',
+                     'invert'],1920,1080,bgFilename);
+
+workflow(juliaParam)->[
+'stash:0',
+'Mandelbrot / Julia[centerx:-0.5;depth:200;source:max.chaos;style:greyscale / gold;Julianess:1;JuliaParam:%s,%s]'.format@juliaParam,
+'*RGB:1,1,0',
+'invert',
+'stash:1',
+'load:'&bgFilename,
+'*stash:0',
+'*stash:1'];
+
+circle  (t)->[cos(t),sin(t)];
+f  (t)->circle  (t)*0.5-circle  (2*t)*0.25;
+unevenTrip(t<=pi)->f(t);
+unevenTrip(t<=3*pi)->(circle(pi-t))*0.25+[-1,0];
+unevenTrip(t)->f(t);
+
+memoized evenTrip->
+begin
+  local tlt:=begin
+    local l:=0;
+    local p0:=
+    local p1:=unevenTrip(0);
+    (([0..10000]/10000)*4*pi).each(t,begin
+      p0:=p1;
+      p1:=unevenTrip(t);
+      l+=euklideanNorm(p1-p0);
+      t=>l;
+    end);
+  end;
+  local totalRange:=tlt.trailing[1];
+  local ft:=newLinearInterpolator(tlt.map(::reverseList));
+  ft(totalRange*([0..2000]/2000)).map(::unevenTrip);
+end;
+
+renderImage(index)->
+begin
+  local filename:=myPath.changeFileExt(format('_%4.4d.png',index));
+  filename.fileExists ? return void : void;
+
+  local message:='| Creating '+filename+' |';
+  local line:=   '+'+repeat('-',length(message)-2)+'+';
+  log(line,"\n",message,"\n",line);
+
+
+  local center:=[-0.5,0];
+  local ratio:=16/9;
+  local xy0:=center-[ratio,1]*1.22580625;
+  local xy1:=center+[ratio,1]*1.22580625;
+  setOptions(["x0"=>xy0[0],"x1"=>xy1[0],
+              "y0"=>xy0[1],"y1"=>xy1[1],"fontsize"=>10,"preserveAspect"=>true,"autoscaleX"=>false,"autoscaleY"=>false,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
+  local J:=evenTrip[index];
+  assert(J.isNumericList(2));
+
+  plot([[J[0],J[1]-100],[J[0],J[1]+100],[Nan,Nan],
+        [J[0]-100,J[1]],[J[0]+100,J[1]]],'black 0.5');
+  renderPlotToCurrentImage(1920,1080);
+  executeWorkflow(workflow(J),'-',filename,::log);
+end;
+
+main->map(random(2001).sortPerm,::renderImage);

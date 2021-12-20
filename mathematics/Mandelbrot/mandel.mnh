@@ -6,7 +6,7 @@ f_d(t)->circle_d(t)*0.5-circle_d(2*t)*0.5;
 
 approximateMandelbrot->begin
   plot(::f,0,2*pi,500,'black 0.5 polygon');
-  [2..35].each(i,begin
+  [2..7].each(i,begin
     [1..i].each(j,gcd(i,j)>1 ? void : begin
       local phi  :=2*pi*j/i;
       local radius:=f_d(phi).sqr.agg(+).sqrt / sqr(i);

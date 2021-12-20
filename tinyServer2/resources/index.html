@@ -13,6 +13,24 @@
 <h2>Tasks</h2>
 <div w3-include-html="/api/tasktable" include-interval=5000></div>
 <script>
+  function postDequeue(taskHash){
+    var xmlHttp = new XMLHttpRequest();
+    xmlHttp.open("POST", "/api/dequeue", true);
+    xmlHttp.send(JSON.stringify({"taskHash": taskHash}));
+  }
+
+  function postForceStart(taskHash){
+    var xmlHttp = new XMLHttpRequest();
+    xmlHttp.open("POST", "/api/forcestart", true);
+    xmlHttp.send(JSON.stringify({"taskHash": taskHash}));
+  }
+
+  function postMoveToFront(taskHash){
+    var xmlHttp = new XMLHttpRequest();
+    xmlHttp.open("POST", "/api/movetofront", true);
+    xmlHttp.send(JSON.stringify({"taskHash": taskHash}));
+  }
+
 includeHTML();
 </script>
 </body>

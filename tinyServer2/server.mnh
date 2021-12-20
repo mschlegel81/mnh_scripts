@@ -33,7 +33,7 @@ serve('GET','/api/uptime',parameters,body)->format('<p><b>Date:</b> %s <b>Time:<
                                         formatScriptTime);
 serve('POST','/api/killProcess',parameters,body)->try({stopProcess(body.toInt) orElse wrapTextInHttp('ok')},httpError);
 serve('GET' ,'/api/tasktable',parameters,body)->getTasksTable;
-serve('GET' ,'/api/queuedSection',parameters,body)->htmlTable(getQueuedTable(false));
+serve('GET' ,'/api/queuedSection',parameters,body)->htmlTable(getQueuedTable);
 serve('GET' ,'/api/scriptSection',parameters,body)->getQueuableTable;
 serve('POST','/api/enqueue',parameters,body)->begin
   local json:=try({parseJson(body)},[].toMap);

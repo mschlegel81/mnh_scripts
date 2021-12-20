@@ -25,15 +25,15 @@ scriptDefInTable(script,param)->begin
                                       : '<br>'& tag('   '&parameters,'code'));
 end;
 
-getQueuedTable(forOverviewPage:Boolean)->
+getQueuedTable->
   [['','Enqueued','Script','','',''].map({$x.tag('b')})] |
     queued.reverseList.each(x,['',fmtT(x[0]),
                    scriptDefInTable(x[1],x[2]),
-                   htmlLink('remove','dequeue?taskHash='&hash(x)&'&mainView='&ord(forOverviewPage)),
+                   '<button onClick="postDequeue('&hash(x)&')">dequeue</button>'&
                    STATUS_BOX_QUEUED,
                    '<button onClick="postForceStart('&hash(x)&')">force start</button>'&
                    (index=queued.size-1 ? '' :
-                   ('<br><button onClick="postMoveToFront('&hash(x)&')">next to execute</button>'))]);
+                   ('<br><button onClick="postMoveToFront('&hash(x)&')">move to front</button>'))]);
 
 //getQueuedSection(withLink:Boolean)->
 //  tag(
@@ -42,7 +42,7 @@ getQueuedTable(forOverviewPage:Boolean)->
 
 getTasksTable->begin
   local report:=getTaskReport;
-  htmlTable(getQueuedTable(true)| [['#','Started','Script','Log','','Status'].map({$x.tag('b')})]|
+  htmlTable(getQueuedTable| [['#','Started','Script','Log','','Status'].map({$x.tag('b')})]|
     report.each(r,
       begin
         local statusBox:=

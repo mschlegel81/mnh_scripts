@@ -13,10 +13,9 @@
 <span w3-include-html="/api/scriptSection"></span>
 <div>
 <h1>Special tasks</h1>
-<button onclick="...">kill</button>
-<button onclick="...">kill</button>
-<button onclick="...">kill</button>
-<button onclick="...">kill</button>
+<button onclick="postStopServer()">stop server</button><br>
+<button onclick="postRestartServer()">restart server</button><br>
+<button onclick="postRestartSystem()">restart system</button>
 </div>
 
 <script>
@@ -37,6 +36,41 @@
     xmlHttp.send(JSON.stringify({"script": scriptname, "parameters": parameters}));
   }
 
+  function postDequeue(taskHash){
+    var xmlHttp = new XMLHttpRequest();
+    xmlHttp.open("POST", "/api/dequeue", true);
+    xmlHttp.send(JSON.stringify({"taskHash": taskHash}));
+  }
+
+  function postForceStart(taskHash){
+    var xmlHttp = new XMLHttpRequest();
+    xmlHttp.open("POST", "/api/forcestart", true);
+    xmlHttp.send(JSON.stringify({"taskHash": taskHash}));
+  }
+
+  function postMoveToFront(taskHash){
+    var xmlHttp = new XMLHttpRequest();
+    xmlHttp.open("POST", "/api/movetofront", true);
+    xmlHttp.send(JSON.stringify({"taskHash": taskHash}));
+  }
+
+  function postStopServer(taskHash){
+    var xmlHttp = new XMLHttpRequest();
+    xmlHttp.open("POST", "/api/stopserver", true);
+    xmlHttp.send("");
+  }
+
+  function postRestartServer(taskHash){
+    var xmlHttp = new XMLHttpRequest();
+    xmlHttp.open("POST", "/api/restartserver", true);
+    xmlHttp.send("");
+  }
+
+  function postRestartSystem(taskHash){
+    var xmlHttp = new XMLHttpRequest();
+    xmlHttp.open("POST", "/api/restartsystem", true);
+    xmlHttp.send("");
+  }
   includeHTML();
 </script>
 </body>

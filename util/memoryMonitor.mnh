@@ -1,0 +1,63 @@
+#!C:\bin\mnh.exe -GUI -quiet
+mutable memHistory:=[].toMap;
+mutable snapshotTimes:=[];
+
+addSample(caption:String,memSize:Int)->begin
+  local H:=memHistory[caption] orElse [];
+  while(H.size<snapshotTimes.size,H|=0);
+  H|=memSize;
+  memHistory[caption]:=H;
+end;
+
+pollMemory->begin
+  local currentInfo:=getTaskInfo
+    .map((task)->task['caption']=>task['workingSetSize'])
+    .transpose
+    .{$L[1].group($L[0],::+)}
+    .toMap
+    .mergeMaps(memHistory.getInner(0).map((k)->k=>0).toMap,::orElse);
+  local pollTime:=systime;
+
+  currentInfo.each(entry,addSample@entry);
+  snapshotTimes|=pollTime;
+  void;
+end;
+
+plotMemoryUsage->begin
+  setOptions(["x0"=>-1,"x1"=>1,"y0"=>-1,"y1"=>1,"fontsize"=>10,"preserveAspect"=>false,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>7,"axisStyleY"=>7].toMap);
+  plot();
+  local M:=0;
+  local C:=
+  memHistory
+    .map((e)->e[1].trailing=>e[0])
+    .sort
+    .getInner(1)
+    .map((key)->key=>memHistory[key])
+    .each(entry,begin
+       local weight:=entry[1];
+       entry[0]=>(M+=weight);
+     end)
+    .reverseList
+    .each(entry,begin
+       local memInMiB:=entry[1]/1024²;
+       addPlot(snapshotTimes,memInMiB,'black f');
+       entry[0]=>memInMiB.trailing;
+     end)
+    .head(10)
+    .transpose;
+  C[1]:=(C[1].tail+C[1].leading)*0.5;
+  C[0]:=C[0].leading;
+  C.transpose.each(e,
+    drawText(snapshotTimes.trailing,e[1],e[0],8,
+             'R','Calibri'));
+  display;
+end;
+
+main->begin
+  pollMemory;
+  while(true,begin
+    sleep(1);
+    pollMemory;
+    plotMemoryUsage;
+  end);
+end;

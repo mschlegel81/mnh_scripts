@@ -1,0 +1,195 @@
+WIDTH :=20;
+HEIGHT:=20;
+dt    :=0.1;
+FUSION_THRESHOLD:=10;
+MATERIAL_LOSS_BY_FUSION:=0.999;
+MAX_ACCELERATION:=4/dt;
+
+cellPositions:=cross([0..HEIGHT-1],[0..WIDTH-1]);
+
+shallowWaterAcceleration(concentrations)->begin
+  local I_xn:=cellPositions.map((i)->(((i+[0, WIDTH-1]) mod [HEIGHT,WIDTH])*[WIDTH,1]).agg(+));
+  local I_xp:=cellPositions.map((i)->(((i+[0,       1]) mod [HEIGHT,WIDTH])*[WIDTH,1]).agg(+));
+  local I_yn:=cellPositions.map((i)->(((i+[HEIGHT-1,0]) mod [HEIGHT,WIDTH])*[WIDTH,1]).agg(+));
+  local I_yp:=cellPositions.map((i)->(((i+[1       ,0]) mod [HEIGHT,WIDTH])*[WIDTH,1]).agg(+));
+save;
+  1.5*[concentrations[I_yn]-concentrations[I_yp],
+       concentrations[I_xn]-concentrations[I_xp]].transpose;
+end;
+
+doFusion(state:List(3))->
+  state.transpose.pEach(cell,begin
+    cell[0]>FUSION_THRESHOLD
+    ? cell*MATERIAL_LOSS_BY_FUSION
+    : cell;
+  end).transpose;
+
+memoized nonperiodicCellAttraction(baseDelta)->   baseDelta/baseDelta.euklideanNorm³;
+attractionFactors:=$1=='replay' ? void : cellPositions.each(p0,note('setup: ',index/cellPositions.size*100,'%'),cellPositions.each(p1,p0==p1 ? [0,0] : nonperiodicCellAttraction(p1-p0)));
+
+//memoized periodicCellAttraction(baseDelta)->begin
+//  local dxy:=cross([-50..50]*HEIGHT,
+//                   [-50..50]*WIDTH).transpose;
+//  dxy:=[dxy[0]+baseDelta[0],
+//        dxy[1]+baseDelta[1]].transpose;
+//  (dxy/dxy.euklideanNorm³).agg(+);
+//end;
+//attractionFactors:=$1=='replay' ? void :
+//  cellPositions.each(p0,note('setup: ',index/cellPositions.size*100,'%'),cellPositions.each(p1,p0==p1 ? [0,0] :    periodicCellAttraction(p1-p0)));
+
+compoundStep(state:List(3),dt)->begin
+  local acceleration:=attractionFactors.pEach(tab,(tab*state[0] ).agg(+))+
+                      shallowWaterAcceleration(state[0])  ;
+  local subSteps:=ceil((acceleration.euklideanNorm*ord(state[0]>0.1)).max/MAX_ACCELERATION).max(1);
+  acceleration:=acceleration.transpose;
+  local dtSub   :=dt/subSteps;
+
+  note('subSteps: ',subSteps,' mass: ',state[0].agg(+));
+  local y0:=state;
+  [1..subSteps].each(subStep,
+    subStep==1 ? void : begin
+      acceleration:=(attractionFactors.pEach(tab,(tab*y0[0] ).agg(+))+
+       shallowWaterAcceleration(y0[0])).transpose;
+      void;
+    end,
+    begin
+      local N:=
+      (y0|[cellPositions]|acceleration).transpose
+      .pEach(cell,begin
+         local c :=cell[0];
+         local v :=cell[[1,2]]/(1E-10+c);
+         local a :=cell[[4,5]];
+         local x :=cell[3]+v*dtSub+a*dtSub²/2;
+
+         local cp:=cell[[0,1,2]]+c*(0|a)*dtSub;
+         local K:=floor(x); local w:=x-K;
+
+         [[(K+[HEIGHT  ,WIDTH  ]) mod [WIDTH,HEIGHT],(1-w[0])*(1-w[1])],
+          [(K+[HEIGHT+1,WIDTH  ]) mod [WIDTH,HEIGHT],   w[0] *(1-w[1])],
+          [(K+[HEIGHT  ,WIDTH+1]) mod [WIDTH,HEIGHT],(1-w[0])*   w[1] ],
+          [(K+[HEIGHT+1,WIDTH+1]) mod [WIDTH,HEIGHT],   w[0] *   w[1] ]]
+         .each(p,[(p[0]*[WIDTH,1]).agg(+),p[1]*cp]);
+       end,|);
+       y0:=groupToList(N.getInner(1),N.getInner(0),[0,0,0],::+,WIDTH*HEIGHT).transpose;
+   end).trailing;
+end;
+
+randomInUnitCircle->begin
+  local r:=void;
+  while(euklideanNorm(r:=1-2*random(2))>1);
+  r;
+end;
+
+mutable history:=[];
+mutable state:=begin
+  resetRandom;
+  local c :=(0.95+0.05*random(WIDTH*HEIGHT))  *0.25;
+  local vx:=c.pMap((c_)->c_*randomInUnitCircle)*0.5;
+  local vy:=vx.getInner(1);
+        vx:=vx.getInner(0);
+  vx-=vx.agg(+)/vx.size;
+  vy-=vy.agg(+)/vy.size;
+  [c,vy,vx];
+end;
+
+replotHistory->isGuiStarted ? begin
+  history.toIteratableExpression
+  .pMap((h)->begin
+    local p:=h/255;
+    [p*0  ,p*0,     p     ].transpose*ord(p<=0.5)+
+    [p-0.5,p*0,0.5-(p-0.5)].transpose*ord(0.5<p<=1.5)+
+    [p-0.5,p-1.5,p-2.5].transpose*ord(1.5<p);
+  end)
+  .agg((plottable)->begin
+    plotRasterImage(plottable,WIDTH);
+    addAnimationFrame;
+  end);
+end : void;
+
+postUpdateDatastores->begin
+  local lastUpdate:=0;
+save;
+  scriptTime-lastUpdate>60
+  ? begin
+      lastUpdate:=scriptTime;
+      writeDataStores;
+      //callMemoryCleaner;
+      note('Datastores updated (',scriptTime-lastUpdate,'s)');
+      lastUpdate:=scriptTime;
+    end
+  : void;
+end;
+
+plotState(state:List(3))->begin
+  local p:=state[0].sqrt;
+  history|=[round(p*255)];
+  postUpdateDatastores;
+  isGuiStarted
+  ? begin
+      plotRasterImage(
+        [p*0  ,p*0,     p     ].transpose*ord(p<=0.5)+
+        [p-0.5,p*0,0.5-(p-0.5)].transpose*ord(0.5<p<=1.5)+
+        [p-0.5,p-1.5,p-2.5].transpose*ord(1.5<p)
+                      ,WIDTH);
+      addAnimationFrame;
+    end
+  : void;
+end;
+
+main('replay')->begin
+  assertGuiStarted;
+  replotHistory;
+  display;
+end;
+
+main('replay','finer')->begin
+  assertGuiStarted;
+  local scale:=floor([1920,1080]/[WIDTH,HEIGHT]/1.1).min;
+  while(max([1920,1080] mod scale)>0,scale-=1);
+
+  log('scale=',scale);
+  local r:=[1920,1080] div scale;
+  log('r=',r);
+  local offset:=([WIDTH,HEIGHT]*100-r) div 2 mod [WIDTH,HEIGHT];
+  log('offset=',offset);
+
+  local I:=cross(([0..r[1]-1]+offset[1]) mod HEIGHT,
+                 ([0..r[0]-1]+offset[0]) mod WIDTH).map((j)->(j*[WIDTH,1]).agg(+));
+
+  history.toIteratableExpression
+  .pMap((h)->begin
+    local p:=h/255;
+    ([p*0  ,p*0,     p     ].transpose*ord(p<=0.5)+
+     [p-0.5,p*0,0.5-(p-0.5)].transpose*ord(0.5<p<=1.5)+
+     [p-0.5,p-1.5,p-2.5].transpose*ord(1.5<p))[I];
+  end)
+  .each(plottable,begin
+    plotRasterImage(plottable,r[0]);
+    addAnimationFrame;
+    index=0 ? display : postDisplay;
+  end);
+end;
+
+main->begin
+  assertUniqueInstance;
+  callMemoryCleaner;
+  isGuiStarted
+  ? begin
+      clearAnimation;
+      history.size=0
+      ? plotState(state)
+      : replotHistory;
+      display;
+    end
+  : history.size=0
+    ? plotState(state)
+    : void;
+
+  rangeGenerator(history.size).each(timestep,begin
+    local cost:=scriptTime;
+    state:=compoundStep(state,dt).doFusion;
+    cost:=scriptTime-cost;
+    printf('%4d %6.1fs ',timestep,cost);
+    plotState(state);
+  end);
+end;

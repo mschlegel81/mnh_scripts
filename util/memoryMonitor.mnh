@@ -1,6 +1,7 @@
 #!C:\bin\mnh.exe -GUI -quiet
 mutable memHistory:=[].toMap;
 mutable snapshotTimes:=[];
+mutable cpuHistory:=[];
 
 addSample(caption:String,memSize:Int)->begin
   local H:=memHistory[caption] orElse [];
@@ -10,22 +11,70 @@ addSample(caption:String,memSize:Int)->begin
 end;
 
 pollMemory->begin
+  local cpuLoadFuture:=future(::getCPULoadPercentage);
   local currentInfo:=getTaskInfo
     .map((task)->task['caption']=>task['workingSetSize'])
     .transpose
     .{$L[1].group($L[0],::+)}
     .toMap
     .mergeMaps(memHistory.getInner(0).map((k)->k=>0).toMap,::orElse);
-  local pollTime:=systime;
 
+  cpuHistory|=cpuLoadFuture();
+  local pollTime:=systime;
   currentInfo.each(entry,addSample@entry);
   snapshotTimes|=pollTime;
+
+  snapshotTimes.size>=1000
+  ? begin
+      memHistory:=memHistory.map((entry)->entry[0]=>entry[1].chunkMap(2,(x)->x.agg(+)/x.size).toList).toMap;
+      snapshotTimes:=snapshotTimes                          .chunkMap(2,(x)->x.agg(+)/x.size).toList;
+      cpuHistory   :=cpuHistory                             .chunkMap(2,(x)->x.agg(+)/x.size).toList;
+      callMemoryCleaner;
+//      warn('Cleaned up a bit...');
+    end
+  : void;
+
   void;
 end;
 
 plotMemoryUsage->begin
-  setOptions(["x0"=>-1,"x1"=>1,"y0"=>-1,"y1"=>1,"fontsize"=>10,"preserveAspect"=>false,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>7,"axisStyleY"=>7].toMap);
+  local ticks:=[ceil(24*60*snapshotTimes.min)..floor(24*60*snapshotTimes.max)];
+  ticks.trailing<ticks.head
+  ? ticks:=[]
+  : begin
+      local chunks:=ticks.map((t)->[t,ord(t mod [5,10,30,60,120,240]=0).agg(+),-ln(1+systime*(24*60)-t)]);
+      local range:=(chunks.trailing[2]-chunks.head[2])/20;
+      chunks:=[chunks,(chunks.getInner(2).tail|Inf)-chunks.getInner(2)].transpose.map((c)->[c[0,0],c[0,1],c[1]]).reverseList;
+
+      ticks:=[];
+
+      local takeHeadOfChunks:={begin
+        local k:=indexOf(chunks.getInner(2)>=range).max;
+        ticks|=chunks.head(k).getInner(0); chunks:=chunks.tail(k);
+      end};
+
+      local joinChunks:={begin
+        local r:=0;
+        chunks:=chunks.each(c,
+          c[1]>=$level
+          ? begin local o:=[c[0],c[1],r+c[2]]; r:=0; o; end
+          : begin r+=c[2]; void; end);
+      end};
+
+      local level:=0;
+      takeHeadOfChunks();
+      while(chunks.size>0,begin
+        joinChunks(level+=1);
+        takeHeadOfChunks();
+      end);
+
+      ticks:=ticks.reverseList/(24*60);
+    end;
+  local transformedTicks:=-ln(1/(24*60)+systime-ticks);
+  local transformedTimes:=-ln(1/(24*60)+systime-snapshotTimes);
+
   plot();
+  local high:=0;
   local M:=0;
   local C:=
   memHistory
@@ -38,26 +87,68 @@ plotMemoryUsage->begin
        entry[0]=>(M+=weight);
      end)
     .reverseList
+    .head(10)
     .each(entry,begin
        local memInMiB:=entry[1]/1024²;
-       addPlot(snapshotTimes,memInMiB,'black f');
+       addPlot(transformedTimes,memInMiB,'RGB1,0.5,0,0.6 f b');
+       high:=memInMiB.max.max(high);
        entry[0]=>memInMiB.trailing;
      end)
     .head(10)
     .transpose;
-  C[1]:=(C[1].tail+C[1].leading)*0.5;
+
+  high:=ceil(high/1024)*1024;
+
+  setOptions(["x0"=>transformedTimes.min,
+              "x1"=>transformedTimes.max,
+              "y0"=>0,
+              "y1"=>high].toMap);
+  C[1]:=(0.05*C[1].tail+0.95*C[1].leading);
   C[0]:=C[0].leading;
+
+  ticks.size>0
+  ? begin
+      addPlot(transformedTicks,ticks*0+high,'black i 0.2');
+      [ticks,transformedTicks].transpose.map((t)->drawText(t[1],high,formatTime('hh:mm',t[0]),'T','Calibri'));
+    end
+  : void;
+
+  addPlot(transformedTimes,cpuHistory/100*high,'blue 0.5 b');
+
   C.transpose.each(e,
-    drawText(snapshotTimes.trailing,e[1],e[0],8,
-             'R','Calibri'));
-  display;
+    drawText(transformedTimes.trailing,e[1],e[0],
+             'TR','Calibri'));
+
+  local tickLength:=[transformedTimes.min,transformedTimes.max];
+  ([1..ceil(high/1024)-1]*1024).each(ML,[tickLength[0],ML],
+                                        [tickLength[1],ML],
+                                        [Nan,Nan]).addPlot('black 0.25');
+  ([1..ceil(high/1024)-1]*1024).each(ML,drawText(tickLength[0],ML,format('%sGiB',ML div 1024),'TL','Calibri',[0.5,0.25,0]));
+  ([1..ceil(high/1024)-1]*1024).each(ML,drawText(tickLength[0],ML,format('%s%%CPU',round(ML/high*100)),'BL','Calibri',[0,0,0.5]));
+
+
+  postDisplay;
 end;
 
 main->begin
+  setOptions(["preserveAspect"=>false,
+              "autoscaleX"=>false,
+              "autoscaleY"=>false,
+              "logscaleX"=>false,
+              "logscaleY"=>false,
+              "axisStyleX"=>0,
+              "axisStyleY"=>0].toMap);
   pollMemory;
-  while(true,begin
-    sleep(1);
+  plotMemoryUsage;
+  display;
+  local cleanupCounter:=0;
+  while(!plotClosed,begin
+    sleep(cpuHistory.trailing/10); //at 100% load, poll every 10 seconds
     pollMemory;
     plotMemoryUsage;
+    (cleanupCounter:=(cleanupCounter+1) mod 16)=0 ? callMemoryCleaner : void;
   end);
+  halt;
 end;
+
+

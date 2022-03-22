@@ -64,7 +64,13 @@ begin
   plot([[J[0],J[1]-100],[J[0],J[1]+100],[Nan,Nan],
         [J[0]-100,J[1]],[J[0]+100,J[1]]],'black 0.5');
   renderPlotToCurrentImage(1920,1080);
-  executeWorkflow(workflow(J),'-',filename,::log);
+  executeWorkflow(workflow(J),'-','-',::log);
 end;
+
+begin
+  renderImage(0);
+  displayImage;
+end;
+
 
 main->map(random(2001).sortPerm,::renderImage);

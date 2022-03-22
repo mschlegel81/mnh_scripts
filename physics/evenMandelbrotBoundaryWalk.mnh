@@ -1,0 +1,98 @@
+//resolution:=[192,108]*10;
+resolution:=[1920,1080];
+circle  (t)->[cos(t),sin(t)];
+circle_d(t)->[-sin(t),cos(t)];
+f  (t)->circle  (t)*0.5-circle  (2*t)*0.25;
+f_d(t)->circle_d(t)*0.5-circle_d(2*t)*0.5;
+
+BULBS:=
+[2..9].each(i,begin
+  [1..i].each(j,gcd(i,j)>1 ? void : begin
+    local phi  :=2*pi*j/i;
+    local radius:=f_d(phi).euklideanNorm / sqr(i);
+    local touchAt:=f(phi);
+    local center :=touchAt+radius*(f_d(phi)/(f_d(phi).euklideanNorm)).reverseList*[1,-1];
+    [phi,center,touchAt-center,(touchAt-center).reverseList*[1,-1]];
+  end);
+end,|).sort;
+
+curve(t:Numeric)->begin
+  local tau:=t;
+  local k:=0;
+  while(k<BULBS.size,begin
+    tau<BULBS[k,0]
+    ? return f(tau)
+    : begin
+        local phi:=tau-BULBS[k,0];
+        phi<2*pi
+        ? return BULBS[k,1]+BULBS[k,2]*cos(phi)+BULBS[k,3]*sin(phi)
+        : begin k+=1; tau-=2*pi; end;
+      end;
+  end);
+  f(tau);
+end;
+
+begin
+  local T:=[0..2000]/2000*2*pi*(BULBS.size+1);
+  local P:=T.pMap(::curve);
+
+  [0..3].each(i,begin
+    local l:=0;
+    local L:=0|(P.tail-P.leading).euklideanNorm.each(d,l+=d);
+    T:=newLinearInterpolator([L,T].transpose)([0..2000]/2000*L.trailing);
+    P:=T.pMap(::curve);
+    void;
+  end);
+
+//  l:=0;
+//  L:=0|(P.tail-P.leading).euklideanNorm.each(d,l+=d);
+//  T:=newLinearInterpolator([L,T].transpose)([0..2000]/2000*L.trailing);
+//  P:=T.pMap(::curve);
+//
+//  l:=0;
+//  L:=0|(P.tail-P.leading).euklideanNorm.each(d,l+=d);
+//  T:=newLinearInterpolator([L,T].transpose)([0..2000]/2000*L.trailing);
+//  P:=T.pMap(::curve);
+
+  [2..P.size].each(k,P.head(k).plot,addAnimationFrame);
+end;
+
+
+
+
+//approximateMandelbrot->begin
+//  plot(::f,0,2*pi,500,'black 0.5 polygon');
+//  [2..17].each(i,begin
+//    [1..i].each(j,gcd(i,j)>1 ? void : begin
+//      local phi  :=2*pi*j/i;
+//      local radius:=f_d(phi).euklideanNorm / sqr(i);
+//      local touchAt:=f(phi);
+//      local center :=touchAt+radius*(f_d(phi)/(f_d(phi).euklideanNorm)).reverseList*[1,-1];
+//      addPlot([center-radius,center+radius],'red 0.5 ellipse');
+//    end);
+//  end,|);
+//end;
+
+//begin
+//  local zoom  :=0.2;
+//  local center:=[-0.5,0];
+//  local ratio:=resolution.agg(/);
+//  local DELTA:=[ratio,1]/(2*zoom*sqrt(1+ratio²));
+//
+//  local xy0:=center-DELTA;
+//  local xy1:=center+DELTA;
+//  setOptions(["x0"=>xy0[0],"x1"=>xy1[0],
+//              "y0"=>xy0[1],"y1"=>xy1[1],"fontsize"=>10,"preserveAspect"=>true,"autoscaleX"=>false,"autoscaleY"=>false,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
+//  approximateMandelbrot;
+//  renderPlotToCurrentImage@resolution;
+//  ['stash:0',
+//   'Mandelbrot / Julia[centerx:-0.5;depth:20;source:max.chaos;style:greyscale / gold]',
+//   '*RGB:1,1,0',
+//   'invert',
+//   'stash:1',
+//   '*stash:0'].executeWorkflow('-','-',::log);
+//   displayImage;
+//end;
+
+
+

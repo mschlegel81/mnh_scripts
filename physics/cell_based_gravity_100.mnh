@@ -1,7 +1,7 @@
 MY_IPC_ID:=format('%x',myPath.sha256);
 
-WIDTH :=50;
-HEIGHT:=50;
+WIDTH :=100;
+HEIGHT:=100;
 dt    :=0.1;
 gridSize:=50/WIDTH;
 MAX_ACCELERATION:=4/dt;
@@ -23,7 +23,7 @@ datastore state:=begin
 
   local c:=10*cellPositions.pMap((x)->gauss(x-center1)+gauss(x-center2)*2);
   local vy:=c*0;
-  local vx:=gridSize*1.5*c*(ord(cellPositions.getInner(1)*2<WIDTH-1)*3-1);
+  local vx:=1.5*c*(ord(cellPositions.getInner(1)*2<WIDTH-1)*3-1)/gridSize;
 
 
 
@@ -43,8 +43,8 @@ shallowWaterAcceleration(concentrations)->begin
   local I_yn:=cellPositions.map((i)->(((i+[HEIGHT-1,0]) mod [HEIGHT,WIDTH])*[WIDTH,1]).agg(+));
   local I_yp:=cellPositions.map((i)->(((i+[1       ,0]) mod [HEIGHT,WIDTH])*[WIDTH,1]).agg(+));
 save;
-  2.5*[concentrations[I_yn]-concentrations[I_yp],
-       concentrations[I_xn]-concentrations[I_xp]].transpose/gridSize;
+  [concentrations[I_yn]-concentrations[I_yp],
+   concentrations[I_xn]-concentrations[I_xp]].transpose*2.5;
 end;
 
 //attractionFactors:=$1=='replay' OR $1=='stop' ? void :
@@ -105,7 +105,7 @@ begin
     : integrate((x)->
       integrate((y)->[x,y]/euklideanNorm([x,y])³,delta[1]-0.5,delta[1]+0.5,1E-6),
                                                  delta[0]-0.5,delta[0]+0.5,1E-6);
-  end/gridSize²).toMap;
+  end).toMap;
   attractionFactor[[0,0]]:=[0,0];
   begin //Expand symmetries
     log('Expanding symmtries');

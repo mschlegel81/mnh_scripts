@@ -30,7 +30,7 @@ pollMemory->begin
       snapshotTimes:=snapshotTimes                          .chunkMap(2,(x)->x.agg(+)/x.size).toList;
       cpuHistory   :=cpuHistory                             .chunkMap(2,(x)->x.agg(+)/x.size).toList;
       callMemoryCleaner;
-//      warn('Cleaned up a bit...');
+      log('Cleaned up at ',formatTime(systime),'; oldest entry is now at ',formatTime(snapshotTimes.head));
     end
   : void;
 
@@ -109,7 +109,8 @@ plotMemoryUsage->begin
   ticks.size>0
   ? begin
       addPlot(transformedTicks,ticks*0+high,'black i 0.2');
-      [ticks,transformedTicks].transpose.map((t)->drawText(t[1],high,formatTime('hh:mm',t[0]),'T','Calibri'));
+      [ticks,transformedTicks].transpose.map((t)->drawText(t[1],0,formatTime('hh:mm',t[0]),'B','Calibri'));
+//      [ticks,transformedTicks].transpose.map((t)->log('Printing ',formatTime('hh:mm',t[0]),' at x=',t[1]));
     end
   : void;
 
@@ -150,5 +151,3 @@ main->begin
   end);
   halt;
 end;
-
-

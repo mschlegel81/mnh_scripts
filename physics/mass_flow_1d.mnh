@@ -1,0 +1,80 @@
+D_fluid(state:List(2))->begin
+  local c :=state[0];
+  local vx:=state[1]/c;
+  local vy:=vx*0;
+
+  local vFwd:=0.5*vx;
+  local vBwd:=0.5*vx.tail|0;
+  local flowAccel:=0.1*c*((c.head|c.leading)-(c.tail|c.trailing)); //*ord(c<(c.tail|0));
+  [firstOrderUpwind2D(c       ,vFwd,vy,vx.size,false)+
+   firstOrderUpwind2D(c       ,vBwd,vy,vx.size,false),
+   firstOrderUpwind2D(state[1],vFwd,vy,vx.size,false)+
+   firstOrderUpwind2D(state[1],vBwd,vy,vx.size,false)+flowAccel];
+end;
+
+
+D_grav(state:List(2))->begin
+  local c :=state[0];
+  local vx:=state[1]/c;
+  local vy:=vx*0;
+
+  local vFwd:=0.5*vx;
+  local vBwd:=0.5*vx.tail|0;
+  local flowAccel:=c*attractionFactors.pEach(tab,(tab*c).agg(+));
+  [firstOrderUpwind2D(c       ,vFwd,vy,vx.size,false)+
+   firstOrderUpwind2D(c       ,vBwd,vy,vx.size,false),
+   firstOrderUpwind2D(state[1],vFwd,vy,vx.size,false)+
+   firstOrderUpwind2D(state[1],vBwd,vy,vx.size,false)+flowAccel];
+end;
+
+
+
+USE rungeKutta;
+
+//c0:=begin
+//  local hill:=sin([0..50]*pi/50)²;
+//  flatten(hill,hill*0,hill*0,hill);
+//end;
+//p0:=c0*(1-2*ord([0..c0.size-1]>c0.size/2));
+
+//p0:=0.1*sin([0..199]*2*pi/200);
+//c0:=0.1+0*p0;
+
+
+c0:=ord([0..200]<100);
+p0:=0*c0;
+
+//c0:=0.1+random(200)*0.1;
+//p0:=c0*0;
+
+attractionFactors:=[0..c0.size-1].each(k0,[0..c0.size-1].each(k1,k0=k1 ? 0 : 1/((k1-k0)*abs(k1-k0))));
+
+
+
+
+
+setOptions(["x0"=>0,"x1"=>c0.size-1,"y0"=>0,"y1"=>2,"fontsize"=>10,"preserveAspect"=>false,"autoscaleX"=>false,"autoscaleY"=>false,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>7,"axisStyleY"=>7].toMap);
+begin
+  local dt:=0.5;
+  local state:=[c0,p0];
+  local step:=integrator(BOGACKI_SHAMPINE,::D_fluid,dt,1E-5);
+
+//  return D_grav(state);
+
+  plot(state[0],'stepLeft f');
+//  addPlot((state[1]/state[0]).map((v)->v.isNan ? 0 : v),'stepLeft');
+//  addPlot(state[1],'stepLeft');
+  addAnimationFrame;
+
+  [0..1000].each(ts,begin
+//    state+=D(state)*dt;
+    state:=step(state);
+    plot(state[0],'stepLeft f');
+//    addPlot((state[1]/state[0]).map((v)->v.isNan ? 0 : v),'stepLeft');
+//    addPlot(state[1],'stepLeft');
+    addAnimationFrame;
+
+  end);
+
+
+end;

@@ -1,0 +1,49 @@
+BASE_SIZE:=32;
+
+RESOLUTION:=begin
+  local r:=plotImageSize;
+  r[0]>0<r[1]
+  ? r
+  : [200,200];
+  [500,500];
+end;
+
+memoized tabledValue(kx)->begin
+  local f:=[1..BASE_SIZE].map(()->begin
+    local r:=random(BASE_SIZE)-0.5; r|r.head(4);
+  end.newBSpline);
+save;
+  local q:=f.map((F)->F(kx));
+  newBSpline(q|q.head(4));
+end;
+
+@SuppressUnusedWarning
+SAFE_INIT:=tabledValue(0)(0);
+
+
+base(x:Numeric,y:NumericList)-> tabledValue((x-floor(x))*BASE_SIZE+2)((y-floor(y))*BASE_SIZE+2);
+
+
+
+plotNoise(zoom)->begin
+  local A:=zoom/2^[1..7];
+  A[0]:=0.9921875-A.tail.agg(+);
+
+  local X:=([0..RESOLUTION[0]-1]-(RESOLUTION[0]-1)/2)/max(RESOLUTION[0],RESOLUTION[1]);
+  (([0..RESOLUTION[1]-1]-(RESOLUTION[1]-1)/2)/max(RESOLUTION[0],RESOLUTION[1]))
+  .pEach(y,0.5+base(y   /zoom,X   /zoom)*A[0]
+              +base(y* 2/zoom,X* 2/zoom)*A[1]
+              +base(y* 4/zoom,X* 4/zoom)*A[2]
+              +base(y* 8/zoom,X* 8/zoom)*A[3]
+              +base(y*16/zoom,X*16/zoom)*A[4]
+              +base(y*32/zoom,X*32/zoom)*A[5]
+              +base(y*64/zoom,X*64/zoom)*A[6]
+  ,|).plotRasterImage(RESOLUTION[0]);
+end;
+
+(2^([0..49]/50)).each(zoom,
+  plotNoise(zoom),
+  addAnimationFrame);
+
+
+

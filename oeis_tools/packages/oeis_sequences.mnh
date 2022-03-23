@@ -54,7 +54,8 @@ USE palindromes,
     sternBrocot,
     hofstadterConway,
     hamming,
-    recaman;
+    recaman,
+    polynomials;
 
 A000124->rangeGenerator(0).map({($n+$n^2+2) div 2});
 A005097->primeGenerator.{begin $g(); $g; end}.map({($x-1) div 2});
@@ -110,15 +111,15 @@ USE kaprekar;
 A006886->rangeGenerator(1).filter(::isKaprekar);
 
 scanFiboMod(stepsBack in [2..5],modulus>=1)->begin
-  local fiboMod:={$state.tail|($state.agg(+) mod modulus)};
-  local openStates:=cross([0..modulus-1],[0..modulus-1],
-                          stepsBack>=3 ? [0..modulus-1] : void,
-                          stepsBack>=4 ? [0..modulus-1] : void,
-                          stepsBack>=5 ? [0..modulus-1] : void).toSet;
+  local openStates:=cross([0..modulus-1],
+                          [0..modulus-1],
+           stepsBack>=3 ? [0..modulus-1] : void,
+           stepsBack>=4 ? [0..modulus-1] : void,
+           stepsBack>=5 ? [0..modulus-1] : void).toSet;
   local groupCount:=0;
   while(openStates.size>0,begin
-    openStates>>(local s:=openStates.min);
-    while((s:=fiboMod(s)) in openStates,openStates>>s);
+    openStates>>(local s:=openStates.head);
+    while((s:=s.tail|(s.agg(+) mod modulus)) in openStates,openStates>>s);
     groupCount+=1;
   end);
   groupCount;
@@ -133,14 +134,8 @@ A106286->rangeGenerator(1).map({scanFiboMod(4,$n)});
 @class=Fibonacci sequence modulo
 A106287->rangeGenerator(1).map({scanFiboMod(5,$n)});
 
-private coprimesLesser(n)->begin
-  local result:=[2..n-1];
-  factorize(n).unique.each(factor,
-    result:=result[result mod factor!=0]);
-  result;
-end;
-
-private curry isKnoedel(n,m)->!isPrime(m) AND coprimesLesser(m).pEach(i,powMod(i,m-n,m)=1,AND);
+private coprimesLesser(n)->rangeGenerator(2,n-1).filter((i)->gcd(n,i)=1);
+private curry isKnoedel(n,m)->!isPrime(m) AND coprimesLesser(m).each(i,powMod(i,m-n,m)=1,AND);
 
 @class=Knödel
 A002997->rangeGenerator( 2).filter(isKnoedel(1));
@@ -345,16 +340,15 @@ memoized implemented->
     : void;
   end).toMap;
 
-private findPolyParam(sequence:IntList)->sequence.size<6 ? void : begin
-  local c:=sequence[0];
-  local a:=(sequence[2]-sequence[0]) div 2-sequence[1]+sequence[0];
-  local b:=sequence[1]-c-a;
-  local n:=[0..sequence.size-1];
-  a*n^2+b*n+c==sequence
-  ? [format('rangeGenerator(0).map(\{%s%s%s\})',
-             a=0 ? '' : a&'*$x^2+',
-             b=0 ? '' : b&'*$x+',
-             c),'polynomial']
+private findPolyParam(sequence:IntList)->sequence.size<2 ? void : begin
+  //Construct a polynomial of the first half of the sequence
+  local poly:=gregoryNewton(sequence.head(min(sequence.size div 2,10)));
+  poly.toBuiltin.isIntList AND
+  //Check, if the whole sequence can be reconstructed:
+  map([0..sequence.size-1],poly.toExpression())==sequence
+  ? [format('rangeGenerator(0).map((n)->%s)',
+            poly.nicePolynomialString('n')),
+     'polynomial']
   : void;
 end;
 

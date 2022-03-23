@@ -169,7 +169,7 @@ private serve_('validate')->
       ? [1,format("No sequence found for "&IDFormat,id)]
       : generated==sequence.head(generated.size)
         ? [2,'Validation for '&format(IDFormat,id)&' timed out @'&(generated.size-1)]
-        : [3,'Validation for '&format(IDFormat,id)&' failed @'&join(indexOf(generated!=sequence))];
+        : [3,'Validation for '&format(IDFormat,id)&' failed @'&join(indexOf(generated!=sequence),',')];
    end)
   .toList
   .{$L.getInner(1).group($L.getInner(0))}

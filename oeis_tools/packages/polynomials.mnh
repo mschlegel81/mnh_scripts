@@ -26,13 +26,39 @@ private groupToPolynomial(L:List)->begin
   [0..Q.getInner(0).max].each(k,Q[k,1] orElse 0);
 end.toPolynomial;
 
+unaryExpressionOf(n:Numeric)->(x)->n;
+
 @SuppressUnusedWarning
 @Override
 toExpression(P:Polynomial)->begin
   local f:=P.each(factor,factor=0 ? void : factor=1 ? xPow(index) : factor*xPow(index),+);
-  f.isNumeric
-  ? f+{0*$x}
-  : f;
+  f.isVoid
+  ? unaryExpressionOf(0)
+  : f.isNumeric
+    ? unaryExpressionOf(f)
+    : f;
+end;
+
+nicePolynomialString(poly==([0].toPolynomial), freeVariable:String)->'0';
+nicePolynomialString(poly:Polynomial, freeVariable:String)->begin
+  local powString:=(n)->n=0 ? '' : '*'&(
+                        n=1 ? freeVariable :
+                        n=2 ? freeVariable&'²' :
+                        n=3 ? freeVariable&'³' :
+                              freeVariable&'^'&n);
+  local s:=
+  poly.each(factor,
+    factor= 0 ? void :
+    factor= 1 ? index=0 ?  1 :     powString(index).copy(1) :
+    factor=-1 ? index=0 ? -1 : '-'&powString(index).copy(1) :
+                            factor&powString(index))
+    .join('+')
+    .replace('+-','-');
+  //Special workaround: -x^4+23*x^5 => -1*x^4+23*x^5
+  local prefix:='-'&freeVariable;
+  copy(s,0,prefix.length)==prefix
+  ? '-1*'&copy(s,1)
+  : s;
 end;
 
 D(P:Polynomial)->

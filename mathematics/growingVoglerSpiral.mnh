@@ -25,9 +25,11 @@ main->begin
   clearAnimation(true);
   local points:=pointGenerator.head(1);
   local pairs:=[];
+  local lastFramePlottedAt:=scriptTime;
 
-  while(true,begin
-    local newPoint:=pointGenerator();
+  local lastCollected:=points.size;
+
+  pointGenerator.map((newPoint)->begin
     local other:=points[points.size-FIBONACCI_DELTAS].each(p,euklideanNorm(p-newPoint)=>p,min)[1];
 
     local nd:=other-newPoint; nd/=nd.euklideanNorm; nd:=[nd[1],-nd[0]];
@@ -36,31 +38,44 @@ main->begin
 
     pairs ||=[newPoint,other,i0,i1,nd];
     points||=newPoint;
-
-   ['preserveAspect' => true,'axisStyleX'=>0,'axisStyleY'=>0,
-    'strictInput'=>true,'autoscaleX'=>false,'autoscaleY'=>false,
-     'y0'=>-(sqrt(points.size)),
-     'x0'=>-(sqrt(points.size)),
-     'y1'=> (sqrt(points.size)),
-     'x1'=> (sqrt(points.size))].toMap.setOptions;
-    points.each(p,p-RADIUS_FACTOR*(1-sqrt(index/points.size)),
-                  p+RADIUS_FACTOR*(1-sqrt(index/points.size))).plot('e fs 0');
-    pairs.each(pair,begin
-      local p0:=pair[0];
-      local p1:=pair[1];
-      local nd:=pair[4];
-      local r0:=RADIUS_FACTOR*(1-sqrt(pair[2]/points.size));
-      local r1:=RADIUS_FACTOR*(1-sqrt(pair[3]/points.size));
-       [p0+r0*nd ,p1+r1*nd,
-        p1-r1*nd ,p0-r0*nd,
-       [Nan,Nan]];
-    end,|).addPlot('polygon fs 0 black');
+    [points,pairs];
+  end)
+  .map((set)->set[0].size>lastCollected*1.01 ? begin
+     lastCollected:=set[0].size;
+     set;
+   end : void)
+  .pMap((set)->begin
+     local ps:=set[0].size;
+     [ps.sqrt,
+      set[0].each(p,p-RADIUS_FACTOR*(1-sqrt(index/ps)),
+                    p+RADIUS_FACTOR*(1-sqrt(index/ps))),
+      set[1].each(pair,begin
+        local p0:=pair[0];
+        local p1:=pair[1];
+        local nd:=pair[4];
+        local r0:=RADIUS_FACTOR*(1-sqrt(pair[2]/ps));
+        local r1:=RADIUS_FACTOR*(1-sqrt(pair[3]/ps));
+         [p0+r0*nd ,p1+r1*nd,
+          p1-r1*nd ,p0-r0*nd,
+         [Nan,Nan]];
+      end,|)];
+   end)
+  .agg((plottable)->begin
+    ['preserveAspect' => true,'axisStyleX'=>0,'axisStyleY'=>0,
+     'strictInput'=>true,'autoscaleX'=>false,'autoscaleY'=>false,
+     'y0'=>-plottable[0],
+     'x0'=>-plottable[0],
+     'y1'=> plottable[0],
+     'x1'=> plottable[0]].toMap.setOptions;
+    plottable[1].plot('e fs 0');
+    plottable[2].addPlot('polygon fs 0 black');
+    local ta:=-scriptTime;
     addAnimationFrame;
-    note(points.size,' ready');
+    ta+=scriptTime;
+    note(plottable[1].size,' plotted in ',ta,'s ',round(1/(scriptTime-lastFramePlottedAt),2),'FPS');
+    lastFramePlottedAt:=scriptTime;
     postDisplay;
-  end);
-
-
+   end);
 end;
 
 

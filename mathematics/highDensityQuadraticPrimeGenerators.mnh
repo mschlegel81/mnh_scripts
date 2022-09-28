@@ -1,0 +1,82 @@
+X1:=[0..9999];
+X0:=X1^0;
+X2:=X1²;
+
+//Symmetries:
+// a + bx + cx²   | x:=-y
+// a - by + cy²   -> b>0 !
+
+// a + bx + cx²   | x:=y+k
+//=a + b(y+k) +c(y+k)²
+//=a+bk+c*k² + (b+c*2*k)*y  + cy²
+
+
+POLYNOMIAL_FORMAT:='{$0}{$1<=0?"":"+"}{$1=-1 ? "-" : $1 in [0,1] ? "" : $1}{$1=0 ? "" : "n"}'&
+                       '{$2<=0?"":"+"}{$2=-1 ? "-" : $2 in [0,1] ? "" : $2}{$2=0 ? "" : "n²"}';
+formatPoly(poly:IntList(3))->POLYNOMIAL_FORMAT.format@poly;
+
+isMinimal(poly:IntList(3))->begin
+  local k:=round(-poly[1] / (2*poly[2]));
+  poly[1]+2*poly[2]*k < 0
+  ? k+=sign(poly[2])
+  : void;
+  //Minimal form is: [poly[0]+poly[1]*k+poly[2]*k², poly[1]+2*poly[2]*k , poly[2]];
+  k==0;
+end;
+
+//polynomials(radius>=1)->begin
+//  [1-radius.. radius-1         ].pEach(a,
+//  [0       ..(radius-1-abs(a)) ].each(b,[a,b,radius-abs(a)-b]).filter(::isMinimal),|);
+//end;
+
+ratePolynomial(poly:IntList(3))->begin
+  local n:=poly[0]*X0+
+           poly[1]*X1+
+           poly[2]*X2;
+  local primesInRange:=trueCount(n.isPrime);
+  local expectedPrimes:=(1/ln(n[n>2])).agg(+);
+  primesInRange/[expectedPrimes,n.size];
+end;
+
+datastore top100:=[];
+datastore scanAtRadius:=1;
+
+scanNextRadius->begin
+  local acceptIfBetterThan:=top100[0,0] orElse 0;
+
+  top100|=
+  rangeGenerator(1-scanAtRadius,scanAtRadius-1)
+  .map((a)->rangeGenerator(0,scanAtRadius-1-abs(a)).map((b)->[a,b,scanAtRadius-abs(a)-b]))
+  .flatMap((p)->isMinimal(p) ? p : void)
+  .pMap((p)->ratePolynomial(p)|[p])
+  .filter((p)->p[0]>=acceptIfBetterThan)
+  .toList;
+
+  top100:=top100.sort.trailing(100);
+  scanAtRadius+=1;
+end;
+
+printTop100->begin
+  local lines:=format('%5.5f %5.5f %s',top100.getInner(0),top100.getInner(1),top100.getInner(2).map(::formatPoly));
+  local splitter:=repeat('-',lines.length.max+2)&'r='&scanAtRadius&' '&formatTime(systime);
+  clearPrint;
+  printf('%s',splitter|lines|splitter);
+end;
+
+
+main->
+  begin
+    printTop100;
+    while(true,
+      begin
+        scanNextRadius;
+        writeDataStores;
+        printTop100;
+      end);
+  end;
+
+begin
+  showTable([['rating','prob.','a','b','c','poly']]|
+  top100.map((l)->l.flatten| formatPoly(l[2])),'Top100',true);
+
+end;

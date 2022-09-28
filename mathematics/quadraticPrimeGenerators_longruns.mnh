@@ -3,19 +3,26 @@ datastore scanDiameter:=2;
 datastore best:=[];
 mutable previouslySeenBaseForms:=[].toSet;
 
-T:=[-3..-1,1..3].map((n)->n^[0..2]);
+T:=[-3..-1,1..3].map((n)->n^[0..2]).transpose;
+T1:=[-1,1].map((n)->n^[0..2]).transpose;
 
 nextCoefficientCandidates->begin
   scanDiameter+=1;
+  local result:=
   primes(scanDiameter-1)
-  .each(p,transpose([[p],
-          [0..scanDiameter-p-1],
-          [scanDiameter-p..1]],p),|)
-  .each(x,x,x*[1,-1,1])
+  .pEach(p,transpose([[p],
+           [0..scanDiameter-p-1],
+           [scanDiameter-p..1]],p),|)
+  .pEach(x,x,x*[1,-1,1])
+  .pFilter((q)->(T1*q).agg(+).isPrime.agg(or))
   .minus(previouslySeenBaseForms)
-  .pFilter((q)->T.map((t)->isPrime((t*q).agg(+))).trueCount>=3)
+  .pFilter((q)->(T*q).agg(+).isPrime.trueCount>=3)
   .toList;
+  callMemoryCleaner;
+  result;
 end;
+
+shiftedForm(abc:IntList(3),k)->[abc[0]+abc[1]*k+abc[2]*k², abc[1]+2*abc[2]*k , abc[2]];
 
 private longX:=[0..99999];
 private longX2:=longX²;
@@ -38,23 +45,25 @@ formatResult(polynomial:IntList(3),succesivePrimes,longRunPrimes:IntList(4))->
      succesivePrimes,
      PERCENTS_FORMAT.format@longRunPrimes);
 
-calcCutoff(list:NumericList)->(list.agg(+)/list.size +
-                               list.sort[list.size div 2])*0.5;//Average of arithmetic mean and median
+calcCutoff([])->0;
+calcCutoff(list:NumericList)->list.agg(+)/list.size;//Average of arithmetic mean and median
 
-successivePrimesInPolynomial       (a,b,c)->rangeGenerator(1).filter({!isPrime(a+$i*(b+$i*c))})();
+successivePrimesInPolynomial       (a,b,c)->rangeGenerator(1       ).filter({!isPrime(a+$i*(b+$i*c))})();
 successivePrimesInPolynomialReverse(a,b,c)->rangeGenerator(0,-10000).filter({!isPrime(a+$i*(b+$i*c))})();
-shiftedForm(abc:IntList(3),k)->[abc[0]+abc[1]*k+abc[2]*k², abc[1]+2*abc[2]*k , abc[2]];
 
 main->begin
   assertUniqueInstance;
   best.sort(1).map((q)->formatResult@q).join("\n").print;
-  previouslySeenBaseForms:=best.pEach(q,[0..q[1]-1].each(k,shiftedForm(q[0],k)),|);
-  print('-'.repeat(112));
+  scanDiameter:=max(0,scanDiameter-1);
+  previouslySeenBaseForms:=best.pEach(q,[0..q[1]-1].each(k,shiftedForm(q[0],k)),|).toSet;
+  log('previouslySeenBaseForms: ',typeOf(previouslySeenBaseForms));
+  print('-'.repeat(120));
   local basisForThresholds:=best.getInner(1);
-  local threshold:=basisForThresholds.size=0 ? 0 : calcCutoff(basisForThresholds);
   while(true,begin
-    printf('[{scanDiameter+1}] threshold = {threshold.ceil} ({threshold})');
-    nextCoefficientCandidates
+    local threshold:=calcCutoff(basisForThresholds);
+    local candidates:=nextCoefficientCandidates;
+    printf('[{scanDiameter+1}] threshold = {threshold.ceil} ({threshold}) - {candidates.size} candidates');
+    candidates
     .pMap((x)->begin
        local primesAhead:=successivePrimesInPolynomial@x;
        local indexShift :=successivePrimesInPolynomialReverse@x+1;
@@ -65,7 +74,6 @@ main->begin
        q[1]>=threshold
        ? begin
            basisForThresholds|=q[1];
-           threshold:=calcCutoff(basisForThresholds);
            true;
          end
        : false;
@@ -76,11 +84,11 @@ main->begin
        print(formatResult@q);
        previouslySeenBaseForms|=[0..q[1]-1].each(k,shiftedForm(q[0],k));
      end);
-     writeDataStores;
+    writeDataStores;
   end);
 end;
 
-main('list')->best.sort(1).each(q,print(formatResult@q));
+main('list')->best.sort(1).map((q)->formatResult@q).join("\n").print;
 
 primeHitRating(q)->begin
   local x:=[0..99999];
@@ -93,20 +101,16 @@ primeHitRating(q)->begin
   : round(q[2,3]/(1/ln(x)).agg(+),4);
 end;
 
-basePolynomial(abc:IntList(3))->begin
-  local k:=round(-abc[1] / (2*abc[2]));
-  abc[1]+2*abc[2]*k < 0
-  ? k+=sign(abc[2])
-  : void;
-  shiftedForm(abc,k);
+distinctPrimesIn(q)->begin
+  local n:=[0..q[1]-1];
+  unique(q[0,0]+n*(q[0,1]+n*q[0,2])).size;
 end;
-
 
 main('table')->begin
   assertGuiStarted;
   showTable(
-  [['diam.','polynomial','succ','of 100','of 1000','of 10000','of 100000','Hit rating','Poly_B','n_0 for Poly_B']]|
-  best.pMap((q)->q[0].abs.agg(+) | POLYNOMIAL_FORMAT.format@(q[0]) | q[1] | q[2] | primeHitRating(q) |
+  [['diam.','polynomial','successive','distinct','of 100','of 1000','of 10000','of 100000','Hit rating','Poly_B','n_0 for Poly_B']]|
+  best.pMap((q)->q[0].abs.agg(+) | POLYNOMIAL_FORMAT.format@(q[0]) | q[1] | distinctPrimesIn(q) | q[2] | primeHitRating(q) |
     begin
       local k:=round(-q[0,1] / (2*q[0,2]));
       q[0,1]+2*q[0,2]*k < 0
@@ -114,19 +118,6 @@ main('table')->begin
       : void;
       POLYNOMIAL_FORMAT.format@shiftedForm(q[0],k) | k;
     end
-
-
-  //POLYNOMIAL_FORMAT.format@basePolynomial(q[0])
-
   ),'Prime generating polynomials',true);
+  callMemoryCleaner;
 end;
-
-
-n:=[0..50];
-7243-488*n+8*n²;
-  43+ 88*n+8*n²;
-
-basePolynomial([7243,-488,8]);
-basePolynomial([  43,+ 88,8]);
-
-

@@ -1,0 +1,18 @@
+
+
+@A000015
+primePowerGenerator->{begin
+  local pg:=primeGenerator;
+  local P:=[pg()];
+  local k:=0;
+save;
+  k+=1;
+  local pow:=[0..floor(ln(k)/ln(2))];
+  P.max<k ? P|=pg() : void;
+  pow:=cross(P,pow);
+  pow:=pow.getInner(0)^pow.getInner(1);
+  pow:=pow[pow>=k].min;
+end}.toGenerator;
+
+
+primePowerGenerator().head(70);

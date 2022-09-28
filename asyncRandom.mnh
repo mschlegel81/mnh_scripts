@@ -1,0 +1,27 @@
+
+getNewAsyncChars->begin
+  local expected:=0;
+  runScript(['name'=>'printsome',
+             'source'=>['main->[0..255].map((x)->async(::print,[x]));'],
+             "side effects"=>['alter package state','detaching','output']].toMap)
+  .map((out)->out[0]=='printline' ? out[2].softCast : void)
+  .filter(::isInt)
+  .each(n,n==expected ? begin expected  +=1; void; end
+                      : begin expected:=n+1;    n; end);
+end;
+
+K:=256;
+
+randomStream->{begin
+  local collected:=getNewAsyncChars;
+  local hash:=0;
+save;
+  while(collected.size<K,collected|=getNewAsyncChars);
+  hash:=sha256(chars[hash.digits(256)|collected.head(K)].join);
+  collected:=collected.tail(K);
+  hash;
+end}.toIteratableExpression;
+
+randomStream().agg((X)->print(X));
+
+

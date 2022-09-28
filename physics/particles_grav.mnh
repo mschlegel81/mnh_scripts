@@ -1,0 +1,423 @@
+#!C:\bin\mnh.exe -quiet -convertPrintToLog -logDateFmt hh:mm:ss -logLocationLength 15 +log stdOut(1)
+//PHYSICS SETUP:==================================================================
+TIME_STEP_SIZE:=0.07;
+ERROR_TOLERANCE:=1E-2;
+PARTICLE_COUNT:=200;
+
+REST_FRAMES:=300;
+STRETCH:=800;
+START_OF_REST:=ceil(STRETCH*3*pi/4);
+TOTAL_FRAMES:=START_OF_REST+REST_FRAMES;
+MAX_COMPRESSION:=0.1;
+MAX_SUB_STEPS:=256;
+
+ducktype ForceSetupTriplet(n:NumericList(3))->!(isNan(n) or isInfinite(n)).agg(or);
+ducktype ForceSetup(L:List(3))->L.each(f,f.isForceSetupTriplet,AND);
+type ForceTriplet(L:List(3))->L.each(F,F.isList(2) AND F[0].isExpression(1) AND F[1].isExpression(1),AND);
+
+SETUPS:=
+ [
+  'Weird'=>
+  [[0.55,1,0.04],
+   [1.4 ,1,0.06],
+   [1   ,1,0.08]].toForceSetup,
+  'Free'=>
+  [[0.1,0,0],
+   [0.1,0,0],
+   [0.1,0,0]].toForceSetup,
+  'NaCl'=>
+  [[1        ,0,0.03],
+   [sqrt(0.5),1,0.03],
+   [1        ,0,0.03]].toForceSetup,
+  'Polymer'=>
+  [[1   ,0,0.02],
+   [0.43,1,0.05],
+   [1   ,0,0.02]].toForceSetup,
+  'Dipoles'=>
+  [[1   ,0,0],
+   [0.27,1,0.05],
+   [1   ,0,0]].toForceSetup,
+  'Phobic'=>
+  [[1,1,0.04],
+   [1,0,0   ],
+   [1,1,0.04]].toForceSetup,
+  'Layers'=>
+  [[1   ,1,0.04],
+   [10/7,1,0.02],
+   [1   ,1,0.04]].toForceSetup];
+
+
+encodeHistory(x)->round(x*1000).serialize.compress;
+decodeHistory(x)->x.decompress.deserialize*1E-3;
+
+
+//PERSISTENT STATE:===============================================================
+datastore state:=begin
+  local FIBFAK:=2*pi/sqr((sqrt(5)-1)/2);
+  local p:=[1..PARTICLE_COUNT].map((n)->[cos(FIBFAK*n),sin(FIBFAK*n)]*sqrt(n));
+  [p*0.7,p*0];
+end;
+//===============================================================:PERSISTENT STATE
+
+//*Returns the system radius for a given time step index
+systemRadius(timeStepIndex)->begin
+  local i:=timeStepIndex/TOTAL_FRAMES; i:=(i-floor(i))*TOTAL_FRAMES;
+  sqrt(PARTICLE_COUNT)*MAX_COMPRESSION^(
+    i<STRETCH*pi/2   ? 0.5-0.5*cos(i/STRETCH*2) :
+    i<START_OF_REST  ? 0.5+0.5*cos(i/STRETCH*4) : 0);
+end;
+
+////*Returns the pull function for a given point in time
+calcPullFactors(distancesFromCenter,t)->begin
+   local r:=systemRadius(t/TIME_STEP_SIZE)*0.7;
+   1000/r*(r-distancesFromCenter)*ord(distancesFromCenter>r);
+//   -(10/r)*ord(distancesFromCenter>r);
+   //local a:=1000/r; r*=0.7;
+   //-sqr((distancesFromCenter-r)*a)*ord(distancesFromCenter>r);
+end;
+
+basePairs:=begin
+  local a:=[0..PARTICLE_COUNT-1].cross([0..PARTICLE_COUNT-1]);
+  a:=a[a.getInner(0)<a.getInner(1)];
+  a:=a[a.map((i)->i.max).sortPerm];
+end;
+private pairType(ij:IntList(2))->(ij and 1).agg(+);
+basePairTypes:=basePairs.map(::pairType);
+
+saveState(force:Boolean)->begin
+  local lastSaved:=scriptTime;
+save;
+  force or scriptTime>lastSaved+120
+  ? begin
+      lastSaved:=scriptTime;
+      writeDataStores;
+      log('Datastores updated');
+      true;
+    end
+  : false;
+end;
+
+switchSetup(state,frameIndex)->begin
+  local setup    :=SETUPS[frameIndex div TOTAL_FRAMES,1];
+  local i:=frameIndex mod TOTAL_FRAMES;
+  i==START_OF_REST ? saveState(true) : void;
+  i>START_OF_REST
+  ? begin
+      local i:=(i-START_OF_REST)/REST_FRAMES;
+      local nextSetup:=SETUPS[min(frameIndex div TOTAL_FRAMES+1,SETUPS.size-1),1];
+      i:=0.5-0.5*cos(pi*i);
+      setup:=setup*(1-i)+nextSetup*i;
+    end
+  : void;
+  ['forces'=>setup.makeForceTriplet,
+   'sets'=>getInteractionSets(state,setup.getInner(0).abs*1.2*(1+ord(setup.getInner(1)>0 or setup.getInner(2)>0)))].toMap;
+end;
+
+memoized makeForceTriplet(setup:ForceSetup)->setup.map((triplet)->
+  begin
+    local range  :=triplet[0];
+    local attract:=triplet[1];
+    local couple :=triplet[2];
+    [newBSpline([[0        ,-75],
+                 [0.6*range,0],
+                 [1.2*range,1.5*attract],
+                 [1.8*range,0],
+                 [2.4*range,0],
+                 [3  *range,0]]),
+     newBSpline([[0        ,4*couple],
+                 [0.6*range,2*couple],
+                 [1.2*range,  couple],
+                 [1.8*range,0],
+                 [2.4*range,0],
+                 [3  *range,0]])];
+  end).toForceTriplet;
+
+private D(forceTriplet:ForceTriplet,interactionSets)->(state:List(2),t)->begin
+  local p:=state[0];
+  local v:=state[1];
+
+  local pullFuture:=future({$p*calcPullFactors($p.euklideanNorm,$t)},[p,t]);
+  local pairInteractions:=
+  interactionSets.pEach(s,begin
+    local forceFunction:=forceTriplet[s[0],0];
+    local couplingFunc :=forceTriplet[s[0],1];
+    local K0           :=s[1,0];
+    local K1           :=s[1,1];
+    local dist:=(
+    local deltas:=p[K1]-p[K0]).euklideanNorm;
+    local accel:=deltas/dist  *forceFunction(dist)
+                +(v[K1]-v[K0])*couplingFunc (dist);
+    groupToList(accel|(-accel),
+                K0|K1,
+                0,
+                ::+,
+                p.size);
+  end,+);
+  [v,pairInteractions+pullFuture()];
+end;
+
+private D_noInteract(state:List(2),t)->begin
+  local p:=state[0];
+  local v:=state[1];
+  [v,p*calcPullFactors(p.euklideanNorm,t)];
+end;
+
+//==================================================================:PHYSICS SETUP
+//PLOTTING:=======================================================================
+SCAN_DI:=cross([-1..1],[-1..1]);
+
+nearestNeighborDistances(points:List)->begin
+  local radiusFactors:=points.euklideanNorm/systemRadius(0);
+  radiusFactors:=(1-ord(radiusFactors>0.8)*(radiusFactors-0.8)/0.2)*ord(radiusFactors<1);
+
+
+  local M:=points.group(round(points*0.7));
+  points.each(point,begin
+    local I:=round(point*0.7);
+    M.getAll((I+SCAN_DI.transpose).transpose).agg(|).each(q,q==point ? void : euklideanNorm(q-point),min).min(1/0.7);
+  end)*radiusFactors;
+end;
+
+guessExtend(P:NumericList)->
+  [[1..P.size]/P.size,P.abs.sort]
+  .transpose
+  .head(floor(0.8*P.size))
+  .map((x)->x[1]/(sqrt(1-x[0]²)*x[0]+arcsin(x[0])))
+  .{$L.agg(+)/$L.size}*2.8;
+
+private prepareForPlot(s:String)->s.decodeHistory.prepareForPlot;
+private prepareForPlot(points:List)->begin
+  local locations:=points.transpose.abs.map(::guessExtend);
+  [points,points.nearestNeighborDistances].transpose
+  .group([0..points.size-1] and 1)
+  .each(g,g[0]=>g[1].each(b,b[0]-b[1]*0.51,
+                            b[0]+b[1]*0.51))
+  .toMap
+  .mergeMaps(['xExt'=>locations[0],
+              'yExt'=>locations[1]].toMap,::orElse);
+end;
+
+private plotPreparedSystem(balls:Map)->plotPreparedSystem(balls,true);
+private plotPreparedSystem(balls:Map,animating:Boolean)->begin
+  local firstCall:=true;
+  local frameCount:=-1;
+  animating ? clearAnimation : void;
+  setOptions(
+   ['autoscaleFactor'=>1,
+    'autoscaleX'=>false,
+    'autoscaleY'=>false,
+    'axisStyleX'=>0,
+    'axisStyleY'=>0,
+    'logscaleX'=>false,
+    'logscaleY'=>false,
+    'y0'=>-systemRadius(0)*0.45,
+    'y1'=> systemRadius(0)*0.45,
+    'x0'=>-systemRadius(0)*0.45,
+    'x1'=> systemRadius(0)*0.45,
+    'preserveAspect'=>true,
+    'strictInput'=>true
+    ].toMap);
+  local CROWN:=
+    (2*pi*[0..24]/25).each(phi,[sin(phi-2*pi/100),cos(phi-2*pi/100)]*1.05,
+                               [sin(phi         ),cos(phi        )],
+                               [sin(phi+2*pi/100),cos(phi+2*pi/100)]*1.05,
+                               [Nan,Nan])*0.7;
+save;
+  local r:=systemRadius(frameCount+=1);
+  balls[0].plot('blue e fs 0');
+  balls[1].addPlot('RGB1,0.5,0 e fs 0');
+  addPlot(r*CROWN,'RGB1,1,1 4');
+  addPlot(r*CROWN,'black 2');
+  animating ? begin
+    addAnimationFrame;
+    firstCall
+    ? display
+    : postDisplay;
+    firstCall:=false;
+  end : void;
+end;
+
+
+mutable plotQueue:=[];
+synchronized plotQueuePut(balls)->begin
+  plotQueue|=[balls];
+end;
+
+synchronized plotQueueGet->begin
+  local result:=plotQueue[0];
+  result.isVoid ? void : plotQueue:=plotQueue.tail;
+  result;
+end;
+
+plotThread:=isGuiStarted
+  ? async({begin
+      {begin local next:=void; save; while((next:=plotQueueGet).isVoid,sleep(1)); next=='QUEUE_END' ? void : next; end}
+      .toIteratableExpression
+      .pMap(::prepareForPlot)
+      .agg((sys)->plotPreparedSystem(sys));
+      true;
+    end})
+  : warn('No plot thread started.') orElse {true};
+//=======================================================================:PLOTTING
+//PARTITIONING:===================================================================
+getInteractionSets(state:List(2),maxForceRange:NumericList(3))->begin
+  //The max. distance that two particles can move apart during one step is maxSpatialStep
+  local maxSpatialStep:=state[1].euklideanNorm.max*TIME_STEP_SIZE;
+  local safeRange:=maxForceRange+maxSpatialStep;
+
+  local mask:=euklideanNorm(state[0,basePairs.getInner(0)]-state[0,basePairs.getInner(1)])<=safeRange[basePairTypes];
+  local sets:=group(basePairs[mask],basePairTypes[mask]).toList;
+  sets.size=0 ? return [] : void;
+//  while(sets.size<mnhInfo['configured_cpus'],begin
+//    sets:=sets[sets.map((s)->s[1].size).sortPerm];
+//    local setToSplit:=sets.trailing;
+//    sets:=sets.leading|
+//    [[setToSplit[0],setToSplit[1].head(setToSplit[1].size div 2)],
+//     [setToSplit[0],setToSplit[1].tail(setToSplit[1].size div 2)]];
+//  end);
+  sets.filter((s)->s[1].size>0).map((s)->[s[0],s[1].transpose]);
+end;
+//===================================================================:PARTITIONING
+//calcPullFactors(distancesFromCenter,t)->begin
+//   local r:=systemRadius(t/TIME_STEP_SIZE);
+//   local a:=1000/r; r*=0.7;
+//   -sqr((distancesFromCenter-r)*a)*ord(distancesFromCenter>r);
+//end;
+
+//TIME INTEGRATION:===============================================================
+//*Bogacki-Shampine step
+private microTimestep(f,y0:List(2),t0,dt)->begin
+  local F0:=dt*f(y0        ,t0);
+  local F1:=dt*f(y0+0.5*F0 ,t0+0.5 *dt);
+  local F2:=dt*f(y0+0.75*F1,t0+0.75*dt);
+  local F3:=dt*f(local result:=y0+0.2222222222222222*F0+
+                                  0.3333333333333333*F1+
+                                  0.4444444444444444*F2,t0+dt);
+   [result,((y0+0.29166666666666669*F0
+               +0.25               *F1
+               +0.3333333333333333 *F2
+               +0.125              *F3-result).flatten.abs.max/ERROR_TOLERANCE)^0.3333333333333333];
+end;
+
+mutable microStepCount   :=0;
+mutable rejectedStepCount:=0;
+
+timeStepRecursive(f,y0:List(2),t0,dt)->begin
+  microStepCount+=1;
+  local y1:=microTimestep(f,y0,t0,dt);
+  y1[1]<=1
+  ? return y1[0]
+  : rejectedStepCount+=1;
+
+  local subSteps:=ceil(y1[1]).min(MAX_SUB_STEPS);
+  local y:=y0;
+  local dtSub:=dt/subSteps;
+  [0..subSteps-1].each(k,begin
+    y:=timeStepRecursive(f,y,t0+k*dtSub,dtSub);
+  end,trailing);
+end;
+
+private timeStep(setup:Map,timeStepIndex:Int,state:List(2))->begin
+  local microStepsPerStep:=1;
+save;
+  local msBefore:=microStepCount;
+  local interactionSets:=setup['sets'] orElse fail;
+  local df:=interactionSets.size==0
+            ? ::D_noInteract
+            : D(setup['forces'] orElse fail,
+                interactionSets);
+  local y:=state;
+  local subSteps:=round(microStepsPerStep);
+  local t0:=timeStepIndex*TIME_STEP_SIZE;
+  local dtSub:=TIME_STEP_SIZE/subSteps;
+  [0..subSteps-1].each(k,y:=timeStepRecursive(df,y,t0+dtSub*k,dtSub));
+  microStepsPerStep:=microStepsPerStep*0.9+max(1,microStepCount-msBefore-1)*0.1;
+  y;
+end;
+
+datastore positionHistory:=[state[0].encodeHistory];
+
+//===============================================================:TIME INTEGRATION
+main->begin
+  print('Setting up calculation...');
+  assertUniqueInstance;
+  local prevOutput:=scriptTime-1000;
+  log('Resuming calculation @',positionHistory.size,' with setup ',SETUPS[positionHistory.size div TOTAL_FRAMES,0],' and ',state[0].size,' particles');
+  assert(state.size=2);
+  assert(state[0].size=state[1].size);
+
+  isGuiStarted ? plotQueue:=positionHistory : void;
+
+  local start:=scriptTime;
+  local framesStart:=size(positionHistory);
+  local doOutput:={begin
+          prevOutput:=scriptTime;
+          local stepsDone:=size(positionHistory)-framesStart;
+          printf('%5d (%5.2f/s); mSteps: %5.2f(%5.2f); %s +%4d; c: %5.2f',
+                 size(positionHistory),
+                 stepsDone/(scriptTime-start),
+                 microStepCount/stepsDone,
+                 rejectedStepCount/stepsDone,
+                 SETUPS[min(positionHistory.size div TOTAL_FRAMES,SETUPS.size-1),0],
+                 positionHistory.size mod TOTAL_FRAMES,
+                 systemRadius(positionHistory.size));
+          microStepCount   :=0;
+          rejectedStepCount:=0;
+          start            :=scriptTime;
+          framesStart      :=positionHistory.size;
+        end};
+  while(positionHistory.size<TOTAL_FRAMES*SETUPS.size,begin
+    state:=switchSetup(state,positionHistory.size-1).timeStep(positionHistory.size-1,state);
+    isGuiStarted ? plotQueuePut(state[0]) : void;
+
+    positionHistory|=[state[0].encodeHistory];
+    saveState(false) OR (scriptTime>30+prevOutput)
+    ? doOutput()
+    : void;
+  end);
+  doOutput();
+  plotQueuePut('QUEUE_END');
+  while(plotThread().isVoid,sleep(0.1));
+end;
+
+main('replay')->begin
+  assertGuiStarted;
+  local rescan:=true;
+  local displayed:=0;
+  local toDisplay:=void;
+  while(rescan,begin
+    toDisplay:=positionHistory.size;
+    print('Displaying frames ',displayed,'..',toDisplay);
+    plotQueue:=positionHistory.head(toDisplay).tail(displayed);
+    displayed:=toDisplay;
+    local pendingBefore:=-1;
+    while(plotQueue.size>0,
+      begin
+        local pending:=plotQueue.size;
+        pending==pendingBefore
+        ? void
+        : print(pendingBefore:=pending,' frames pending');
+        sleep(1);
+      end);
+    rescan:=ask('Rescan?',['Yes','No'])=='Yes';
+  end);
+  print('Waiting for plot queue processing end');
+  plotQueuePut('QUEUE_END');
+  while(plotThread().isVoid,sleep(1));
+end;
+
+main('render')->begin
+  positionHistory
+  .toIteratableExpression
+  .pMap(::prepareForPlot)
+  .each(preparedPlot,begin
+     preparedPlot.plotPreparedSystem(false);
+     local filename:=format('%s_%5.5d.png',myPath.extractFileNameOnly,index);
+     fileExists(filename)
+     ? log('Skipping  ',filename,' (',round(index/positionHistory.size*100,2),'%)')
+     : begin
+         log('Rendering ',filename,' (',round(index/positionHistory.size*100,2),'%)');
+         renderToFile(filename,1920,1080,true);
+       end;
+   end);
+end;

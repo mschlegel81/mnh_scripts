@@ -17,7 +17,7 @@ main(initialSize_,depth_)->begin
   local center:=M[1]/2;
   local BOXES:=indexOf(M[0]).divMod(M[1]).toSet;
 
-  BOXES:=BOXES.sort.each(b,b-center,b-center+1);
+  BOXES:=BOXES.unique.each(b,b-center,b-center+1);
 
   setOptions(["x0"=>-M[1]/2,"x1"=>M[1]/2,"y0"=>-M[1]/2,"y1"=>M[1]/2,"preserveAspect"=>true,"autoscaleX"=>false,"autoscaleY"=>false,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
   ([FRAME_COUNT-1..0]/FRAME_COUNT).each(relativeStep,begin
@@ -25,8 +25,11 @@ main(initialSize_,depth_)->begin
     local zoom:=0.5*4^relativeStep;
     plot    (BOXES*zoom   ,'box fs 0 RGB0,0,0,'&(  relativeStep));
     addPlot(BOXES*(zoom*4),'box fs 0 RGB0,0,0,'&(1-relativeStep));
-    isGuiStarted ? addAnimationFrame : void;
-    renderPlotToCurrentImage(TEMP_SIZE,TEMP_SIZE);
-    executeWorkflow(['resize:'&TARGET_SIZE&'x'&TARGET_SIZE,'quantize:32,2,0'],'-',myPath.changeFileExt(format('_%sr%s_%2.2d.png',INITIAL_SIZE,DEPTH,index)));
+    isGuiStarted
+    ? addAnimationFrame
+    : begin
+        renderPlotToCurrentImage(TEMP_SIZE,TEMP_SIZE);
+        executeWorkflow(['resize:'&TARGET_SIZE&'x'&TARGET_SIZE,'quantize:32,2,0'],'-',myPath.changeFileExt(format('_%sr%s_%2.2d.png',INITIAL_SIZE,DEPTH,index)));
+      end;
   end);
 end;

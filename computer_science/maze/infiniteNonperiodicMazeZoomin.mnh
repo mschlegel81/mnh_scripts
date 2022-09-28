@@ -1,5 +1,7 @@
 #!C:\bin\mnh.exe -quiet -convertPrintToLog -logDateFmt hh:mm:ss -logLocationLength 15 -log stdOut(1)
 USE mazeMaker;
+MY_IPC_ID:='592pN'&myPath.base64encode;
+KILL_MESSAGE:='KILL';
 
 SCALE_THRESHOLD:=0.002;
 
@@ -9,10 +11,24 @@ datastore scale;
 datastore COARSER_BOXES;
 datastore outputIndex:=-1;
 
- tempFileName(k)->myPath.changeFileExt(format('_temp_%4.4d.png',k));
+ tempFileName(k)->myPath.changeFileExt(format('_temp_%4.4d.bmp',k));
 finalFileName(k)->myPath.changeFileExt(format('_%4.4d.png',k));
 
+mutable quitRequested:=false;
+
+ensureServer->begin
+  assert(!isIpcServerRunning(MY_IPC_ID));
+  startIpcServer(MY_IPC_ID,
+    (request)->request==KILL_MESSAGE
+               ? begin
+                   log('Received kill request');
+                   quitRequested:=true;
+                 end
+               : false);
+end;
+
 postProcessFile(fileIndex:Int)->begin
+  !quitRequested AND
   !fileExists(local fOut:=finalFileName(fileIndex)) AND
   (fileExists(local fIn :=tempFileName (fileIndex)) OR
    fileExists(      fIn:=fIn.changeFileExt('.png')) OR
@@ -28,33 +44,25 @@ end;
 
 main('postprocess')->outputIndex<0 ? void : begin
   assertUniqueInstance;
-  local quitRequested:=false;
-  localAsync({begin
-    ask('Press Enter to quit');
-    quitRequested:=true;
-  end});
+  ensureServer;
   rangeGenerator(0,outputIndex)
-  .pMap((k)->quitRequested ? void : postProcessFile(k))
+  .pMap(::postProcessFile)
   .toList;
 end;
 
 backgroundPngProcessing->
   future({begin
     note('Restarted background PNG processing');
-    [0..outputIndex].map(::postProcessFile);
+    while(!quitRequested,rangeGenerator(0,outputIndex).pMap(::postProcessFile).agg(or) orElse sleep(10));
     true;
   end});
 
+main('kill')->sendIpcRequest(MY_IPC_ID,KILL_MESSAGE);
+
 main->begin
   assertUniqueInstance;
-  local quitRequested:=false;
-  localAsync({begin
-    ask('Press Enter to quit');
-    quitRequested:=true;
-  end});
-
+  ensureServer;
   local pngProcessing:=backgroundPngProcessing;
-
   res.isVoid
   ? begin
       res:=[5,5];
@@ -68,7 +76,7 @@ main->begin
   local center:=res.reverseList/2;
   local BOXES:=indexOf(M).divMod(res[0]).pEach(b,b-center,b-center+1);
 
-  while(!quitRequested AND scale<=SCALE_THRESHOLD
+  while(!quitRequested
   ,begin
     scale>SCALE_THRESHOLD ? begin
       local cropBound:=floor(center.reverseList-1-[9/16,1]/scale);
@@ -144,7 +152,8 @@ main->begin
     log('Writing ',filename);
     renderToFile(filename,1920*4,1080*4,!quitRequested);
     outputIndex+=1;
-    scale*=4^(1/80);
+    scale*=4^(1/40);
+    writeDataStores;
   end);
 
   COARSER_BOXES.pMap(::hash);

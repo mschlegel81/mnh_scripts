@@ -1,0 +1,43 @@
+RES:=(plotImageSize div 3).map((d)->max(d,100));
+RES:=[100,100];
+ord(gcd@(cross([1..RES[1]],[1..RES[0]]).transpose)=1).plotRasterImage(RES[0]);
+
+//halt;
+
+
+cross([1..RES[1]],[1..RES[0]])
+.pMap((k)->gcd@k = 1 ? 1 :
+  k[0].factorize.unique==[2  ] ? [1,0,0] :
+  k[0].factorize.unique==[2,3] ? [0,0.5,0] :
+  k[0].factorize.unique==[2,5] ? [0,0,1] : 0
+
+)
+.plotRasterImage(RES[0]);
+
+[1..100].map(::factorize).map(::unique).elementFrequency.sort(1);
+
+BLOCKSIZE:=5;
+
+//intRandomGenerator(intRandom(2^128),2^63-2)
+//.chunkMap(2)
+//.pMap((x)->gcd@(rangeGenerator(x[0]+1,x[0]+BLOCKSIZE).toList.cross(
+//                rangeGenerator(x[1]+1,x[1]+BLOCKSIZE).toList).transpose)=1)
+//.head(100000)
+//.elementFrequency
+//.map((i)->i[0].ord.chunkMap(BLOCKSIZE,::join).toList.join(' ')=>i[1])
+//.sort;
+
+
+setOptions(["x0"=>-1,"x1"=>1,"y0"=>-1,"y1"=>1,"fontsize"=>10,"preserveAspect"=>false,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>7,"axisStyleY"=>7].toMap);
+
+intRandomGenerator(intRandom(2^128),2^63-2)
+.chunkMap(2)
+.pMap((x)->(gcd(x[0]+1,rangeGenerator(x[1]+1,x[1]+BLOCKSIZE).toList)=1).ord.join)
+.head(10^6)
+.elementFrequency
+.sort
+.{begin $L.map(::log); $L; end}
+.getInner(1)
+.|(0)
+.plot('bar f red 0.5');
+

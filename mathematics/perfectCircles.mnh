@@ -97,7 +97,7 @@ plotCircles(k,m:MoebiusTransformationParameters)->begin
     circle[0,1]<=boundingBox[1,1] AND
     !(isNan(circle[1]) OR isInfinite(circle[1])) AND
     circle[1]>lowerRadiusThreshold
-    ? print(scale*[cos(par[1]*$i),sin(par[1]*$i)],',',r0*scale,'->',circle) orElse
+    ? note(scale*[cos(par[1]*$i),sin(par[1]*$i)],',',r0*scale,'->',circle) orElse
       [(($i mod k)+k) mod k in [0,4,k-4] ? 0 : 1, circle]
     : void;
   end});
@@ -108,7 +108,6 @@ plotCircles(k,m:MoebiusTransformationParameters)->begin
     local style:='ellipse f HUE'&(colorGroup[0]*0.15);
     colorGroup[1].each(c,c[0]-c[1],c[0]+c[1]).addPlot(style);
   end);
-
 end;
 
 //*Creates and displays an animation
@@ -158,6 +157,11 @@ animateTransformation(spiralIndex:Int,
   map(([0..numberOfSteps-1]/(numberOfSteps-1)*shiftByIndex),
     {[par.center($x),[0,0],[0,0],[1,0]].toMoebiusTransformationParameters});
 end;
+//
+//animateTransformation(21,1,10).agg((x)->begin
+//  plotCircles(21,x.toMoebiusTransformationParameters);
+//
+//end);
 
 //[[1,0],[0,0],[1,0],[1,0]].toMoebiusTransformationParameters.transform
 //(transformation(7,1,[0,0],[1E10,0])).normalizedMoebiusParameters;
@@ -176,7 +180,10 @@ zoomRotate(spiralIndex:Int,
    'angle'=>arctan2(c[1],c[0])*180/pi ].toMap;
 end;
 
-animateTransformation(20,1,30).map({[[1,0],[0,0],[1,0],[1,0]].toMoebiusTransformationParameters.transform($p).toBuiltin});
+animateTransformation(20,1,31).map({[[1,0],[0,0],[1,0],[1,0]].toMoebiusTransformationParameters.transform($p).toBuiltin});
+
+
+//.map({[[1,0],[0,0],[1,0],[1,0]].toMoebiusTransformationParameters.transform($p).toBuiltin});
 
 
 

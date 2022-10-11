@@ -1,0 +1,136 @@
+x:=0.8;
+r:=0.5;
+
+plot([[-1,-1],[1,1],
+      [ x,0]-r,[x,0]+r],'ellipse');
+
+
+//  c0 = [0,0]; r0=1;
+//  c1 = [x,0]; r1=r
+//Intersection point:
+//   |p-c0| = 1
+//   |p-c1| = r
+//=>  px²   +py² = 1
+//=> (px-x)²+py² = r²
+//   (px-x)²-px² = r²-1
+//   -2*x*px+x²  = r²-1
+//    px         = (1+x²-r²)/(2*x)
+//    py = sqrt(1-px²);
+//Intersection angle:
+//   cos(alpha) =  d0*d1 / (|d0|*|d1|)
+//              =  (px*(px-x)+py²) / r
+//
+
+px:=(1+x²-r²)/(2*x);
+py:=sqrt(1-px²);
+[px,py];
+addPlot([[0,0],[px,py],[x,0] ]);
+alpha:=arccos((px*(px-x)+py²) / r)/pi*180;
+
+// cos(alpha)*r          = px*(px-x)+py²
+// cos(alpha)*r          = px²-px*x+py²    | px²+py²=1
+// cos(alpha)*r          = 1-px*x          | px = (1+x²-r²)/(2*x)
+// cos(alpha)*r          = 1/2-x²/2
+// cos(alpha)*r-r²/2-1/2 = -x²/2
+//* sqrt(r²-2*cos(alpha)*r+1) = x
+// r²-2*cos(alpha)*r+1 = x²
+//* r = cos(alpha)+sqrt(x²+cos(alpha)²-1)
+
+
+
+
+//Angle between intersection points:
+//   2*pi/k          = 2*arccos(px)
+//     pi/k          =   arccos(px)
+// cos(pi/k)         =          px       | px = (1+x²-r²)/(2*x)
+// cos(pi/k)         = (1+x²-r²)/(2*x)   | x = sqrt(r²-2*ca*r+1)
+// cb                = (1+(r²-2*ca*r+1)-r²)/(2*sqrt(r²-2*ca*r+1))
+// cb                = (2    -2*ca*r      )/(2*sqrt(r²-2*ca*r+1))
+// cb                = (1    -  ca*r      )/   sqrt(r²-2*ca*r+1)
+// cb²               = (1 - ca*r)²/ (r²-2*ca*r+1)
+// cb²*(r²-2*ca*r+1) = ca²r²- 2*ca*r + 1²
+// 0                 = r²(ca²-cb²) + r*2*(ca*cb²-ca) + 1²-cb²
+// 0                 = r²          + r*2*(ca*cb²-ca)/(ca²-cb²) + (1²-cb²)/(ca²-cb²)
+// r² + r*2*p + q = 0
+// r = sqrt(p²-q)-p
+
+getArc(centerX:Numeric,radius>0.0)->begin
+  local px:= (1+centerX²-radius²)/(2*centerX);
+  local py:= sqrt(1-px²);
+  local gamma:=pi+arctan2(py,centerX-px);
+//  arc(radius,centerX,gamma);
+  local t:=[0..10]/10;
+  [cos(gamma+t*2*(pi-gamma))*radius+centerX,
+   sin(gamma+t*2*(pi-gamma))*radius].transpose;
+end;
+
+
+arcSet(contactAngle,k)->begin
+  local cb:=cos(pi/k);
+  local ca:=cos(contactAngle);
+  local p:=(ca*cb²-ca)/(ca²-cb²);
+  local q:=(1²-cb²   )/(ca²-cb²) ;
+
+  local radius:=sqrt(p²-q)-p;
+  local dx    :=sqrt(radius²-2*ca*radius+1);
+
+  local arc:=getArc(dx,radius);
+
+  (2*pi/k*([0..k-1]+0.5)).each(phi,
+    begin
+      local c:=cos(phi);
+      local s:=sin(phi);
+      arc.map((P)->[P[0]*c+P[1]*s,
+                   -P[0]*s+P[1]*c]);
+    end,
+    [[Nan,Nan]],|);
+
+//  [dx,radius];
+
+end;
+
+arcSet(pi/2,16);
+
+plot([[-1,-1],[1,1]],'black ellipse');
+//addPlot([[1.0195911582083184,0]-0.19891236737965803,
+//         [1.0195911582083184,0]+0.19891236737965803],'red ellipse');
+arcSet(pi/2,4).addPlot('c');
+arcSet(pi/2,8).addPlot('c');
+arcSet(pi/2,16).addPlot('c');
+arcSet(pi/2,32).addPlot('c');
+
+
+halt;
+
+
+
+//arc(r,c,gamma)->(t)->[cos(gamma+t*2*(pi-gamma))*r+c,
+//                      sin(gamma+t*2*(pi-gamma))*r];
+
+
+
+
+
+
+
+ca:=0;
+plot([[-1,-1],[1,1]],'red ellipse');
+
+//map([1..20]/10,(x)->[x,ca-sqrt(x²+ca²-1)])
+//.filter((xr)->!isNan(xr[1]))
+//.each(xr,
+//  [xr[0],0]-xr[1],
+//  [xr[0],0]+xr[1]).addPlot('blue ellipse');
+
+//map([1..20]/10,(r)->[sqrt(r²+2*ca*r+1),r])
+//.each(xr,
+//  [-xr[0],0]-xr[1],
+//  [-xr[0],0]+xr[1]).addPlot('blue ellipse');
+
+map([1..20]/10,(r)->[sqrt(r²+2*ca*r+1),r])
+.map((xr)->getArc@xr)
+//.addPlot('.');
+.each(f,addPlot(f,'black c'));
+
+
+

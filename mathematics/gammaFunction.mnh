@@ -1,0 +1,26 @@
+fak(i>0)->[1..i].agg(*);
+fak(i<=0)->1;
+
+gamma(z)->integrate((t)->t^(z-1)*exp(-t),0  ,z-1,1E-6)
+         +integrate((t)->t^(z-1)*exp(-t),z-1,1E6,1E-6);
+
+f(x:Real)->begin
+  local i:=floor(x);
+  i>0 ? ([1..i]+(x-i)).agg(*)*gamma((x-i)+1)
+      :                       gamma((x-i)+1);
+end;
+
+GAMMA_SPLINE:=map([0..100]/100,(y)->[y,gamma(y+2)/(y+1)]).newSplineInterpolator;
+g(x<0.0)->GAMMA_SPLINE(x-floor(x))/(x+1);
+g(x<1.0)->GAMMA_SPLINE(x);
+g(x    )-> (x-[0..floor(x)-1]).agg(*)*GAMMA_SPLINE(x-floor(x));
+
+setOptions(["x0"=>-1,"x1"=>1,"y0"=>-1,"y1"=>1,"fontsize"=>10,"preserveAspect"=>false,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>7,"axisStyleY"=>7].toMap);
+
+
+time({plot((x)->gamma(x+2)/(x+1)     ,-0.9,3,1000)});
+time({addPlot(::g                    ,-0.9,3,1000)});
+
+//          [0..3].map((i)->[i,fak(i)]).plot('l i');
+//addPlot(::f,0,3,1000);
+//addPlot((x)->gamma(x+1),0,3,1000);

@@ -80,16 +80,16 @@ CIRCLES:=[[[0,0],1],
           [[-0.5,0],0.5],
           [[ 0.5,0],0.5]];
 
-//begin
-//  ([0..100]/100).each(q,begin
-//    local T:=(T0*(1-q)+T1*q).toMoebiusTransformationParameters;
-//    POINTS .map({T.transform($p)}).plot;
-//    CIRCLES.map({T.transformCircle@$c}).each(c,c[0]-c[1],c[0]+c[1]).addPlot('ellipse f');
-//    addPlot([-T[1].d(T[0])],'blue 2 .');
-//    addAnimationFrame;
-//  end);
-//
-//end;
+begin
+  ([0..100]/100).each(q,begin
+    local T:=(T0*(1-q)+T1*q).toMoebiusTransformationParameters;
+    POINTS .map({T.transform($p)}).plot;
+    CIRCLES.map({T.transformCircle@$c}).each(c,c[0]-c[1],c[0]+c[1]).addPlot('ellipse f');
+    addPlot([-T[1].d(T[0])],'blue 2 .');
+    addAnimationFrame;
+  end);
+
+end;
 
 private complexDet(a00:NumericList(2),a01:NumericList(2),a02:NumericList(2),
                    a10:NumericList(2),a11:NumericList(2),a12:NumericList(2),
@@ -119,3 +119,6 @@ transformationBy3Points(z1:NumericList(2),w1:NumericList(2),
 end;
 
 transformationBy3Points([1,1],[1,1],[0,0],[0,0],[1,0],[1,0]);
+
+
+

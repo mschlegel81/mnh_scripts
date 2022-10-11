@@ -1,0 +1,172 @@
+//NCW:=[0=>[1],
+//      1=>[1/2,1/2],
+//      2=>[2/3,-1/3,2/3],
+//      3=>[11/24,1/24 ,1/24,11/24],
+//      4=>[11/20,-14/20,26/20,-14/20,11/20],
+//      5=>[611/1440,-453/1440,562/1440,562/1440-453/1440,611/1440],
+//      6=>[460/945,-954/945,2196/945,-2459/945,2196/945,-954/945,460/945]].toMap;
+
+McLaurinWeights:=[0=>[1],
+      1=>[1,1]/2,
+      2=>[3,2,3]/8,
+      3=>[13,11,11,13]/48,
+      4=>[275,100,402,100,275]/1152].toMap;
+
+INT(samples:NumericList,h>0.0,maxSize)->begin
+  samples.chunkMap(maxSize,
+    (L)->begin
+      (L*McLaurinWeights[L.size-1]).agg(+)*h*L.size;
+    end).agg(+);
+end;
+
+NewtonCotesWeights:=[0=>[1],
+                     1=>[1,1]/2,
+                     2=>[1,4,1]/6,
+                     3=>[1,3,3,1]/8,
+                     4=>[7,32,12,32,7]/90,
+                     5=>[19,75,50,50,75,19]/288,
+                     6=>[41,216,27,272,27,216,41]/840].toMap;
+
+INT2(samples:NumericList,h>0.0,maxSize)->begin
+  local lastSample:=samples.trailing;
+  local Q:=samples.leading.chunkMap(maxSize-1).toList;
+  [Q,Q.tail|[[lastSample]]].transpose.pEach(chunk,begin
+    local L:=chunk[0]|chunk[1].head;
+    (L*NewtonCotesWeights[L.size-1]).agg(+)*h*(L.size-1);
+  end,+);
+end;
+
+
+//setOptions(["x0"=>1E-100,"x1"=>1,"y0"=>1E-100,"y1"=>1,"fontsize"=>10,"preserveAspect"=>false,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>true,"logscaleY"=>true,"autoscaleFactor"=>1,"axisStyleX"=>7,"axisStyleY"=>7].toMap);
+//(2^[1..15]).each(n, begin
+//  log(n);
+//  local h:=pi/n;
+//  local Y:=sin(([0..n-1]+0.5)*h);
+//  [n,
+//   abs(Y.INT(h,1)-2),
+//   abs(Y.INT(h,2)-2),
+//   abs(Y.INT(h,3)-2),
+//   abs(Y.INT(h,4)-2),
+//   abs(Y.INT(h,5)-2)];
+//end).transpose.{begin
+//  plot   ($L[0],$L[1],'l + black');
+////  addPlot($L[0],$L[2]'. l');
+////addPlot($L[0],$L[3],'l + red');
+////addPlot($L[0],$L[4],'l + blue');
+//  addPlot($L[0],$L[5],'l + green');
+//end};
+//
+//setOptions(["x0"=>1E-100,"x1"=>1,"y0"=>1E-100,"y1"=>1,"fontsize"=>10,"preserveAspect"=>false,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>true,"logscaleY"=>true,"autoscaleFactor"=>1,"axisStyleX"=>7,"axisStyleY"=>7].toMap);
+//(2^[1..15]).each(n, begin
+//  log(n);
+//  local h:=pi/(n-1);
+//  local Y:=sin([0..n-1]*h);
+//  [n,
+//   abs(Y.INT2(h,2)-2),
+//   abs(Y.INT2(h,3)-2),
+//   abs(Y.INT2(h,4)-2),
+//   abs(Y.INT2(h,5)-2),
+//   abs(Y.INT2(h,6)-2)];
+//end).transpose.{begin
+//  addPlot($L[0],$L[1],'. l black');
+//  //addPlot($L[0],$L[2],'. l red');
+//  //addPlot($L[0],$L[3],'. l blue');
+//  addPlot($L[0],$L[4],'. l green');
+//  addPlot($L[0],$L[5],'. l orange');
+//end};
+////
+////
+////
+
+USE linAlg;
+
+begin
+  //f(x) = a[0]+a[1]*x+a[2]*x²+...
+  //x[i] = i/n
+
+
+  // | 1 x[0] x[0]² ... |   | a[0] |   | y[0] |
+  // | 1 x[1] x[1]² ... | * | a[1] | = | y[1] |
+  // | 1 x[2] x[2]² ... |   | a[2] |   | y[2] |
+  // | ...              |   | ...  |   | ...  |
+  //
+  // | a[0] |   | 1 x[0] x[0]² ... |^-1   | y[0] |
+  // | a[1] | = | 1 x[1] x[1]² ... |    * | y[1] |
+  // | a[2] |   | 1 x[2] x[2]² ... |      | y[2] |
+  // | ...  |   | ...              |      | ...  |
+  //
+  // integral f(x), _0^1 = a[0] + a[1]/2 + a[2]/(2*3) + a[3]/(2*3*4) + ...
+  //                                 | a[0] |
+  // = | 1/1! 1/2! 1/3! 1/4! ... | * | a[1] |
+  //                                 | a[2] |
+  //                                 | ...  |
+  //
+  //                                 | 1 x[0] x[0]² ... |^-1   | y[0] |
+  // = | 1/1! 1/2! 1/3! 1/4! ... | * | 1 x[1] x[1]² ... |    * | y[1] |
+  //                                 | 1 x[2] x[2]² ... |      | y[2] |
+  //                                 | ...              |      | ...  |
+
+  local n:=4;
+  local points:=[1..n]/n;
+  log('Points: ',points);
+
+  local M:= points.each(x,x^[0..points.size-1]);
+
+  M.map((row)->row.join("\t")).join("\n").print;
+  print;
+  M:=M.toSquareMatrix.invert.toBuiltin;
+
+  M.map((row)->row.join("\t")).join("\n").print;
+
+  log('Weights: ',local w:=M.each(r,r/((1+index)),+));
+
+  local y:=1/sqrt(points);
+
+  log('Integral (approx)=',(y*w).agg(+));
+
+  (M.toMatrix*[y].transpose.toMatrix).flatten;
+end;
+
+setOptions(["x0"=>-1,"x1"=>1,"y0"=>-1,"y1"=>1,"fontsize"=>10,"preserveAspect"=>false,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>7,"axisStyleY"=>7].toMap);
+plot((x)->1/sqrt(x),0.2,1,1000);
+map([1..4]/4,(x)->x=>1/sqrt(x)).addPlot('.');
+addPlot((x)->3.133520779278437+x*(-5.9248330377747775+x*(6.153562157360021+x*-2.362249898863686))
+             ,0.2,1,1000);
+
+integrate((x)->1/sqrt(x),1E-6,1,1E-12);
+
+valid(i:Int)->true;
+valid(n:Real)->!isInfinite(n) AND !isNan(n);
+
+adaptiveIntegrate(f:Expression,x0,dx,y0,y2,y4,kMax>=0)->begin
+  local y1:=f(x0+dx*0.25);
+  local y3:=f(x0+dx*0.75);
+
+  local i1:=([7,32,12,32,7]/90*[y0,y1,y2,y3,y4]).agg(+);
+  local i2:=([1,4,1]/6        *[y0,   y2   ,y4]).agg(+);
+
+  (i1-i2)*dx²;
+
+
+end;
+
+
+begin
+  local h:=0.1;
+  adaptiveIntegrate(::sqrt,0,1,sqrt(0),sqrt(h/2),sqrt(h),10);
+
+end;
+
+
+// | | | -> ||||| = ||| + |||
+// * | | -> *|||| = *|| + |||
+// | * | -> ||*|| = ||* + *||
+// * * | -> *|*|| = *|* + *||
+// | | * -> ||||* = ||| + ||*
+// * | * -> *|||* = *|| + ||*
+// | * * -> ||*|* = ||* + *|*
+// * * * -> *|*|* = *|* + *|*
+
+
+
+

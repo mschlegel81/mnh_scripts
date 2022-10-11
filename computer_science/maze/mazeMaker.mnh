@@ -255,7 +255,9 @@ makePeriodicFractalMaze(depth>0,initialSize>=1)->begin
   [makeMaze(largerSize,largerSize,mask and !initialSet,initialSet),largerSize];
 end;
 
-makeFractalMaze(480,270).plotMaze(480);
+makeMaze(201,201).ord.plotRasterImage(201);
+
+//makeFractalMaze(480,270).plotMaze(480);
 
 
 //

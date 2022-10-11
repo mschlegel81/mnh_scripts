@@ -27,7 +27,7 @@ main->begin
   display;
   rangeGenerator(0)
     .pMap({factorPlottable(modulus,$index/50)})
-    .map(::renderFrame);
+    .agg((f)->renderFrame(f));
 end;
 
 

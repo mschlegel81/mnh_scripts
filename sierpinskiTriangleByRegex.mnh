@@ -9,8 +9,8 @@ stringForCoordinate(depth,q:IntList(2))->
   Letter[binaryForm(q[0],depth)
         +binaryForm(q[1],depth)*2].join;
 
-memoized allCoordinateStrings(Q:Int)->
-  cross([2^Q-1..0],[0..2^Q-1]).map((q)->stringForCoordinate(Q,q));
+memoized allCoordinateStrings(depth:Int)->
+  cross([2^depth-1..0],[0..2^depth-1]).map((q)->stringForCoordinate(depth,q));
 
 
 demo->begin
@@ -88,8 +88,8 @@ begin
     while(!stop AND 2^(Q+=1)<=plotImageSize.max*1.5,begin
       local R:=2^Q;
       local t0:=scriptTime;
-      local p:=
-      ord(!allCoordinateStrings(Q).matches(workReg));
+      local p:=ord(!(allCoordinateStrings(Q).matches(workReg)));
+      log(trueCount(p==1)/p.size);
       setOptions(["axisStyleX"=>0,
                   "axisStyleY"=>0].toMap);
       plot();

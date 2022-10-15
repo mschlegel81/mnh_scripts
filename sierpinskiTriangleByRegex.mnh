@@ -1,0 +1,81 @@
+memoized binaryForm(i:Int,k)->begin
+  local d:=digits(i,2).reverseList;
+  while(d.size<k,d|=0);
+  d.reverseList;
+end;
+
+Letter:=['A','B','C','D'];
+curry stringForCoordinate(depth,q:IntList(2))->
+  Letter[binaryForm(q[0],depth)
+        +binaryForm(q[1],depth)*2].join;
+
+begin
+  setOptions(["x0"=>0,
+              "x1"=>1,
+              "y0"=>0,
+              "y1"=>1,
+              "preserveAspect"=>true,
+              "autoscaleX"=>false,
+              "autoscaleY"=>false,
+              "logscaleX"=>false,
+              "logscaleY"=>false,
+              "axisStyleX"=>0,
+              "axisStyleY"=>0].toMap);
+  local toGrid:=(L)->L.each(q,[0,q],[1,q],[Nan,Nan],[q,0],[q,1],[Nan,Nan]);
+
+  [(p)->true,(p)->p[1].matches('^(A|B|C)*$')].each(filterFunction,begin
+
+
+    toGrid(([0..2]    )/2).plot('0.8 black');
+    local Q:=1;
+    local diam:=2^-Q;
+    cross([0..2^Q-1],[0..2^Q-1])
+    .map((c)->[(c+0.5)*diam,stringForCoordinate(Q,c)])
+    .filter(filterFunction)
+    .each(q,drawText(q[0,0],q[0,1],q[1],200,'C','Arial',[0,0,0,0.2]));
+    addAnimationFrame;
+
+    toGrid(([0..1]+0.5)/2).addPlot('0.6 black');
+    Q:=2;
+    diam:=2^-Q;
+    cross([0..2^Q-1],[0..2^Q-1])
+    .map((c)->[(c+0.5)*diam,stringForCoordinate(Q,c)])
+    .filter(filterFunction)
+    .each(q,drawText(q[0,0],q[0,1],q[1],50,'C','Arial',[0,0,0,0.4]));
+    addAnimationFrame;
+
+    toGrid(([0..3]+0.5)/4).addPlot('0.4 black');
+    Q:=3;
+    diam:=2^-Q;
+    cross([0..2^Q-1],[0..2^Q-1])
+    .map((c)->[(c+0.5)*diam,stringForCoordinate(Q,c)])
+    .filter(filterFunction)
+    .each(q,drawText(q[0,0],q[0,1],q[1],12.5,'C','Arial',[0,0,0,0.8]));
+    addAnimationFrame;
+
+    toGrid(([0..7]+0.5)/8).addPlot('0.2 black');
+    Q:=4;
+    diam:=2^-Q;
+    cross([0..2^Q-1],[0..2^Q-1])
+    .map((c)->[(c+0.5)*diam,stringForCoordinate(Q,c)])
+    .filter(filterFunction)
+    .each(q,drawText(q[0,0],q[0,1],q[1],6,'C','Arial',[0,0,0]));
+    addAnimationFrame;
+
+
+  end);
+
+
+
+end;
+
+
+
+
+
+
+
+
+//.map((s)->1-s.matches('^(0|1|3)*$').ord).plotRasterImage(R);
+
+

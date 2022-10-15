@@ -1,0 +1,53 @@
+NOT_A_POINT:=[Nan,Nan];
+plotDiagram(multiplier:Int,modulus:Int,colorByLength:Boolean,showPoints:Boolean)->begin
+  local points:=begin
+    local phi:=[0..modulus-1]/modulus*2*pi;
+    [sin(phi),cos(phi)].transpose;
+  end;
+
+  local segments:=
+  map([0..modulus-1],(k)->[points[k],points[k*multiplier mod modulus],NOT_A_POINT]);
+  setOptions(["x0"=>-1,"x1"=>1,"y0"=>-1,"y1"=>1,
+              "preserveAspect"=>true,
+              "autoscaleX"=>false,
+              "autoscaleY"=>false,
+              "logscaleX"=>false,
+              "logscaleY"=>false,
+              "axisStyleX"=>0,
+              "axisStyleY"=>0].toMap);
+  plot([[-1,-1],[1,1]],'ellipse');
+  showPoints ? addPlot(points,'. black') : void;
+  colorByLength
+  ? begin
+      local segmentLengths:=segments.map((s)->euklideanNorm(s[1]-s[0])*0.5);
+      group(segments,segmentLengths).sort.reverseList.each(g,begin
+        local style:=format('l HSV%s,1,1',g[0]);
+        g[1].agg(|).addPlot(style);
+      end);
+    end
+  : segments.agg(|).addPlot('black');
+  postDisplay;
+end;
+
+USE customFormUtil;
+
+main->begin
+  local multiplier:=2;
+  local modulus:=9;
+  local colorByLength:=false;
+  local showPoints:=true;
+  local replot:={begin
+    (local a:=multiplier.softCast).isInt AND a>0 AND
+    (local b:=modulus.softCast).isInt AND b>0
+    ? plotDiagram(a,b,colorByLength,showPoints)
+    : void;
+  end};
+  showDialog('Dings hier...',[
+  newPanel([newEdit.withCaption    ('Multiplier')     .bind(::multiplier)   .withActionOnChange(replot),
+            newEdit.withCaption    ('Modulus')        .bind(::modulus)      .withActionOnChange(replot),
+            newCheckbox.withCaption('Show points')    .bind(::showPoints)   .withAction(replot),
+            newCheckbox.withCaption('Color by length').bind(::colorByLength).withAction(replot)])
+           ,newPlotDock]);
+end;
+
+

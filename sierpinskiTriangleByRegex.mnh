@@ -75,27 +75,42 @@ end;
 
 USE customFormUtil;
 
+estimateFractalDimension(counts:IntList)->begin
+  local log:=ln(counts)/ln(2);
+  local slopes:=(log.tail-log.leading).filter((s)->!isNan(s) AND !isInfinite(s));
+  slopes.size==0 ? Inf : begin
+    local weights:=2^[slopes.size-1..0];
+    (slopes*weights).agg(+)/(weights).agg(+);
+  end;
+end;
+
 begin
 //  local reg:='^(A|B|C)*$';
   local workReg:='.';
   local stop:=false;
   local restart:=true;
-
+  local dimString:='';
   localAsync(()->while(true,begin
     local Q:=0;
     stop:=!restart; restart:=false;
     sleep(ord(stop));
+    local counts:=
+    local iCounts:=[];
     while(!stop AND 2^(Q+=1)<=plotImageSize.max*1.5,begin
       local R:=2^Q;
       local t0:=scriptTime;
-      local p:=ord(!(allCoordinateStrings(Q).matches(workReg)));
-      log(trueCount(p==1)/p.size);
+      local p:=(allCoordinateStrings(Q).matches(workReg));
+      counts |=trueCount(p);
+      iCounts|=p.size-counts.trailing;
       setOptions(["axisStyleX"=>0,
                   "axisStyleY"=>0].toMap);
       plot();
-      plotRasterImage(p,R);
+      plotRasterImage(ord(!p),R);
       display;
-      log('Plotted with resolution=',R,' and regex=',workReg.escape,' in ',scriptTime-t0);
+      print('Plotted with resolution=',R,' and regex=',workReg.escape,' in ',scriptTime-t0);
+      local D :=estimateFractalDimension(counts);
+      local Di:=estimateFractalDimension(iCounts);
+      dimString:=format('Dimension%s:%s',Di<D ? ' (inverted)' : '',min(Di,D));
     end);
   end));
 
@@ -105,5 +120,6 @@ begin
       stop:=true;
       restart:=true;
     end : void),
+  newLabel.withCaption(()->dimString),
   newPlotDock]);
 end;

@@ -21,6 +21,7 @@ dp(F:Expression(2),x0,x1>x0,y0,y1>y0,sampleCount>=4,interactive:Boolean)->begin
   xy:=void;
   local f0:=f.min;
   local f1:=f.max;
+  plot(); //clear plot
   f.pMap((z)->z<0 ? [1,0,0,z/f0] : [0,0,1,z/f1]).plotRasterImage(width,scale,x0,y0);
 
   interactive ? void : return void;
@@ -42,9 +43,18 @@ dp(F:Expression(2),x0,x1>x0,y0,y1>y0,sampleCount>=4,interactive:Boolean)->begin
 
 end;
 
+//dp(//(x,y)->euklideanNorm([x,y])>20 ? 0 : sqr(sqr(cos(x*pi/40)*sin(y*pi/40)))-sqr(sqr(cos(y*pi/40)*sin(x*pi/40)))
+//   (x,y)->begin
+//     local d:=euklideanNorm([x,y]);
+//     ((d>abs(x) ? d-abs(x) : 0)-
+//      (d>abs(y) ? d-abs(y) : 0))/d;
+//   end
+//,-20,20,-20,20,100000,true);
+//
 dp(//(x,y)->euklideanNorm([x,y])>20 ? 0 : sqr(sqr(cos(x*pi/40)*sin(y*pi/40)))-sqr(sqr(cos(y*pi/40)*sin(x*pi/40)))
-   (x,y)->(ord(0.3*sqrt(sqr(x)+sqr(y))>abs(x))*
-              (0.3*sqrt(sqr(x)+sqr(y))-abs(x))
-          -ord(0.3*sqrt(sqr(x)+sqr(y))>abs(y))*
-              (0.3*sqrt(sqr(x)+sqr(y))-abs(y)))/ sqrt(sqr(x)+sqr(y))
+   (x,y)->begin
+     local d:=euklideanNorm([x,y]);
+     ((0.3*d>abs(x) ? 0.3*d-abs(x) : 0)-
+      (0.3*d>abs(y) ? 0.3*d-abs(y) : 0))/d;
+   end
 ,-20,20,-20,20,100000,true);

@@ -74,7 +74,9 @@ pointsToRasterImage(pointList,width,height)->begin
     local x_:=round(d[0]+X);
     local y_:=round(d[1]+Y);
     local mask:=0<=x_<width and 0<=y_<height;
-    gamma^groupToList([1..mask.trueCount]*0+1,x_[mask]+width*y_[mask],0,::+,width*height);
+    elementFrequency(x_[mask]+width*y_[mask])
+    .toList
+    .{groupToList(gamma^$L.getInner(1),$L.getInner(0),1,::fail,width*height)};
   end,+)
   .*(1/DARTS.size)
   .map((i)->[0,0,1,1-i]);
@@ -83,7 +85,6 @@ pointsToRasterImage(pointList,width,height)->begin
   plotRasterImage(img,width,sqrt((x1-x0)/width*(y1-y0)/height),x0,y0);
 end;
 
-plotGrid;
 samples:=
 [2..2000].pMap((n)->
   begin
@@ -92,24 +93,27 @@ samples:=
   end)
 .flatMap
 .toList;
+samples.size;
+
+plotGrid;
 samples.addPlot('. 0.3 RGB0,0,1,0.5');
-addAnimationFrame;
+addAnimationFrame; postDisplay;
 
 plotGrid;
 samples.pointsToRasterImage(100,100);
-addAnimationFrame;
+addAnimationFrame; postDisplay;
 
 plotGrid;
 samples.pointsToRasterImage(200,200);
-addAnimationFrame;
+addAnimationFrame; postDisplay;
 
 plotGrid;
 samples.pointsToRasterImage(400,400);
-addAnimationFrame;
+addAnimationFrame; postDisplay;
 
 plotGrid;
 samples.pointsToRasterImage(800,800);
-addAnimationFrame;
+addAnimationFrame; postDisplay;
 
 //primes(2000).pMap((n)->
 //  begin

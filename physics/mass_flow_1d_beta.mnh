@@ -1,0 +1,308 @@
+IMAX:=400;
+gridSize:=200/IMAX;
+
+C_Friction:=0.00;
+C_Grav:=50/gridSize;
+
+//d/dt v*|v| = d/dt sign(v) * v²
+
+c0:=//ord([0..IMAX] mod 2=0 and 20<[0..IMAX]<120)*0
+    0+0.001*random(IMAX+1);
+
+fBaseProfile(x)->
+cos(20*pi/IMAX*(x-0.5))*0.1*(1-(x-0.5)/IMAX)
+                 +0.2
+                 +0.1*((x-0.5)/IMAX);
+
+fBaseProfile(x)->x/IMAX*(-0.2)+0.3+0.05*cos(x/IMAX*20*pi);//*(1-cos(x/IMAX*2*pi));
+// fBaseProfile(x)->map(x/IMAX,(y)->(0.1<y<0.9 ? 0 : (1+cos(y*10*pi)))*0.1+0.1*exp(-150*sqr(0.5-y)));
+
+//fBaseProfile(x)->(x/IMAX).map((y)->y<0.3 ? 0.2*y/0.3 : y<0.6 ? 0.15-abs(y-0.45) : 0.1+(y-0.6)*0.2);
+//fBaseProfile(x)->round(cos(10*pi*x/IMAX))*0.05+0.1;
+
+baseProfile0:=fBaseProfile([0..IMAX]+0.5);
+
+//baseProfile0:=ord(([0..IMAX] and 32)=32)*0.1+0.1;
+
+postPlotSystem(c,p,profile)->begin
+  local CR:=200;
+  local colorTable:=[-CR..CR].map((q)->q=>'box 0 fs RGB'&join( q<0 ? [-q/CR,0,1+q/CR] : [0,q/CR,1-q/CR],',')).toMap;
+  local vRef:=1;
+  local pending:=[];
+  local done:=false;
+  local backgroundPlot:=future({begin
+    while(!done OR pending.size>0,begin
+      pending.size>0 ? void : sleep(1);
+      local current:=pending[0]; pending[0]:=void;
+      current.isVoid ? sleep(5) : begin
+        local h:=current[0]+current[2];
+        setOptions(["x0"=>0,"x1"=>c0.size,"y0"=>0,"y1"=>1,"fontsize"=>10,"preserveAspect"=>false,"autoscaleX"=>false,"autoscaleY"=>false,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>6,"axisStyleY"=>6].toMap);
+        plot;
+        local v:=current[1]/(current[0]+1E-10);
+        v/=(vRef:=vRef*0.9+0.1*max(0.1,v.abs.sort[v.size*9 div 10]));
+        v:=round(vectorIfThenElse(v.isNan,0, vectorIfThenElse(v>1,1,vectorIfThenElse(v<-1,-1,v)))*CR);
+        group([[0..IMAX],current[2],h].transpose,v).each(colorGroup,
+          colorGroup[1].each(e,[e[0],e[1]],[e[0]+1,e[2]]).addPlot(colorTable[colorGroup[0]])
+        );
+        addPlot(current[2]|current[2].trailing,'stepRight f 0.5 black');
+        addPlot(h|h.trailing,'stepRight 0.5 black');
+        addAnimationFrame;
+        postDisplay;
+      end;
+    end);
+    true;
+  end});
+save;
+  c==true
+  ? begin log('Flushing ',pending.size,' more frames...');  done:=true; backgroundPlot(); end
+  : pending|=[[c,p,profile]];
+end;
+
+//applyBoundaryConditions(state:List(2),timeStepIndex,dtSub)->begin
+//  local c:=state[0];
+//  local p:=state[1];
+//
+//  timeStepIndex<3000
+//  ? begin
+////      local v0:=(p[0]+p[1])/(c[0]+c[1]+1E-3);
+//      //max(c[0],(0.3+baseProfile.max-baseProfile[0])*min(1,   timeStepIndex/1000,4-(timeStepIndex/1000)));
+////      c[0]:=max(c[1]*0.5,0.5-0.49*timeStepIndex/3000);
+//      c[0]:=0.5-0.49*timeStepIndex/3000;
+//      p[0]:=1;
+//      local v0:=(p[0]+p[1])/(c[0]+c[1]+1E-3);
+//      p[1]:=c[1]*v0;
+//
+//      v0:=(p[IMAX]+p[IMAX-1])/(c[IMAX]+c[IMAX-1]+1E-3);
+//      c[IMAX]:=max(0,c[IMAX]-1*dtSub/gridSize);
+//      p[IMAX  ]:=c[IMAX  ]*v0;
+//      p[IMAX-1]:=c[IMAX-1]*v0;
+//    end
+//  : begin
+//      local v0:=(p[0]+p[1])/(c[0]+c[1]+1E-3);
+//      c[0]:=max(0,c[0]-dtSub/gridSize);
+//      p[0]:=c[0]*v0;
+//      p[1]:=c[1]*v0;
+//
+//      v0:=(p[IMAX]+p[IMAX-1])/(c[IMAX]+c[IMAX-1]+1E-3);
+//      c[IMAX]:=max(0,c[IMAX]-dtSub/gridSize);
+//      p[IMAX  ]:=c[IMAX  ]*v0;
+//      p[IMAX-1]:=c[IMAX-1]*v0;
+//    end;
+//  [c,p];
+//end;
+
+//Note: Simulation for accelerating flow
+c0:=c0*0;//map(0.2+baseProfile0[0]-baseProfile0,(c)->max(c,0));
+p0:=c0*0;
+applyBoundaryConditions(state:List(3),timeStepIndex,dtSub)->begin
+  local totalInitialMass:=c0.agg(+);
+save;
+  local c:=state[0];
+  local p:=state[1];
+  local profile:=state[2];
+  profile[0]:=baseProfile0[0];
+  profile[IMAX]:=baseProfile0[IMAX];
+
+  local flow:=1;//min(1,timeStepIndex/2500);
+  local level:=0.3;//+0.5*max(0,timeStepIndex/2500-1);
+
+  c[0]:=level;
+  p[0]:=flow;
+  local v0:=(p[0]+p[1])/(c[0]+c[1]+1E-3);
+  p[1]:=c[1]*v0;
+
+  local outflow:=min(c[IMAX],
+                     //c[IMAX]-level-profile[0]+profile[IMAX],
+                     c.agg(+)-totalInitialMass);
+
+  c[IMAX]-=outflow;
+  p[IMAX]:=c[IMAX]*p[IMAX-1]/(1E-3+c[IMAX-1]);
+
+
+
+  [c,p,profile];
+end;
+
+//c0:=baseProfile0.max-baseProfile0;
+//p0:=c0*0;
+//applyBoundaryConditions(state:List(2),timeStepIndex,dtSub)->begin
+//  local c:=state[0];
+//  local p:=state[1];
+//  local targetFlow:=0.5*sin(timeStepIndex*2*pi/200);
+//  c-=dtSub*0.001*c;
+//  p-=dtSub*0.001*p;
+//  //
+//  local v:=c[0]<=1e-3 ? 0 : p[0]/c[0];
+//  c[0]:=max(0,c[0]+targetFlow*dtSub/gridSize);
+//  p[0]:=v*c[0];
+//  [c,p];
+//end;
+//
+filterValid(n:NumericList)->vectorIfThenElse(n.isNan or n.isInfinite,0.0,n);
+
+edgeCenteredVelocities(state)->begin
+  local c:=state[0]; local p:=state[1];
+  filterValid(((p.head|p)+(p|p.trailing))/((c.head|c)+(c|c.trailing)));
+end;
+
+edgeCenteredAcceleration(state,profile,v0)->begin
+  local h:=profile+state[0];
+  ((0|(h.leading-h.tail)|0))*C_Grav-C_Friction*v0*abs(v0);
+end;
+
+edgeCenteredJerk(state,a)->begin
+  local dc:=state[1];
+  dc:=(dc.leading-dc.tail);
+  ((dc.head|dc.head|dc)-(dc|dc.trailing|dc.trailing))*(0.5*C_Grav)+C_Friction*2*a;
+end;
+
+updateState(state,vEdge,aEdge,jerkEdge,dtSub)->begin
+  local c:=state[0];
+  local p:=state[1];
+  //Calculate upwind factors
+  local TL:=(vEdge.leading+(aEdge.leading+jerkEdge.leading*(dtSub/3))*(dtSub/2))*(dtSub/gridSize); TL*=-1*ord(TL<0);
+  local TR:=(vEdge.tail   +(aEdge.tail   +jerkEdge.tail   *(dtSub/3))*(dtSub/2))*(dtSub/gridSize); TR*=   ord(TR>0);
+  TL[0]:=TR[IMAX]:=0;
+
+  local vc:=(vEdge.tail+vEdge.leading)*0.5;
+  local ac:=((aEdge   .tail+aEdge   .leading)*0.5)*dtSub
+           +((jerkEdge.tail+jerkEdge.leading)*0.5)*(dtSub²);
+  //Update state variables:
+  p:=c*(vc+ac);
+  c+=(0|(c*TR).leading)+(((c*TL).tail)|0)-c*(TL+TR);
+  p+=(0|(p*TR).leading)+(((p*TL).tail)|0)-p*(TL+TR);
+  c*=ord(c>0);
+  p*=ord(p>0);
+  [c,p,transportBaseProfile(state[2],state,dtSub)];
+end;
+
+transportBaseProfile(profile,state,dtSub)->begin
+  local cEdge:=state[0]; cEdge:=((cEdge.head|cEdge)+(cEdge|cEdge.trailing))*0.5;
+  local pEdge:=state[1]; pEdge:=((pEdge.head|pEdge)+(pEdge|pEdge.trailing))*0.5;
+
+  local vEff:=pEdge*abs(filterValid(pEdge/cEdge))*1E-3;
+  local ps:=((profile|baseProfile0.trailing)-(baseProfile0.head|profile))/gridSize*-3E-2;
+
+
+
+  local TL:=(vEff.leading+ps.leading*ord(ps.leading>0))*(dtSub/gridSize); TL*=-1*ord(TL<0);
+  local TR:=(vEff.tail   +ps.tail   *ord(ps.tail   <0))*(dtSub/gridSize); TR*=   ord(TR>0);
+
+  local p1:=profile*(1-TL-TR)
+           +(0|(profile*TR).leading)
+           +(((profile*TL).tail)|0);
+  p1*ord(p1>0);
+end;
+
+sim5->begin
+  local dt:=0.5;
+  local state:=[c0,p0];
+  local CFL_LIM:=0.5 *gridSize;
+  local DIV_LIM:=0.05*gridSize;
+
+  postPlotSystem(state[0],state[1],baseProfile0);
+  [0..5000].each(ts,begin
+    local tRest:=dt;
+    local subSteps:=0;
+    while(tRest>0,begin
+      subSteps+=1;
+      local v0  :=edgeCenteredVelocities  (state);
+      local a   :=edgeCenteredAcceleration(state,v0);
+      local jerk:=edgeCenteredJerk        (state,a*sign(v0));
+      //max allowable time step size:
+      local dtSub:=
+      begin
+        local c:=state[0];
+        local mask:=ord(((c.head|c)+(c|c.trailing))>1E-3);
+        local aMax:=(a *mask).abs.max;
+        local vMax:=(v0*mask).abs.max;
+        aMax<1E-3
+        ? CFL_LIM/vMax
+        : sqrt(CFL_LIM/aMax + (vMax/aMax)²) - vMax/aMax; //CFL limit
+      end;
+      dtSub:=min(dtSub,tRest,begin
+        local c:=state[0];
+        local mask:=ord(c>1E-3);
+        local aMax:=((a .leading- a.tail)*mask).abs.max;
+        local vMax:=((v0.leading-v0.tail)*mask).abs.max;
+        aMax<1E-3
+        ? DIV_LIM/vMax
+        : sqrt(DIV_LIM/aMax + (vMax/aMax)²) - vMax/aMax; //CFL limit
+      end).max(dt/1000);
+      //"Reasonable" time step size (ideal if the same step size limit applies to all remaining sub steps)
+      dtSub>=tRest
+      ? begin dtSub:=tRest;                   tRest:=0;     end
+      : begin dtSub:=tRest/ceil(tRest/dtSub); tRest-=dtSub; end;
+
+      state:=updateState(state,v0,a,jerk,dtSub)
+              .applyBoundaryConditions(ts,dtSub);
+    end);
+
+    postPlotSystem(state[0],state[1],baseProfile0);
+    local v:=filterValid(state[1]/state[0]).tail(2).leading(2).abs;
+    printf('%4d (%2d) %6.2f fps %6.4f<=|v|<=%6.4f',ts,subSteps,ts/scriptTime,v.min,v.max);
+    ts mod 1000=0 ? callMemoryCleaner : void;
+  end);
+
+
+  postPlotSystem(true,true,true);
+  callMemoryCleaner;
+end;
+
+sim6->begin
+  local dt:=0.5;
+  local state:=[c0,p0,baseProfile0];
+  local CFL_LIM:=0.5 *gridSize;
+  local DIV_LIM:=0.05*gridSize;
+  postPlotSystem(state[0],state[1],state[2]);
+  [0..5000].each(ts,begin
+    local tRest:=dt;
+    local subSteps:=0;
+    while(tRest>0,begin
+      subSteps+=1;
+      local v0  :=edgeCenteredVelocities  (state);
+      local a   :=edgeCenteredAcceleration(state,state[2],v0);
+      local jerk:=edgeCenteredJerk        (state,a*sign(v0));
+      //max allowable time step size:
+      local dtSub:=
+      begin
+        local c:=state[0];
+        local mask:=ord(((c.head|c)+(c|c.trailing))>1E-3);
+        local aMax:=(a *mask).abs.max;
+        local vMax:=(v0*mask).abs.max;
+        aMax<1E-3
+        ? CFL_LIM/vMax
+        : sqrt(CFL_LIM/aMax + (vMax/aMax)²) - vMax/aMax; //CFL limit
+      end;
+      dtSub:=min(dtSub,tRest,begin
+        local c:=state[0];
+        local mask:=ord(c>1E-3);
+        local aMax:=((a .leading- a.tail)*mask).abs.max;
+        local vMax:=((v0.leading-v0.tail)*mask).abs.max;
+        aMax<1E-3
+        ? DIV_LIM/vMax
+        : sqrt(DIV_LIM/aMax + (vMax/aMax)²) - vMax/aMax; //CFL limit
+      end).max(dt/1000);
+      //"Reasonable" time step size (ideal if the same step size limit applies to all remaining sub steps)
+      dtSub>=tRest
+      ? begin dtSub:=tRest;                   tRest:=0;     end
+      : begin dtSub:=tRest/ceil(tRest/dtSub); tRest-=dtSub; end;
+
+      state:=updateState(state,v0,a,jerk,dtSub)
+              .applyBoundaryConditions(ts,dtSub);
+      //profile:=
+    end);
+
+    postPlotSystem(state[0],state[1],state[2]);
+    local v:=filterValid(state[1]/state[0]).tail(2).leading(2).abs;
+    printf('%4d (%2d) %6.2f fps %6.4f<=|v|<=%6.4f',ts,subSteps,ts/scriptTime,v.min,v.max);
+//    note((profile-baseProfile0).abs.agg(+));
+    ts mod 1000=0 ? callMemoryCleaner : void;
+  end);
+
+
+  postPlotSystem(true,true,true);
+  callMemoryCleaner;
+end;
+
+sim6;

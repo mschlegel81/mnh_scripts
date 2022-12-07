@@ -1,125 +1,120 @@
-memoized binaryForm(i:Int,k)->begin
-  local d:=digits(i,2).reverseList;
-  while(d.size<k,d|=0);
-  d.reverseList;
+#!C:\bin\mnh.exe -GUI -quiet
+memoized allCoordinateStrings(len>=1,base in [2..5])->begin
+  local charMap:=[cross([base-1..0],[0..base-1]),
+                  ['A'..'Z'].head(base²)].transpose.toMap;
+  local halfChars:=digits([0..base^len-1],base)
+    .map((d)->begin
+      local r:=d;
+      while(r.size<len,r:=0|r);
+      r;
+     end);
+
+  cross(halfChars,halfChars).pMap((m)->charMap.getAll(m.transpose).join);
 end;
 
-Letter:=['A','B','C','D'];
-stringForCoordinate(depth,q:IntList(2))->
-  Letter[binaryForm(q[0],depth)
-        +binaryForm(q[1],depth)*2].join;
-
-memoized allCoordinateStrings(depth:Int)->
-  cross([2^depth-1..0],[0..2^depth-1]).map((q)->stringForCoordinate(depth,q));
-
-
-demo->begin
-  setOptions(["x0"=>0,
-              "x1"=>1,
-              "y0"=>0,
-              "y1"=>1,
-              "preserveAspect"=>true,
-              "autoscaleX"=>false,
-              "autoscaleY"=>false,
-              "logscaleX"=>false,
-              "logscaleY"=>false,
-              "axisStyleX"=>0,
-              "axisStyleY"=>0].toMap);
-  local toGrid:=(L)->L.each(q,[0,q],[1,q],[Nan,Nan],[q,0],[q,1],[Nan,Nan]);
-
-  [(p)->true,(p)->p[1].matches('^(A|B|C)*$')].each(filterFunction,begin
-
-
-    toGrid(([0..2]    )/2).plot('0.8 black');
-    local Q:=1;
-    local diam:=2^-Q;
-    cross([0..2^Q-1],[0..2^Q-1])
-    .map((c)->[(c+0.5)*diam,stringForCoordinate(Q,c)])
-    .filter(filterFunction)
-    .each(q,drawText(q[0,0],q[0,1],q[1],200,'C','Arial',[0,0,0,0.2]));
-    addAnimationFrame;
-
-    toGrid(([0..1]+0.5)/2).addPlot('0.6 black');
-    Q:=2;
-    diam:=2^-Q;
-    cross([0..2^Q-1],[0..2^Q-1])
-    .map((c)->[(c+0.5)*diam,stringForCoordinate(Q,c)])
-    .filter(filterFunction)
-    .each(q,drawText(q[0,0],q[0,1],q[1],50,'C','Arial',[0,0,0,0.4]));
-    addAnimationFrame;
-
-    toGrid(([0..3]+0.5)/4).addPlot('0.4 black');
-    Q:=3;
-    diam:=2^-Q;
-    cross([0..2^Q-1],[0..2^Q-1])
-    .map((c)->[(c+0.5)*diam,stringForCoordinate(Q,c)])
-    .filter(filterFunction)
-    .each(q,drawText(q[0,0],q[0,1],q[1],12.5,'C','Arial',[0,0,0,0.8]));
-    addAnimationFrame;
-
-    toGrid(([0..7]+0.5)/8).addPlot('0.2 black');
-    Q:=4;
-    diam:=2^-Q;
-    cross([0..2^Q-1],[0..2^Q-1])
-    .map((c)->[(c+0.5)*diam,stringForCoordinate(Q,c)])
-    .filter(filterFunction)
-    .each(q,drawText(q[0,0],q[0,1],q[1],6,'C','Arial',[0,0,0]));
-    addAnimationFrame;
-
-
-  end);
+showHelp(base in [2..5])->begin
+  resetOptions;
+  setOptions(["axisStyleX"=>0,"axisStyleY"=>0].toMap);
+  plot();
+  allCoordinateStrings(1,base)
+  .each(char,
+    begin
+      local i:=base-1-index div base;
+      local j:=       index mod base;
+      addPlot([[j,i]-0.5,[j,i]+0.5],'box black');
+      drawText(j,i,char,30,'C');
+    end);
+  display;
 end;
 
-//demo;
-//halt;
+memoized scaleMap(len>1,base)->begin
+  local all:=cross([base^len-1..0],[0..base^len-1]);
+  all:=(all.getInner(1) mod base) + base*(all.getInner(0) mod base);
+  [0..base²-1].map((k)->indexOf(all=k));
+end;
 
+boxCountingDimension(L:BooleanList,base)->begin
+  local depth:=round(ln(L.size)/ln(base²));
+  (depth<=1) OR (L.size<>base^(2*depth))
+  ? return [Nan,Nan]
+  : void;
+  local scale:=scaleMap(depth,base);
+  local B:=!L;
+  local cA:=[trueCount(L),trueCount(scale.each(s,L[s],or))];
+  local cB:=[trueCount(B),trueCount(scale.each(s,B[s],or))];
+  //note('cA  =',cA,
+  //   "\ncB  =",cB,
+  //   "\nbase=",base,' depth=',depth,'; (',base^(2*depth),'/',L.size,')');
+  [ln(cA).agg(-),
+   ln(cB).agg(-)]/ln(base);
+end;
 USE customFormUtil;
 
-estimateFractalDimension(counts:IntList)->begin
-  local log:=ln(counts)/ln(2);
-  local slopes:=(log.tail-log.leading).filter((s)->!isNan(s) AND !isInfinite(s));
-  slopes.size==0 ? Inf : begin
-    local weights:=2^[slopes.size-1..0];
-    (slopes*weights).agg(+)/(weights).agg(+);
-  end;
-end;
+ALPHABET_OPTIONS:=['A..D','A..I','A..P','A..Y'];
 
-begin
-//  local reg:='^(A|B|C)*$';
-  local workReg:='.';
+main->begin
+  local displayRegex:=
+  local workRegex:='^[ABC]+$';
   local stop:=false;
   local restart:=true;
-  local dimString:='';
+  local lastRenderedResolution:=-1;
+  local dimString:=format("Resolution: %s\nDim:%s \nDim(i):%s",0,0,0);
+  local base:=2;
+  local alphabetSelect:=ALPHABET_OPTIONS[base-2];
   localAsync(()->while(true,begin
     local Q:=0;
     stop:=!restart; restart:=false;
     sleep(ord(stop));
-    local counts:=
-    local iCounts:=[];
-    while(!stop AND 2^(Q+=1)<=plotImageSize.max*1.5,begin
-      local R:=2^Q;
-      local t0:=scriptTime;
-      local p:=(allCoordinateStrings(Q).matches(workReg));
-      counts |=trueCount(p);
-      iCounts|=p.size-counts.trailing;
+    while(!stop AND 2048>=base^(Q+=1)<=plotImageSize.min*1.5,begin
+      local R:=base^Q;
+      local p:=(allCoordinateStrings(Q,base).matches(workRegex));
+      resetOptions;
       setOptions(["axisStyleX"=>0,
                   "axisStyleY"=>0].toMap);
       plot();
       plotRasterImage(ord(!p),R);
+      lastRenderedResolution:=R;
+      local dim:=boxCountingDimension(p,base);
+      dimString:=format("Resolution: %s\nDim:%s \nDim(i):%s",R,dim[0],dim[1]);
       display;
-      print('Plotted with resolution=',R,' and regex=',workReg.escape,' in ',scriptTime-t0);
-      local D :=estimateFractalDimension(counts);
-      local Di:=estimateFractalDimension(iCounts);
-      dimString:=format('Dimension%s:%s',Di<D ? ' (inverted)' : '',min(Di,D));
     end);
   end));
 
-  showDialog('Regex',[ newEdit.withCaption('regex').withActionOnChange((reg)->
-    validateRegex(reg) ? begin
-      workReg:=reg;
-      stop:=true;
-      restart:=true;
-    end : void),
-  newLabel.withCaption(()->dimString),
-  newPlotDock]);
+  showDialog('Regex Imaging',[
+    newSplitPanel([
+      newComboBox(ALPHABET_OPTIONS)
+        .withCaption('alphabet')
+        .bind(::alphabetSelect)
+        .withActionOnChange((s)->begin
+           local i:=indexOf(ALPHABET_OPTIONS=s);
+           i==[]
+           ? alphabetSelect:=ALPHABET_OPTIONS[base-2]
+           : begin
+               base:=i.head+2;
+               restart:=true;
+             end;
+         end),
+      newEdit
+        .withCaption('regex')
+        .bind(::displayRegex)
+        .withActionOnChange((reg)->
+        validateRegex(reg) ? begin
+          workRegex:=reg;
+          stop:=true;
+          restart:=true;
+        end : void),
+      newLabel.withCaption(()->dimString),
+      newButton.withCaption('show help for alphabet').withAction(()->begin
+        stop:=true;
+        restart:=false;
+        showHelp(base);
+      end),
+      newButton.withCaption('export').withEnabledRule(()->lastRenderedResolution>100).withAction(()->begin
+        stop:=true;
+        local targetFilename:=ask('Filename for export (png or bmp)');
+        targetFilename.isVoid
+        ? void
+        : renderToFile(targetFilename,lastRenderedResolution,lastRenderedResolution);
+        stop:=false;
+      end)],[newPlotDock])]);
 end;

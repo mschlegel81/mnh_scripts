@@ -3,14 +3,27 @@ FileInfos:=[['.bmp',['Document','Image']],['.csv',['Document','CSV']],['.dpr',['
 getFileInfo(extension :String)->FileInfos[extension.lower] orElse FileInfos['.'&extension.lower];
 getFileInfo(extensions:StringList)->extensions.pMap(::getFileInfo);
 
-main->allFiles('C:\Users\Martin Schlegel\Downloads\ccx_2.14.src.tar\ccx_2.14.src\CalculiX\ccx_2.14\src')
-.pMap({[[extractFileExt($x).lower|$x.split('/')[2]],$x]})
-.group(0)
-.pEach(g,g[0,0,0]|g.getInner(1).fileStats.agg(+).leading|getFileInfo(g[0,0,0,0]))
-.{[['Extension','Folder','Files','Lines','Bytes','Category 1','Category 2']]|$L}
-.{showTable($L,true) orElse $L}
-.pMap({$x.join("\t")}).join("\n").print orElse
-ask;
+ROOT:='C:\dev\Optomatica\kvalprak';
+EXCLUDE_PATTERN:='(/\.git)|(/third_party/)|(/vendor/)|(/drivers/)|(/libraries/)';
+//EXCLUDE_PATTERN:='(/\.git)';//|(/third_party/)';
+
+main->begin
+  local fileTable:=allFiles(ROOT);
+  fileTable:=fileTable[!matches(fileTable,EXCLUDE_PATTERN)]
+            .pMap({[extractFileExt($x).lower,relativeFileName(ROOT,$x.extractFileDirectory),$x.extractFileName]|$x.fileStats.leading});
+  showTable([['Extension','Folder','File','Lines','Words','Bytes']]|fileTable,'All Files',true);
+  //reduce table...
+  fileTable:=group(fileTable.map((entry)->entry.tail(2)),
+                   fileTable.map((entry)->entry.head(2)))
+             .each(G,G[0]|G[1].size|G[1].map(::tail).agg(+));
+  showTable([['Extension','Folder','Files','Lines','Words','Bytes']]|fileTable,'By extension and folder',true);
+  //reduce table...
+  fileTable:=group(fileTable.map((entry)->entry.tail),
+                   fileTable.map((entry)->entry.head))
+             .each(G,G[0]|G[1].map(::tail).agg(+));
+  showTable([['Extension','Files','Lines','Words','Bytes']]|fileTable,'By extension',true);
+end;
+
 
 //.{printf("%s\t|\t%s\t|\t%s\t|\t%s",
 //         'Extension'|$L.getInner(0),

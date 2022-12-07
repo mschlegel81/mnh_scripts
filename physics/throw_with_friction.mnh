@@ -1,114 +1,101 @@
+//gravAccel:=[0,-9.81];
+//baseFriction(v:NumericList(2))->v*(-euklideanNorm(v));
 
-curry f(frictionCoeff,x:NumericList(4))->
-  begin
-    local dx:=[x[2],x[3],0            ,-9.81        ]-
-              [0   ,0   ,frictionCoeff,frictionCoeff]*sqrt(sqr(x[3]+x[2]))*x; //damping term
-    dx/max(10,dx.sqr.agg(+).sqrt);
+USE rungeKutta,customFormUtil;
+
+getThrowCurve(initialAngle:Numeric,initialSpeed>0,frictionFactor:Numeric)->
+begin
+  local state:=[[0,0],initialSpeed*[cos(initialAngle),sin(initialAngle)]];
+//  local Ds:=frictionFactor=0
+//    ? (s)->[s[1],[0,-9.81]                                        ]
+//    : (q)->[q[1],[0,-9.81]-frictionFactor*euklideanNorm(q[1])*q[1]];
+  local step:=integrator(CASH_KARP,
+  frictionFactor=0
+    ? (s)->[s[1],[0,-9.81]                                        ]
+    : (q)->[q[1],[0,-9.81]-frictionFactor*euklideanNorm(q[1])*q[1]]
+  ,0.01,1E-3);
+  local positionHistory:=[state[0]];
+  while((positionHistory.size<2 OR state[0,1]>0) AND (positionHistory.size<1000),begin
+    state:=step(state);
+    positionHistory|=[state[0]];
+  end);
+  local last:=positionHistory.trailing; positionHistory:=positionHistory.leading;
+  local prev:=positionHistory.trailing;
+  // prev[1]+(last[1]-prev[1])*tau = 0
+  // tau = -prev[1]/(last[1]-prev[1])
+  // x = prev[0]+(last[0]-prev[0])*tau
+  //   = prev[0]-(last[0]-prev[0])*prev[1]/(last[1]-prev[1])
+  positionHistory|=[[prev[0]-(last[0]-prev[0])*prev[1]/(last[1]-prev[1]),0]];
+  print('v0=',initialSpeed,'; α=',round(initialAngle/pi*180,2),'°; fr=',frictionFactor,'; range=',positionHistory.trailing[0]);
+  positionHistory;
+end;
+
+main->begin
+  local initialSpeed  :=local initialSpeedTxt  :=10;
+  local angle         :=local angleTxt         :=45;
+  local frictionFactor:=local frictionFactorTxt:=0;
+  local addAutomatically:=false;
+
+  local allRows:=[];
+
+  local addRow:=()->begin
+    allRows:=trailing(allRows|[getThrowCurve(angle/180*pi,initialSpeed,frictionFactor)],30);
+    plot(allRows.trailing);
+    allRows.reverseList.tail.each(r,addPlot(r,'RGB0,0,0,0.5 l '&((31-index)*1/31)));
+    display;
   end;
 
-USE rungeKutta;
+  local validate:=()->begin
+    local allOkay:=true;
 
-throw(angleInDegrees:Numeric,frictionCoeff:Numeric,dt0,v0)->begin
-  local state:=[0,0,v0*cos(angleInDegrees*pi/180),
-                    v0*sin(angleInDegrees*pi/180)];
-  local P:=[state.head(2)];
-  local dt:=dt0;
-  local prev:=state;
-  while((dt/=4)>1E-3,begin
-    state:=prev;
-    local step:=integrator(CASH_KARP,f(frictionCoeff),dt,1E-6);
-    state:=state.step;
-    while(state[1]>=0,begin
-      P||=state.head(2);
-      prev:=state;
-      state:=state.step;
-    end);
-  end);
-  P||=state.head(2);
-  P;
-end;
-
-thrownDist(angleInDegrees:Numeric,frictionCoeff:Numeric,dt0,v0)->begin
-  local P:=throw(angleInDegrees,frictionCoeff,dt0,v0).trailing(2);
-  P[1,0]-(P[1,0]-P[0,0])*
-  P[1,1]/(P[1,1]-P[0,1]);
-end;
-
-@SuppressUnusedWarning
-furthestAngle(fric:Numeric)->begin
-  local a   :=45/2;
-  local da  :=45/2;
-  local dist:=thrownDist(a,fric);
-  [1..20].each(i,begin
-    local aUp:=a+(da/=2);
-    local distUp:=thrownDist(aUp,fric);
-    distUp>dist
-    ? begin
-        dist:=distUp;
-        a:=aUp;
-      end
+    local temp:=softCast(initialSpeedTxt);
+    temp.isNumeric AND temp>0
+    ? initialSpeed:=temp
     : begin
-        local aDn:=a- da;
-        local distDn:=thrownDist(aDn,fric);
-        distDn>dist
-        ? begin
-            dist:=distDn;
-            a:=aDn;
-          end
-        : void;
+        initialSpeedTxt:=initialSpeed;
+        allOkay:=false;
       end;
-    void;
-  end);
-  print('furthestAngle(',fric,')=',a);
-  a;
+
+    temp:=softCast(angleTxt);
+    temp.isNumeric AND 0<=temp<=90
+    ? angle:=temp
+    : begin
+        angleTxt:=angle;
+        allOkay:=false;
+      end;
+
+    temp:=softCast(frictionFactorTxt);
+    temp.isNumeric AND temp>=0
+    ? frictionFactor:=temp
+    : begin
+        frictionFactorTxt:=frictionFactor;
+        allOkay:=false;
+      end;
+    addAutomatically AND allOkay ? addRow() : void;
+    allOkay;
+  end;
+
+  showDialog('Throw...',[
+    newSplitPanel([
+      newEdit.withCaption('Initial speed')
+             .bind(::initialSpeedTxt)
+             .withActionOnChange(validate),
+      newEdit.withCaption('Angle in degrees')
+             .bind(::angleTxt)
+             .withActionOnChange(validate),
+      newEdit.withCaption('Friction factor')
+             .bind(::frictionFactorTxt)
+             .withActionOnChange(validate)],
+      [newCheckbox.withCaption('add automatically').bind(::addAutomatically),
+       newButton.withCaption('add').withAction(addRow),
+       newButton.withCaption('clear').withAction(()->begin
+         allRows:=[];
+         plot();
+         display;
+       end)]),
+    newOutputConsole,
+    newPlotDock
+   ]);
+
 end;
-
-plotSome(friction)->begin
-  ['autoscaleFactor'=>1.0,
-   'autoscaleX'=>true,
-   'autoscaleY'=>true,
-   'axisStyleX'=>0,
-   'axisStyleY'=>0,
-   'fontsize'=>10.0,
-   'logscaleX'=>false,
-   'logscaleY'=>false,
-   'preserveAspect'=>true].toMap.setOptions;
-  local styleByAngle:=
-    [30 => 'l RGB1,0,0',
-     35 => 'l RGB0.9,0,0',
-     39 => 'l RGB0.8,0,0',
-     42 => 'l RGB0.7,0,0',
-     44 => 'l RGB0.6,0,0',
-     45 => 'l RGB0,0,0',
-     46 => 'l RGB0,0.6,0',
-     48 => 'l RGB0,0.7,0',
-     51 => 'l RGB0,0.8,0',
-     55 => 'l RGB0,0.9,0',
-     60 => 'l RGB0,1,0'].toMap;
-
-
-  plot();
-  local v0:=sqrt(9.81);
-  [30,60,35,55,39,51,42,48,44,46,45]
-  .pEach(angle,[throw(angle,friction,0.2,v0),angle])
-  .each(c,addPlot(c[0],styleByAngle[c[1]]),c[0].trailing[0],max)
-  .{addPlot([[0,0],[$x,0]],'black')};
-  postDisplay;
-  drawTextAbsolute(0.1,1,'friction='&friction,10,'TL');
-end;
-
-
-begin
-  clearAnimation;
-  sqr(ln([200..1]/
-          200)/ln(0.5435224558395387)).each(f,
-  [f,plotSome(f)],addAnimationFrame);
-end;
-
-
-//
-//throw(45,0,0.01,sqrt(10)).plot('. l');
-//throw(40,0,0.01,sqrt(10)).addPlot('. l');
-//throw(50,0,0.01,sqrt(10)).addPlot('. l');
-//
 

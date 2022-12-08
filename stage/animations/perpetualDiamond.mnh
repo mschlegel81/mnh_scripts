@@ -44,7 +44,7 @@ main->begin
   local phaseDT   :=[0,0,0,0];
   local t:=0;
   local dt:=pi/10;
-  local restartRendering:={clearAnimation(true); t:=0};
+  local restartRendering:={begin note('Resetting...'); clearAnimation(true); t:=0; end};
   restartRendering();
   localAsync({
     while(true,begin
@@ -61,7 +61,7 @@ main->begin
    newButton.withCaption('right' ).withAction({begin phaseT:=[pi,0,0,pi];   phaseDT:=0;                   restartRendering(); end}),
    newButton.withCaption('shear' ).withAction({begin phaseT:=[0,pi,0,pi];   phaseDT:=0.03;                restartRendering(); end}),
    newButton.withCaption('down'  ).withAction({begin phaseT:=[pi,pi,0,0];   phaseDT:=0;                   restartRendering(); end}),
-   newButton.withCaption('random').withAction({begin phaseT:=random(4);     phaseDT:=0.015*(1+random(4)); restartRendering(); end})]
+   newButton.withCaption('random').withAction({begin phaseT:=random(4)*pi;  phaseDT:=0.015*(1+random(4)); restartRendering(); end})]
   ),newPlotDock]
   );
 end;

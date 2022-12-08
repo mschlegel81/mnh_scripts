@@ -28,7 +28,8 @@ base(x:Numeric,y:NumericList)-> tabledValue((x-floor(x))*BASE_SIZE+2)((y-floor(y
 plotNoise(zoom)->begin
   local A:=zoom/2^[1..7];
   A[0]:=0.9921875-A.tail.agg(+);
-
+  setOptions(["x0"=>-1,"x1"=>1,"y0"=>-1,"y1"=>1,"fontsize"=>10,"preserveAspect"=>true,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
+  plot;
   local X:=([0..RESOLUTION[0]-1]-(RESOLUTION[0]-1)/2)/max(RESOLUTION[0],RESOLUTION[1]);
   (([0..RESOLUTION[1]-1]-(RESOLUTION[1]-1)/2)/max(RESOLUTION[0],RESOLUTION[1]))
   .pEach(y,0.5+base(y   /zoom,X   /zoom)*A[0]

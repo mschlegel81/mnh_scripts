@@ -103,8 +103,8 @@ begin
     (local n:=delta.euklideanNorm)>20
     ? delta/n³
     : integrate((x)->
-      integrate((y)->[x,y]/euklideanNorm([x,y])³,delta[1]-0.5,delta[1]+0.5,1E-6),
-                                                 delta[0]-0.5,delta[0]+0.5,1E-6);
+      integrate((y)->[x,y]/euklideanNorm([x,y])³,delta[1]-0.5,delta[1]+0.5,100),
+                                                 delta[0]-0.5,delta[0]+0.5,100);
   end/gridSize²).toMap;
   attractionFactor[[0,0]]:=[0,0];
   begin //Expand symmetries
@@ -178,6 +178,8 @@ replotHistory->isGuiStarted ? begin
     [p-0.5,p-1.5,p-2.5].transpose*ord(1.5<p);
   end)
   .agg((plottable)->begin
+    setOptions(["axisStyleX"=>0,"axisStyleY"=>0].toMap);
+    plot;
     plotRasterImage(plottable,WIDTH);
     addAnimationFrame;
   end);
@@ -203,6 +205,8 @@ plotState(state:List(3))->begin
   postUpdateDatastores;
   isGuiStarted
   ? begin
+      setOptions(["axisStyleX"=>0,"axisStyleY"=>0].toMap);
+      plot;
       plotRasterImage(
         [p*0  ,p*0,     p     ].transpose*ord(p<=0.5)+
         [p-0.5,p*0,0.5-(p-0.5)].transpose*ord(0.5<p<=1.5)+
@@ -266,6 +270,8 @@ main('replay','finer')->begin
      [p-0.5,p-1.5,p-2.5].transpose*ord(1.5<p))[I];
   end)
   .each(plottable,begin
+    setOptions(["axisStyleX"=>0,"axisStyleY"=>0].toMap);
+    plot;
     plotRasterImage(plottable,r[0]);
     addAnimationFrame;
     index=0 ? display : postDisplay;

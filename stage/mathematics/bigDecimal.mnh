@@ -1,0 +1,158 @@
+MIN_SCALE:=-1000;
+
+//*Type BigDecimal is defined as IntList(2), with contents [scale,value]
+//*Represents the number given by 10^scale*value
+type BigDecimal(x:IntList(2))->x[0]>=MIN_SCALE;
+
+//*Returns a new BigDecimal with normalized scale and value
+newBigDecimal(scale:Int,value:Int)->begin
+  local s:=scale;
+  local v:=value;
+  local dm:=v.divMod(10);
+  while(v<>0 AND dm[1]=0 OR s<MIN_SCALE,begin
+    v:=dm[0];
+    s+=1;
+    dm:=v.divMod(10);
+  end);
+  [v=0?0:s,v].toBigDecimal;
+end;
+
+@Override
+toBigDecimal(i:Int)->newBigDecimal(0,i);
+@Override
+toBigDecimal(r:Real)->begin
+  r.isNan OR r.isInfinite ? fail(r,' cannot be converted to BigDecimal') : void;
+  local scale:=max(floor(ln(abs(r))/ln(10)-17),MIN_SCALE);
+  local value:=round(r*10^(-scale));
+  newBigDecimal(scale,value);
+end;
+@Override
+toReal(b:BigDecimal)->10.0^b[0]*b[1];
+
+toString(b:BigDecimal)->begin
+  local scale:=b[0];
+  local value:=b[1];
+  scale>0
+  ? value.toString & repeat('0',scale)
+  : begin
+      local txt:=abs(value).toString;
+      local commaAt:=txt.length+scale;
+      local afterComma:=copy(txt,commaAt,length(txt)-commaAt);
+            afterComma:=repeat('0',-scale-afterComma.length)&afterComma;
+      local beforeComma:=copy(txt,0,commaAt);
+      (value<0 ? '-' : '')&
+      (beforeComma==''?0:beforeComma)&
+      '.'&(afterComma==''?0:afterComma);
+    end;
+end;
+
+@Override
+OPERATOR_PLUS(x:BigDecimal,y:BigDecimal)->begin
+  local newScale:=max(min(x[0],y[0]),MIN_SCALE);
+  local newValue:=10^(x[0]-newScale)*x[1]+
+                  10^(y[0]-newScale)*y[1];
+  newBigDecimal(newScale,newValue);
+end;
+
+@Override
+OPERATOR_MINUS(x:BigDecimal,y:BigDecimal)->begin
+  local newScale:=max(min(x[0],y[0]),MIN_SCALE);
+  local newValue:=10^(x[0]-newScale)*x[1]+
+                  10^(y[0]-newScale)*y[1];
+  newBigDecimal(newScale,newValue);
+end;
+
+@Override
+OPERATOR_MULT(x:BigDecimal,y:BigDecimal)->
+  newBigDecimal(x[0]+y[0], x[1]*y[1]);
+
+@Override
+OPERATOR_DIVREAL(x:BigDecimal,y:BigDecimal)->
+  x[0]-y[0]>=MIN_SCALE
+  ? newBigDecimal(MIN_SCALE          ,x[1]*10^(x[0]-y[0]-MIN_SCALE) div y[1])
+  : newBigDecimal(MIN_SCALE+x[0]-y[0],x[1]*10^(         -MIN_SCALE) div y[1]);
+
+//Overloads for implicit type casting from Numeric to BigDecimal
+OPERATOR_PLUS   (x:BigDecimal,y:Numeric   )->x+y.toBigDecimal;
+OPERATOR_PLUS   (x:Numeric   ,y:BigDecimal)->x.toBigDecimal+y;
+OPERATOR_MINUS  (x:BigDecimal,y:Numeric   )->x-y.toBigDecimal;
+OPERATOR_MINUS  (x:Numeric   ,y:BigDecimal)->x.toBigDecimal-y;
+OPERATOR_MULT   (x:BigDecimal,y:Numeric   )->x*y.toBigDecimal;
+OPERATOR_MULT   (x:Numeric   ,y:BigDecimal)->x.toBigDecimal*y;
+OPERATOR_DIVREAL(x:BigDecimal,y:Numeric   )->x/y.toBigDecimal;
+OPERATOR_DIVREAL(x:Numeric   ,y:BigDecimal)->x.toBigDecimal/y;
+@Override
+OPERATOR_POT    (base:BigDecimal,exponent:Int)->
+  exponent=0 ? newBigDecimal(0,1) :
+  exponent<0 ? 1/base^(-exponent) :
+  exponent=1 ? base               :
+  (exponent and 2)=0
+  ? sqr(base)^(exponent div 2)
+  : base*(base^(exponent-1));
+
+sqr(x:BigDecimal)->x*x;
+
+sqrt(x:BigDecimal)->begin
+  local scale:=x[0];
+  local value:=x[1];
+  (scale and 1)=1 ? begin
+    scale-= 1;
+    value*=10;
+  end : void;
+  newBigDecimal(MIN_SCALE,isqrt(value*10^(-2*MIN_SCALE-scale))[0]);
+end;
+
+calcSqrt2->begin
+  local x:=toBigDecimal(1);
+  local prevX:=2;
+  while(!(x==prevX),begin
+    prevX:=x;
+    x:=(x+2/x)/2;
+  end);
+  x;
+end;
+
+calcPhi->begin
+  local x:=toBigDecimal(1);
+  local prevX:=0;
+  while(!(x==prevX),begin
+    prevX:=x;
+    x:=1/(1+x);
+  end);
+  x;
+end;
+
+factorial(n<=1)->1;
+factorial(n> 1)->[2..n].agg(*);
+
+calcEulersNumber->begin
+  local ONE:=
+  local e0:=toBigDecimal(1);
+  local e1:=toBigDecimal(2);
+  local k:=2;
+  local f:=2;
+  while(!(e0==e1),begin
+    e0:=e1;
+    e1:=e1+ONE/(f*=(k+=1));
+  end);
+  e1;
+end;
+
+ramanujanPi->begin
+  local p0:=1;
+  local p1:=0;
+  local n:=0;
+  local f:=9801/sqrt(toBigDecimal(8));
+  while(!(p0==p1),begin
+    p0:=p1;
+    p1+=((factorial(4*n)*(26390*n+1103)).toBigDecimal / (factorial(n)^4 * 396^(4*n)));
+    n+=1;
+  end);
+  f/p1;
+end;
+
+time({calcEulersNumber.toString});
+time({calcSqrt2       .toString});
+time({sqrt(toBigDecimal(2)).toString});
+time({calcPhi         .toString});
+ramanujanPi.toString;

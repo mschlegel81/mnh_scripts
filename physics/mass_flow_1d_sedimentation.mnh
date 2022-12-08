@@ -3,37 +3,59 @@ Imax:=400;
 GridSize:=200/Imax;
 Friction:=0.00;
 GravFactor:=50/GridSize;
-SedimentDensity:=3;
+SedimentDensity:=5;
 SedimentationFactor :=1E-1;
-SedimentUptakeFactor:=1E-6;
+SedimentUptakeFactor:=2E-7*GridSize;
 
 //*Boundary conditions================================================
 FreeSlipLeft :=true;
 FreeSlipRight:=true;
 //applyBoundaryConditions(state:List(4),timeStepIndex,dtSub)->state;
+
+//applyBoundaryConditions(state:List(4),timeStepIndex,dtSub)->begin
+//  local Aw:=state[0];
+//  local As:=state[1];
+//  local Q :=state[2];
+//  local Bs:=state[3];
+//  local phi:=timeStepIndex/500*2*pi;
+//  local dirtFraction:=As.agg(+)/(Aw.agg(+)+As.agg(+));
+//  local v:=Q[0]/(1E-3+Aw[   0]+As[   0]*SedimentDensity);
+//  local h0:=BaseProfile.max-BaseProfile[0]-Bs[0]+0.2;
+//  Aw[   0]:=max(0,h0+0.1*sin(phi))*(1-dirtFraction);
+//  As[   0]:=max(0,h0+0.1*sin(phi))*(  dirtFraction);
+//  Q [   0]:=v*(Aw[   0]+As[   0]*SedimentDensity);
+//  v:=Q[Imax]/(1E-3+Aw[Imax]+As[Imax]*SedimentDensity);
+//  h0:=BaseProfile.max-BaseProfile[Imax]-Bs[Imax]+0.2;
+//  Aw[Imax]:=max(0,h0-0.1*sin(phi))*(1-dirtFraction);
+//  As[Imax]:=max(0,h0-0.1*sin(phi))*(  dirtFraction);
+//  Q [Imax]:=v*(Aw[Imax]+As[Imax]*SedimentDensity);
+//
+//  [Aw,As,Q,Bs];
+//end;
 applyBoundaryConditions(state:List(4),timeStepIndex,dtSub)->begin
+  local dirtFraction:=0.0;
+save;
   local Aw:=state[0];
   local As:=state[1];
   local Q :=state[2];
   local Bs:=state[3];
-
-  round(timeStepIndex) mod 200<100
+//  dirtFraction:=dirtFraction*0.99+0.01*(As.agg(+)/(As.agg(+)+Aw.agg(+)));
+  round(timeStepIndex) mod 500<250
   ? begin
     //  local dirtFraction:=0.9*(1-timeStepIndex/5000); //start of with 90% sediment; get clearer near the end
-      local dirtFraction:=0;
-      Aw[0]+=0.5*(1-dirtFraction)*dtSub/GridSize;
-      As[0]+=0.5*(  dirtFraction)*dtSub/GridSize;
+      Aw[0]+=0.2*(1-dirtFraction)*dtSub/GridSize;
+      As[0]+=0.2*(  dirtFraction)*dtSub/GridSize;
       Q[0]:=Q[1]/(1E-3+Aw[1]+As[1]*SedimentDensity)*(Aw[0]+As[0]*SedimentDensity);
     end
   : begin
-      Aw[0]*=(1-0.1*dtSub);
-      As[0]*=(1-0.1*dtSub);
-      Q [0]*=(1-0.1*dtSub);
+      Aw[0]*=(1-0.3*dtSub);
+      As[0]*=(1-0.3*dtSub);
+      Q [0]*=(1-0.3*dtSub);
     end;
 
-  Aw[Imax]*=(1-0.1*dtSub);
-  As[Imax]*=(1-0.1*dtSub);
-  Q [Imax]*=(1-0.1*dtSub);
+  Aw[Imax]*=(1-0.3*dtSub);
+  As[Imax]*=(1-0.3*dtSub);
+  Q [Imax]*=(1-0.3*dtSub);
 
   [Aw,As,Q,Bs];
 end;
@@ -63,11 +85,13 @@ end;
 //BaseProfile:=[0..Imax].map((i)->0.4+
 //                                i/Imax*-0.3
 //                                +cos(i/Imax*10*pi)*0.1);
-BaseProfile:=[0..Imax].map((i)->0.3
-                               +i/Imax*0.1
-                               -cos(i/Imax*20*pi)*0.05);
-//smooth(x,1)->x*0.8+0.1*(x.tail|x.trailing)+0.1*(x.head|x.leading);
-//smooth(x,k>1)->smooth(x,1).smooth(k-1);
+//BaseProfile:=[0..Imax].map((i)->0.25
+//                               +i/Imax*-0.1
+//                               +cos(i/Imax*2*pi)*0.1
+//                               -cos(i/Imax*20*pi)*0.05);
+BaseProfile:=[0..Imax]/Imax*-0.2+0.2;
+smooth(x,1)->x*0.8+0.1*(x.tail|x.trailing)+0.1*(x.head|x.leading);
+smooth(x,k>1)->smooth(x,1).smooth(k-1);
 //BaseProfile:=smooth((1-ord(0.3<[0..Imax]/Imax<0.7))*0.1,Imax div 20);
 
 LocalBaseProfileMax:=begin
@@ -81,9 +105,10 @@ LocalBaseProfileMax:=begin
 end;
 
 
-Bs0:=(BaseProfile.max-BaseProfile)*ord([0..Imax]<Imax/2);
-Aw0:=(BaseProfile.max-BaseProfile)*0;
-As0:=Aw0;
+Bs0:=(LocalBaseProfileMax-BaseProfile)+0.01;//*ord([0..Imax]<Imax/2).smooth(Imax div 20);
+Bs0:=[0..Imax].map((i)->0.25+cos(i/Imax*20*pi)*0.06).map((x)->max(0,x));
+Aw0:=((LocalBaseProfileMax-BaseProfile)*0+0.2)*0.0;
+As0:=((LocalBaseProfileMax-BaseProfile)*0+0.2)*0.0;
 Q0 :=(Aw0+As0)*0;
 
 appendTrailing(L:List)->L|L.trailing;
@@ -111,7 +136,7 @@ postPlotSystem(Aw_,As_,Q_,Bs_)->begin
         group([[0..Imax],BaseProfile+Bs,BaseProfile+Bs+Aw+As].transpose,v).each(colorGroup,
           colorGroup[1].each(e,[e[0],e[1]],[e[0]+1,e[2]]).addPlot(colorTable[colorGroup[0]])
         );
-        addPlot(appendTrailing( BaseProfile+Bs+   As),'stepRight 0.5 RGB1,1,1');
+//        addPlot(appendTrailing( BaseProfile+Bs+   As),'stepRight 0.5 RGB1,1,1');
         addPlot(appendTrailing( BaseProfile         ),'stepRight f 0.5 black');
         addPlot(appendTrailing((BaseProfile+Bs)     ),'stepRight f 0.5 black');
         addPlot(appendTrailing( BaseProfile+Bs+Aw+As),'stepRight 0.5 black');
@@ -148,8 +173,8 @@ end;
 
 updateState(state,vEdge,aEdge,jerkEdge,dtSub)->begin
   jerkEdge.isInfinite.agg(or) ? showTable(state.transpose) : void;
-  assert(!(jerkEdge.isNan).agg(or));
-  assert(!(jerkEdge.isInfinite).agg(or));
+//  assert(!(jerkEdge.isNan).agg(or));
+//  assert(!(jerkEdge.isInfinite).agg(or));
   local Aw:=state[0];
   local As:=state[1];
   local Q :=state[2];
@@ -171,7 +196,8 @@ updateState(state,vEdge,aEdge,jerkEdge,dtSub)->begin
 //  local ka:=               SedimentationFactor;
 //  local sedimentUptake:=(As*ka- vectorIfThenElse(Bs>1E-2 ,1E-2 , Bs)*kb)/(ka+kb)*(exp(-dtSub*(ka+kb))-1)  ;
 
-  local sedimentUptake:=(exp(-SedimentationFactor*dtSub)-1)*As+Q*abs(v_post)*SedimentUptakeFactor/SedimentationFactor;
+  local sedimentUptake:=(exp(-SedimentationFactor*dtSub)-1)*As+sqr(v_post)*SedimentUptakeFactor/SedimentationFactor;
+//  local sedimentUptake:=(exp(-SedimentationFactor*dtSub)-1)*As+abs(Q)*SedimentUptakeFactor/SedimentationFactor;
   sedimentUptake:=vectorIfThenElse(sedimentUptake>Bs,Bs,sedimentUptake);
 
   Q:=(Aw+(As+sedimentUptake*ord(sedimentUptake<0))*SedimentDensity)*v_post;

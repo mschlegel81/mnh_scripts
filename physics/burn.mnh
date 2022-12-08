@@ -305,6 +305,8 @@ writeToOutFile(rounded:List)->begin
 end;
 
 executePlot(prepared:Map)->begin
+  setOptions(["x0"=>-1,"x1"=>1,"y0"=>-1,"y1"=>1,"fontsize"=>10,"preserveAspect"=>true,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
+  plot();
   plotRasterImage(prepared['plottable'],sysWidth-ord(ZERO_BOUNDARY));
 //  log(prepared['plottable']);
   PLOT_TO_FILE

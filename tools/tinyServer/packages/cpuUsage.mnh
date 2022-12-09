@@ -1,0 +1,77 @@
+USE tinyServer_config;
+//CPU Usage:--------------------------------------------------------------------------
+private mutable cpuUsageHistory:=[];
+private mutable currentCpuDiagram:='';
+private mutable cpuDiagramUnqueried:=0;
+
+private plotCpuDiagram(usage)->begin
+//  log('Start plot CPU usage');
+  setOptions(["preserveAspect"=>false,"autoscaleX"=>false,"autoscaleY"=>false,
+     "axisStyleX"=>0,"axisStyleY"=>0,
+     "x0"=>0,"x1"=>1,
+     "y0"=>0,
+     "y1"=>100].toMap);
+  plot([[0,0],  [1,100]],'GREY0.13 fs box');
+  usage.size>1
+  ? begin
+      local t1:=usage.trailing.head;
+      local t0:=usage.head.head;
+      local t:=usage.getInner(0);
+      local F:={1-sqrt(1-sqr(max(0,$t-t0)/(t1-t0)))};
+//      log('Plotting CPU usage data');
+      addPlot(t.map(F),usage.getInner(1),'GREY0.5 f b');
+//      log('Plotting grid and ticks');
+      addPlot([[0,START_WHEN_WORKLOAD_BELOW],[1,START_WHEN_WORKLOAD_BELOW]],'GREY0.5');
+      //1-minute ticks
+      local i0:=ceil (t1*(24*6 )-2)*10;
+      local i1:=floor(t1*(24*60));
+      i1>=i0 ? ([i0..i1]/(24*60)).map(F).each(x,[x,0],[x,100],[Nan,Nan]).addPlot('GREY0.5 0.5')
+             : void;
+      //10-minute ticks
+      i0      :=ceil (t0*(24*6));
+      i1      :=floor(t1*(24*6));
+      i1>=i0 ? ([i0..i1]/(24*6)).map(F).each(x,[x,0],[x,100],[Nan,Nan]).addPlot('GREY0.5 1.5')
+             : void;
+    end
+  : begin
+      warn('Not plotting history');
+      addPlot([[0,START_WHEN_WORKLOAD_BELOW],[1,START_WHEN_WORKLOAD_BELOW]],'GREY0.5');
+    end;
+  drawTextAbsolute(0,0.5,'CPU',80,'L','Century Gothic',[0.2,0.2,0.2]);
+//  log('Rendering CPU usage to string');
+  currentCpuDiagram:=format('<img src="data:image/png;base64,%s" />',renderToString(500,100).base64encode);
+  cpuDiagramUnqueried+=1;
+//  log('Done plot CPU usage');
+end;
+
+getCpuDiagram->begin
+  cpuDiagramUnqueried:=0;
+  currentCpuDiagram;
+end;
+
+isCpuAlmostIdle->(cpuUsageHistory.size>0) AND (cpuUsageHistory.trailing(SAMPLES_FOR_WORKLOAD_CHECK).getInner(1)<START_WHEN_WORKLOAD_BELOW).agg(AND);
+
+logCpuUsage->
+  begin
+    cpuUsageHistory||=[systime,getCPULoadPercentage];
+    cpuUsageHistory.size>2000
+    ? cpuUsageTrim
+    : void;
+    cpuDiagramUnqueried<20 ? plotCpuDiagram(cpuUsageHistory) : void;
+  end;
+
+cpuUsageTrim->begin
+  cpuUsageHistory:=
+  (systime-1/(24*60*60)*
+   1.05^transpose([[191..0],
+                   [190..0,-Inf]])).each(interval,begin
+    local t0:=interval[0];
+    local t1:=interval[1];
+    local inRange:=cpuUsageHistory.filter({t0<$h[0]<=t1});
+    inRange.size>0
+    ? inRange.agg(+)/inRange.size
+    : void;
+  end);
+  void;
+end;
+

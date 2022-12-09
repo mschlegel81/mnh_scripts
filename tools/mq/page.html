@@ -1,0 +1,82 @@
+<!DOCTYPE html><html>
+<meta content="text/html; charset=UTF-8" http-equiv="content-type">
+<head><!--meta name="viewport" content="width=624"-->
+<title>mathEdit</title>
+<link rel="stylesheet" type="text/css" href="build/mathquill.css">
+</head>
+<body><div id="body">
+<script type="text/javascript">
+function doPost(payload, reloadAfter) { 
+  var url = "http://127.0.0.1:80/mathPart";
+  var xhr = new XMLHttpRequest();
+  xhr.open("POST", url);
+  xhr.setRequestHeader("Accept", "application/json");
+  xhr.setRequestHeader("Content-Type", "application/json");
+  console.log(payload);
+  
+  xhr.onreadystatechange = function () {
+    if (xhr.readyState === 4) {
+      console.log(xhr.status);
+      console.log(xhr.responseText);
+      if (reloadAfter) {
+        window.location.reload(true);
+      }
+    }};
+  xhr.send(payload);
+};
+
+function postUpdate(index,data) {
+  doPost(JSON.stringify({"index": index, "data": data}),false);
+};
+
+function postDropLine(index) {
+  doPost(JSON.stringify({"index": index, "doDrop": true}),false);
+};
+
+function postAddNewLine() {
+  doPost(JSON.stringify({"index": -1, "doAppend": true}),false);
+};
+
+function toggleVisibility(index) {
+  var mathstyle = false;
+  var x = document.getElementById('math'+index);
+  var y = document.getElementById('text'+index);
+  if (x.style.display  === 'none') {
+    x.style.display  = 'block';
+	y.style.display  = 'none';
+	mathstyle = true;
+  } else {
+    x.style.display  = 'none';
+	y.style.display  = 'block';
+	mathstyle = false;
+  }
+  doPost(JSON.stringify({"index": index, "mathstyle": mathstyle}),false);
+}  
+</script>
+
+<table>
+<tr><td><button onclick="toggleVisibility(0)">t/m</button></td><td>
+<span id="math0" style="display:none; width:100%; align:left">\text{Definition: A regular heptagon has sides of equal length with equal angle between the}</span> 
+<input type="text" id="text0" style="width:100%"></td>
+<td><button onclick="postDropLine(0)">-</button></td></tr>
+<tr><td/><td><button onclick="postAddNewLine()">add line</button></td></tr>
+</table>
+
+<script type="text/javascript" src="test/support/jquery-1.7.2.js"></script>
+<script type="text/javascript" src="build/mathquill.js"></script>
+<script type="text/javascript">
+MQ = MathQuill.getInterface(2);
+
+var text0 = $('#text0').bind('keydown keypress', function() {
+  var prev = text0.val();
+  setTimeout(function() {
+    var now = text0.val();
+    if (now !== prev) {
+	  mq0.latex(now);
+	  postUpdate(0,now);
+	}
+  });
+});
+var mq0 = MQ.MathField($('#math0')[0], {  handlers: {  edit: function() {  postUpdate(0,mq0.latex()); if (!text0.is(':focus')) text0.val(mq0.latex()); }}}); 
+text0.val(mq0.latex());
+</script></body></html>

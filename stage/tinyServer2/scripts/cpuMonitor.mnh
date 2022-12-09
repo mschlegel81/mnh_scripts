@@ -1,7 +1,0 @@
-L10:=format('%9s%%',10*[1..10]).join.replace(' ','-');
-L01:=repeat('-',100);
-
-main->begin
-  local count:=-1;
-  while(true,print(formatTime('hh:nn:ss',systime),' ',copy((count+=1) mod 10=0 ? L10 : L01,0,getCPULoadPercentage)));
-end;

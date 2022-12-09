@@ -1,0 +1,160 @@
+MAX_NUMBER_OF_DELTAS:=50;
+FILE_EXTENSION:='.ib';
+
+type Fingerprint(L:List        )->L.size>=2 AND L[0].isNumeric AND L[0]>=-1
+                                            AND L[1].isInt     AND L[1]>=-1;
+type FullFileInfo(L:Fingerprint)->L.size=3 AND L[2].isString;
+type FingerprintMap (M:Map)           ->M.getInner(0).isStringSet AND M.getInner(1).each(e,e.isFingerprint ,AND);
+type FullFileInfoMap(M:FingerprintMap)->M.getInner(0).isStringSet AND M.getInner(1).each(e,e.isFullFileInfo,AND);
+
+fileAge     (info:Fingerprint)->info[0];
+fileHash    (info:Fingerprint)->info[1];
+deletedHash:=-1;
+DELETED:=[-1.0,deletedHash,''].toFullFileInfo;
+
+ducktype BackupConfig(M:Map(4))->M['backupNameBase'].isString  AND
+                                (M['basePattern']   .isString OR
+                                 M['basePattern']   .isStringList)  AND
+                                 M['recurse']       .isBoolean AND
+                                 M['matcher']       .isExpression(1);
+
+matchAll(x)->x==x;
+
+fileState(rootPath:String,basePattern:String,recurse:Boolean,matcher:Expression(1),includeContents:Boolean)->
+  allFiles(rootPath,basePattern,recurse)
+    .filter(matcher)
+    .fileInfo
+    .pMap({relativeFileName(rootPath,$fileInfo['path']) => begin
+       local contents:=$fileInfo['path'].fileContents;
+       includeContents
+       ? [$fileInfo['time'], contents.sha256, contents].toFullFileInfo
+       : [$fileInfo['time'], contents.sha256          ].toFingerprint;
+     end})
+    .toMap
+    .{ includeContents
+       ? $M.toFullFileInfoMap
+       : $M.toFingerprintMap};
+
+stateDelta(previous:FingerprintMap,current:FingerprintMap)->begin
+  local newInCurrent    :=current .getInner(0).minus(previous.getInner(0));
+  local missingInCurrent:=previous.getInner(0).minus(current.getInner(0)).filter({previous[$key].fileHash!=deletedHash});
+  local modified        :=previous.getInner(0).intersect(current.getInner(0))
+                                              //compare hashes only
+                                              .filter({previous[$key].fileHash != current[$key].fileHash});
+  (modified.union(newInCurrent).map({$key => current[$key]})|
+   missingInCurrent            .map({$key => DELETED})).toMap.toFullFileInfoMap;
+end;
+
+sortableSystime->formatTime('yyyymmddhhnnss',systime);
+
+private writeState(filename:String,state:FullFileInfoMap)->begin
+    note(scriptTime,' Compressing contents');
+    local persistedState:=state.sort.map(::flatten).transpose;//.pMap({$x.serialize.compress(1)}).serialize;
+    persistedState[0]:=persistedState[0].join(#0).compress ; //filenames
+    persistedState[1]:=persistedState[1].serialize.compress; //file times
+    persistedState[2]:=persistedState[2].serialize.compress; //file hashes
+    persistedState[3]:=persistedState[3].pMap(::compress);   //fileContents
+    filename.writeFile(persistedState.serialize);
+  end;
+
+private readState(filename:String,includeContents:Boolean)->begin
+    print('Reading: ',filename);
+    local persistedState:=filename.fileContents.deserialize;
+    persistedState[0]:=persistedState[0].decompress.split(#0); //filenames
+    persistedState[1]:=persistedState[1].decompress.deserialize; //file times
+    persistedState[2]:=persistedState[2].decompress.deserialize; //file hashes
+    includeContents
+    ? persistedState.transpose.map({$x.head => $x.tail        .toFullFileInfo}).toMap.toFullFileInfoMap
+    : persistedState.transpose.map({$x.head => $x.tail.leading.toFingerprint }).toMap.toFingerprintMap;
+  end;
+
+doBackup(rootPath:String,config:BackupConfig)->begin
+  local backupPattern:=format('%s_%%s%s',config['backupNameBase'],FILE_EXTENSION);
+  local previousBackups:=backupPattern.format('*').files().sort;
+  local nextBackup     :=backupPattern.format(sortableSystime);
+  local currentState:=fileState(rootPath,
+                                config['basePattern'],
+                                config['recurse'],
+                                config['matcher'],true);
+  print('Computed state: ',currentState.size,' (',currentState.typeOf,')');
+  previousBackups.size=0
+  ? begin
+      print('Creating initial backup ',nextBackup);
+      nextBackup.writeState(currentState).assert;
+    end
+  : begin
+      local previousDeltas:=previousBackups.pMap({$b.readState(false)});
+
+      local allMerged:=begin
+        local s:=[].toMap;
+        previousDeltas.each(delta,s:=delta.mergeMaps(s,::orElse).toFingerprintMap);
+      end;
+      local increment:=allMerged.each(prev,stateDelta(prev,currentState));
+      while(increment.size>1 AND
+            increment[increment.size-1]==increment[increment.size-2],
+            increment:=increment.leading);
+      local obsoleteBackups:=previousBackups.tail(increment.size);
+      previousBackups      :=previousBackups.head(increment.size);
+      increment:=increment.trailing;
+      print('Delta ready: ');
+      printf('  %s',increment.getInner(0).sort);
+
+      increment.size=0
+      ? return print('Not writing zero increment')
+      : void;
+
+      obsoleteBackups.map({print($f,' is obsolete') orElse deleteFile($f)});
+
+      previousBackups.size>MAX_NUMBER_OF_DELTAS
+      ? begin
+          print('Max number of deltas exceeded. Consolidating to single backup ',nextBackup);
+          previousBackups.each(f,f.deleteFile);
+          nextBackup.writeState(currentState).assert;
+        end
+      : begin
+          print('Writing increment ',nextBackup);
+          nextBackup.writeState(increment).assert;
+        end;
+    end;
+end;
+
+doRestore(targetFolder:String,config:BackupConfig)->begin
+  local allBackups:=files(format('%s_*%s',config['backupNameBase'],FILE_EXTENSION)).sort;
+  assert(allBackups.size>0,'No backups to restore found!');
+  local deltaToApply:=
+  fileState(targetFolder,
+            config['basePattern'],
+            config['recurse'],
+            config['matcher'],false)
+  .stateDelta(
+    allBackups
+      .pEach(backupFile,
+             backupFile.readState(true),
+             aggregator({$1.mergeMaps($0,::orElse)}))
+      .filter({config['matcher']($x[0])})
+      .toFullFileInfoMap);
+  local targetPath:=expandedFileName(targetFolder&'/');
+  deltaToApply
+    .toIteratableExpression
+    .pMap({[targetPath&$info[0],
+            $info[1,2].decompress,
+            $info[1].fileAge,
+            $info[1].fileHash==deletedHash]})
+    .each(i,i[3]
+            ? print('Deleting ',i[0],' ',deleteFile(i[0]) ? 'o.k.' : 'FAILED')
+            : begin
+                print('Writing ',i[0],' ',writeFile(i[0],i[1]) ? 'o.k.' : 'FAILED');
+                setFileDate(i[0],i[2]);
+              end);
+end;
+
+KODI_CONFIG:=
+  ['backupNameBase'=>'D:/backup/kodi',
+   'basePattern'   =>'*.*',
+   'recurse'       =>true,
+   'matcher'       =>::matchAll].toMap;
+
+main->doBackup("C:/users/schlegel/AppData/Roaming/Kodi",KODI_CONFIG);
+
+main('restore')->doRestore("C:/users/schlegel/AppData/Roaming/Kodi",KODI_CONFIG);
+main('restore',path)->doRestore(path,KODI_CONFIG);

@@ -1,0 +1,38 @@
+g(a,b)->[a,b,a+b,a+2*b];
+//*Returns: Secant, cosecant, hypothenuse
+pyth(L:IntList(4))->[L[0]*L[3],L[1]*L[2]*2,L[0]*L[2]+L[1]*L[3]];
+//*Returns: incircle radius and 3 excircle radii
+circleRadii(L:IntList(4))->[L[0]*L[1],L[2]*L[3],L[0]*L[2],L[1]*L[3]];
+//*Returns the successors
+successors(L:IntList(4))->[g(L[3],L[1]),g(L[3],L[2]),g(L[0],L[2])];
+
+
+
+pythagoreanTriplets(seed:IntList(4),depth<=0)->[seed.pyth];
+pythagoreanTriplets(seed:IntList(4),depth)->
+  [seed.pyth]|
+  seed.successors.each(s,pythagoreanTriplets(s,depth-1),|);
+
+//pythagoreanTriplets(g(1,1),7);//.map((p)->p.leading).plot('.');
+
+tripletsWithinPerimeter(p)->tripletsWithinPerimeter(p,g(1,1));
+tripletsWithinPerimeter(p,seed:IntList(4))->begin
+  local t:=pyth(seed);
+  t.agg(+)<=p
+  ? begin
+      [t]|successors(seed).pEach(s_,tripletsWithinPerimeter(p,s_),|);
+    end
+  : void;
+end;
+
+countTripletsWithinPerimeter(p)->countTripletsWithinPerimeter(p,g(1,1));
+countTripletsWithinPerimeter(p,seed:IntList(4))->begin
+  local t:=pyth(seed);
+  t.agg(+)<=p
+  ? begin
+      1+successors(seed).pEach(s_,countTripletsWithinPerimeter(p,s_),+);
+    end
+  : void;
+end;
+
+countTripletsWithinPerimeter(100000);

@@ -1,0 +1,227 @@
+type Polynomial(L:NumericList)->L.size>=1;
+
+@SuppressUnusedWarning
+factorial(n:Int)->n<=1 ? 1 : [2..n].agg(*);
+
+ducktype OddInt(i:Int)->(i and 1)=1;
+memoized
+abstractDifferentiation(k=0)->[[0,1,0]];
+abstractDifferentiation(k:OddInt)->
+  abstractDifferentiation(k-1).each(d,[d[0]+1, d[1]/2/k,d[2]-1],
+                                      [d[0]-1,-d[1]/2/k,d[2]-1]).group(0,::polyAgg).sort;
+abstractDifferentiation(k:Int)->
+  abstractDifferentiation(k-2).each(d,[d[0]+1,   d[1]/k,d[2]-2],
+                                      [d[0]  ,-2*d[1]/k,d[2]-2],
+                                      [d[0]-1,   d[1]/k,d[2]-2]).group(0,::polyAgg).sort;
+
+private memoized
+xPow(0  )->1;
+xPow(1  )->{$x};
+xPow(n>1)->{$x}^n;
+
+private polyAgg(a:List(2),b:List(2))->[a.head,a.trailing+b.trailing];
+private polyAgg(a:List(3),b:List(3))->[a.head,a[1]+b[1],a.trailing];
+private groupToPolynomial(L:List)->begin
+  local Q:=L.group(0,::polyAgg).toMap;
+  [0..Q.getInner(0).max].each(k,Q[k,1] orElse 0);
+end.toPolynomial;
+
+unaryExpressionOf(n:Numeric)->(x)->n;
+
+@SuppressUnusedWarning
+@Override
+toExpression(P:Polynomial)->begin
+  local f:=P.each(factor,factor=0 ? void : factor=1 ? xPow(index) : factor*xPow(index),+);
+  f.isVoid
+  ? unaryExpressionOf(0)
+  : f.isNumeric
+    ? unaryExpressionOf(f)
+    : f;
+end;
+
+nicePolynomialString(poly==([0].toPolynomial), freeVariable:String)->'0';
+nicePolynomialString(poly:Polynomial, freeVariable:String)->begin
+  local powString:=(n)->n=0 ? '' : '*'&(
+                        n=1 ? freeVariable :
+                        n=2 ? freeVariable&'²' :
+                        n=3 ? freeVariable&'³' :
+                              freeVariable&'^'&n);
+  local s:=
+  poly.each(factor,
+    factor= 0 ? void :
+    factor= 1 ? index=0 ?  1 :     powString(index).copy(1) :
+    factor=-1 ? index=0 ? -1 : '-'&powString(index).copy(1) :
+                            factor&powString(index))
+    .join('+')
+    .replace('+-','-');
+  //Special workaround: -x^4+23*x^5 => -1*x^4+23*x^5
+  local prefix:='-'&freeVariable;
+  copy(s,0,prefix.length)==prefix
+  ? '-1*'&copy(s,1)
+  : s;
+end;
+
+D(P:Polynomial)->
+  P.size<=1 ? [0].toPolynomial : P.each(x,x*factorial(index)).tail.toPolynomial;
+
+@Override
+OPERATOR_PLUS(A:Polynomial,B:Polynomial)->[0..max(A.size,B.size)-1].each(i,A[i]+B[i]).toPolynomial;
+OPERATOR_PLUS(A:Polynomial,b:Numeric   )->A.each(a,index=0 ? a+b : a).toPolynomial;
+OPERATOR_PLUS(a:Numeric   ,B:Polynomial)->B.each(b,index=0 ? a+b : b).toPolynomial;
+
+@Override
+OPERATOR_MINUS(A:Polynomial,B:Polynomial)->[0..max(A.size,B.size)-1].each(i,A[i]-B[i]).toPolynomial;
+OPERATOR_MINUS(A:Polynomial,b:Numeric   )->A.each(a,index=0 ? a-b :  a).toPolynomial;
+OPERATOR_MINUS(a:Numeric   ,B:Polynomial)->B.each(b,index=0 ? a-b : -b).toPolynomial;
+
+@Override
+OPERATOR_MULT(A:Polynomial,f:Numeric)->(A.toBuiltin*f).toPolynomial;
+OPERATOR_MULT(f:Numeric,A:Polynomial)->(A.toBuiltin*f).toPolynomial;
+OPERATOR_MULT(A:Polynomial,B:Polynomial)->
+A.each(a_i,begin
+  local k:=index;
+  B.each(b_i,[index+k,a_i*b_i]);
+end,|).groupToPolynomial;
+
+//*Returns [quotient,rest]
+polyDivision(A:Polynomial,B:Polynomial)->begin
+  local quotient:=[0..max(A.size-B.size,0)]*0;
+  local rest:=A; while(rest.size<B.size,rest|=0);
+  local degB:=B.size-1;
+  [max(A.size-1 - degB,0)..0].each(i,begin
+    quotient[i]:=rest[i+degB]/B[degB];
+    [degB..0].each(j,rest[i+j]:=rest[i+j]-B[j]*quotient[i]);
+  end);
+  while(quotient.size>1 AND quotient.trailing=0,quotient:=quotient.leading);
+  while(rest    .size>1 AND rest    .trailing=0,rest    :=rest    .leading);
+  [quotient.toPolynomial,rest.toPolynomial];
+end;
+
+OPERATOR_DIVREAL(A:Polynomial,f:Numeric)->(A.toBuiltin/f).toPolynomial;
+OPERATOR_DIVREAL(f:Numeric,A:Polynomial)->[f].toPolynomial/A;
+OPERATOR_DIVREAL(A:Polynomial,B:Polynomial)->polyDivision(A,B)[0];
+
+OPERATOR_MOD    (A:Polynomial,B:Polynomial)->polyDivision(A,B)[1];
+
+//*Binominal coefficient
+memoized bc(n=0)->[1];
+         bc(n>0)->(0|bc(n-1))+(bc(n-1)|0);
+         bc(n,k)->bc(n)[k] orElse 0;
+
+bcWeightAgg(L:List)->(L*bc(L.size-1)*0.5^(L.size-1)).agg(+);
+
+//*Returns a Polynomial R(x) = P(x+dx)
+@SuppressUnusedWarning
+shift(P:Polynomial,dx:Numeric)->
+  // R = p[0] + p[1]*(x+dx) + p[2]*(x+dx)^2 + ...
+  //
+  // p[n]*(x+dx)^n = p[n] * sum_k=0^n( bc(n,k) * dx^k * x^(n-k) )
+  //               = bc(n).each(b,(p[n] * b    * dx^k)* x^(n-k),+);
+  P.each(p_n,begin
+    local n:=index;
+    bc(n).each(b,[n-index,p_n*b*dx^index]);
+  end,|).groupToPolynomial;
+
+@SuppressUnusedWarning
+sublistsOfLength(L:List,subLength>0)->begin
+  [0..L.size-subLength].each(offset,
+    L[[0..subLength-1]+offset]);
+end;
+
+
+discreteTaylor(L:List,dx:Numeric)->
+begin
+  assert(L.size.isOddInt,'L must have odd length');
+  local Y:=L.each(p,[index-L.size div 2,p]).toMap;
+  [0..L.size-1].each(k,begin
+    abstractDifferentiation(k)
+    .map({[$x[0],$x[1]*dx^$x[2]]})
+    .each(entry,Y[entry[0]]*entry[1],+);
+  end).toPolynomial;
+end;
+
+discreteTaylor(L:List,dx:Numeric,maxDegree:Int)->
+begin
+  assert(L.size.isOddInt,'L must have odd length');
+  local maxDeg:=min(maxDegree,L.size-2);
+  maxDeg:=maxDeg.isOddInt ? maxDeg : maxDeg+1;
+  [(L.size-maxDeg) div 2..-(L.size-maxDeg) div 2].each(k,begin
+    local Y:=k=0
+             ? L
+             : k<0 ? L.trailing(L.size+2*k)
+                   : L.head    (L.size-2*k);
+    while(Y.size+1>maxDeg,Y:=Y.tail.leading);
+    Y.discreteTaylor(dx).shift(k*dx);
+  end).bcWeightAgg.toPolynomial;
+end;
+
+bairstowReduceBy2(P:Polynomial)->begin
+  local n:=P.size-1;
+  local a :=[P[n-1] orElse 0,P[n-2] orElse 0]/P[n];
+  local alreadySeenA:=[a];
+  while(true,begin
+    local b :=[P[n],0];
+    local q :=[0,0];
+    [n-1..0].each(j,begin
+      q:=[b[1]-(a*q).agg(+),q[0]];
+      b:=[P[j]-(a*b).agg(+),b[0]];
+      void;
+    end);
+    local M:=-(a*q).agg(+);
+    local D:= q[0]² - M  * q[1]  ;
+
+    local da  :=[(b[0]*q[1]-b[1]*q[0])/D,
+                 (b[1]*M   -b[0]*q[0])/D];
+
+    a-=da;
+    a in alreadySeenA
+    ? begin
+        local part:=[a[1],a[0],1].toPolynomial;
+        return [P/part,part];
+      end
+    : alreadySeenA|=[a];
+  end);
+end;
+
+bairstowFactorize(P:Polynomial)->begin
+  local R:=P;
+  local Q:=[];
+  while(R.size>2,begin
+    local B:=R.bairstowReduceBy2;
+    Q||=B[1];
+    R:=B[0];
+  end);
+  Q||R;
+end;
+
+allRealRootsOf(P:Polynomial)->begin
+  P.size<=1 ? []:
+  P.size=2 ? [-P[0]/P[1]] :
+  P.size=3 ? begin
+    local discriminant:=P[1]²-4*P[0]*P[2];
+    discriminant>=0
+    ? ([1,-1]*sqrt(discriminant)-P[1])/(2*P[2])
+    : [];
+  end :
+  P.bairstowFactorize.map(::allRealRootsOf).agg(|);
+end;
+
+gregoryNewton(X:NumericList)->begin
+  local D:=X;
+  local S:=D[0];
+  while(D.unique.size>1,begin
+    D:=D.tail-D.leading;
+    S|=D[0];
+  end);
+  local p:=[1].toPolynomial;
+  S.each(s,s*p/factorial(index),begin
+    p*=shift([0,1].toPolynomial,-index);
+    void;
+  end,+);
+end;
+
+@SuppressUnusedWarning
+evaluate(P:Polynomial,x)->begin
+  local px:=1;
+  P.each(a,a*px,begin px*=x; void; end,+);
+end;

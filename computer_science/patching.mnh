@@ -1,0 +1,16 @@
+ducktype Edits(L:List)->L.each(entry,entry.isList(3) AND entry[0] in ['M','-','+'] AND entry[1].isInt AND entry[2].isString,AND);
+
+makeEdit(Start:StringList,Target:StringList)->
+  diff(Start,Target)['edit'].each(e,e[0]==' ' ? void : [e[0],e[1],Target[e[2]]]).toEdits;
+makeEdit(Start:String,Target:String)->makeEdit(chars(Start),chars(Target));
+
+patch(source:StringList,edit:Edits)->begin
+  local out:=source;
+  edit.each(e,e[0]=='M' ? out[e[1]]:=e[2] :
+              e[0]=='-' ? out[e[1]]:=[] :
+                          out[e[1]]|=e[2]);
+  out.flatten;
+end;
+patch(source:String,edit:Edits)->source.chars.patch(edit).join;
+
+makeEdit('Test','Text');

@@ -132,6 +132,7 @@ plotMemoryUsage->begin
 end;
 
 main->begin
+  hideConsole;
   setOptions(["preserveAspect"=>false,
               "autoscaleX"=>false,
               "autoscaleY"=>false,

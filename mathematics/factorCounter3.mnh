@@ -1,0 +1,127 @@
+#!C:\bin\mnh_light.exe -quiet -headless -convertPrintToLog -logDateFmt hh:mm:ss -logLocationLength 10 +log stdOut(1)
+datastore interestings:=[[2,1]];
+
+logIfRelevant(state:IntList)->
+  state.unique.size==state.size
+  ? void
+  : begin
+      [2..state.size-1].each(i,[1..i-1].each(j,
+        state[i]==state[j]
+        ? format("P[%s]\t=\tP[%s]\t=\t%s\t@\v%s",j,i,state[i],state[0])
+        : void,|),|).join("\n").log;
+    end;
+
+LOW:=[1..6].cross([1..6]).filter((ij)->ij.agg(<));
+
+minDelta(state:IntList)->state.getAll(LOW).map((n)->n.size==2 ? n.agg(-).abs : void).min;
+
+scanInRange(n0,n1)->
+begin
+  local F:=toList(
+  n1>n0+4095
+  ? begin
+      local k:=mnhInfo['configured_cpus'];
+      k:=ceil(ceil((n1-n0)/1000)/k)*k;
+      k:=n0+round((n1+1-n0)*[0..k]/k);
+      [k.leading,k.tail-1].transpose
+      .pMap((r)->factorize([r[0]..r[1]]).map(::size).elementFrequency)
+      .agg((x,y)->mergeMaps(x,y,::+));
+    end
+  : factorize([n0..n1]).map(::size).elementFrequency);
+  groupToList(F.getInner(1),F.getInner(0),0,::+);
+end;
+
+main->begin
+  local counts:=interestings.trailing;
+  interestings.map(::logIfRelevant);
+  print('--------------------------------------- - - -  -  -  - ');
+
+  local lastSave:=scriptTime;
+  local lastCount:=counts[0];
+  while(true,begin
+    local md:=minDelta(counts);
+    log(counts,md==0 ? ' ***********': format(' min delta=%s',md orElse '?'));
+    md==0 ? logIfRelevant(counts) : void;
+    local stepSize:=max(1,md orElse 1);
+    local increment:=scanInRange(counts[0]+1,local n:=counts[0]+stepSize);
+    while(counts.size<increment.size,counts|=0);
+    while(increment.size<counts.size,increment|=0);
+    counts+=increment;
+    counts[0]:=n;
+    interestings|=[counts];
+    scriptTime>lastSave+60
+    ? begin
+        writeDataStores;
+        note('Data stores updated ',round((lastCount-lastCount:=counts[0])/(lastSave-lastSave:=scriptTime)),'/s');
+      end
+    : void;
+  end);
+
+end;
+//
+//
+
+
+begin
+  local COLOR:=['RGB1,1,0','black','red','blue','green','orange','purple'];
+
+  local D:=interestings;
+  print('Number of points logged: ',D.size,' (',(local S:=D.map(::size)).agg(+),' values)');
+  local I:=D;
+  plot.resetOptions;
+  setOptions(["x0"=>2,"x1"=>D.getInner(0).max,"y0"=>0,"y1"=>0.5,"autoscaleX"=>false,"autoscaleY"=>false,"logscaleX"=>true,"logscaleY"=>false].toMap);
+  plot   (D.getInner(0),D.getInner(1)/(D.getInner(0)-1),COLOR[1]&' 0.5');
+  [2..6].each(k,begin
+    D:=D[S>k]; S:=S[S>k];
+    addPlot(D.getInner(0),D.getInner(k)/(D.getInner(0)-1),COLOR[k]&' 0.5');
+  end);
+
+  D:=I.transpose(-1);
+
+  LOW.each(k,begin
+    local i:=indexOf(D[k[0]]=D[k[1]] and D[k[0]]>0);
+    i.size==0 ? void : begin
+      local x:=D[0,i];
+      local y:=D[k[0],i];
+      printf("P[%s] = P[%s] =\t%s\t@%s",k[0],k[1],x,y);
+      y/=(x-1);
+      addPlot(x,y,COLOR[k[1]]&' .');
+      addPlot(x,y,COLOR[k[0]]&' 0.5 .');
+    end;
+  end);
+
+end;
+addAnimationFrame;
+begin
+
+  local i0:=0;
+  local i1:=10;
+  local tgt:=30;
+  local plottable:=[];
+  while(i1<interestings.size-1,begin
+    log(i1,'/',interestings.size);
+    while((interestings[i1,0] orElse Inf)<tgt,i1+=1);
+
+    local A:=interestings[i0].head(7); while(A.size<=6,A|=0);
+    local B:=interestings[i1].head(7); while(B.size<=6,B|=0);
+    local x0:=A[0];
+    local x1:=B[0];
+    local y :=tail(B-A);
+    y/=y.agg(+);
+    //plottable|=[x0|y,
+    //            x1|y];
+    plottable|=[(x0+x1)/2|y];
+    i0:=i1; i1+=1;
+    tgt*=1.5;
+  end);
+  plottable:=plottable.leading.transpose;
+//  log(plottable);
+  setOptions(["x0"=>1E-100,"x1"=>1,"y0"=>1E-100,"y1"=>1,"fontsize"=>10,"preserveAspect"=>true,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>true,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>7,"axisStyleY"=>7].toMap);
+  plot   (plottable[0],plottable[1],'b');
+  addPlot(plottable[0],plottable[2],'b');
+  addPlot(plottable[0],plottable[3],'b');
+  addPlot(plottable[0],plottable[4],'b');
+  addPlot(plottable[0],plottable[5],'b');
+  addPlot(plottable[0],plottable[6],'b');
+end;
+addAnimationFrame;

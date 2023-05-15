@@ -12,17 +12,17 @@ memoized allCoordinateStrings(len>=1,base in [2..5])->begin
   cross(halfChars,halfChars).pMap((m)->charMap.getAll(m.transpose).join);
 end;
 
-showHelp(base in [2..5])->begin
+showHelp(base in [2..5],depth)->begin
   resetOptions;
   setOptions(["axisStyleX"=>0,"axisStyleY"=>0].toMap);
   plot();
-  allCoordinateStrings(1,base)
+  allCoordinateStrings(depth,base)
   .each(char,
     begin
-      local i:=base-1-index div base;
-      local j:=       index mod base;
+      local i:=base-1-index div (base)^depth;
+      local j:=       index mod (base)^depth;
       addPlot([[j,i]-0.5,[j,i]+0.5],'box black');
-      drawText(j,i,char,30,'C');
+      drawText(j,i,char,20,'C');
     end);
   display;
 end;
@@ -53,6 +53,7 @@ USE customFormUtil;
 ALPHABET_OPTIONS:=['A..D','A..I','A..P','A..Y'];
 
 main->begin
+  hideConsole;
   local displayRegex:=
   local workRegex:='^[ABC]+$';
   local stop:=false;
@@ -107,7 +108,7 @@ main->begin
       newButton.withCaption('show help for alphabet').withAction(()->begin
         stop:=true;
         restart:=false;
-        showHelp(base);
+        showHelp(base,1);
       end),
       newButton.withCaption('export').withEnabledRule(()->lastRenderedResolution>100).withAction(()->begin
         stop:=true;

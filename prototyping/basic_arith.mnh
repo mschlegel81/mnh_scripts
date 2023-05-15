@@ -1,0 +1,107 @@
+type SyntaxTree(M:List)->
+  (M[0]='const' AND M[1].isNumeric) OR
+  (M[0]='var' AND M[1].isString) OR
+  (M[0] in ['+','-','*','/','^'] AND M.size>=3 OR
+   M[0] in ['ln','exp','sin','cos'] AND M.size==2) AND M.tail.each(s,s.isSyntaxTree,AND);
+
+ducktype Constant(s:SyntaxTree)->s[0]=='const';
+ducktype Variable(s:SyntaxTree)->s[0]=='var';
+
+
+ONE :=['const',1].toSyntaxTree;
+ZERO:=['const',0].toSyntaxTree;
+HALF:=['/',['const',1].toSyntaxTree,
+           ['const',2].toSyntaxTree].toSyntaxTree;
+
+
+simplify('+',x==ZERO,y)->y;
+simplify('+',x,y==ZERO)->x;
+simplify('+',x,y)->
+  note('x=',x,"\n",'y=',y,"\n",'combined: ',('+'|sort(x.tail|[y]))) orElse
+  x[0]=='+'
+  ? y[0]=='+'
+    ? ('+'|sort(x.tail|y.tail)).toSyntaxTree
+    : ('+'|sort(x.tail|[y])).toSyntaxTree
+  : y[0]=='+'
+    ? ('+'|sort([x]|y.tail)).toSyntaxTree
+    : ['+',x,y].toSyntaxTree;
+
+simplify('-',x==ZERO,y)->y;
+simplify('-',x,y==ZERO)->x;
+simplify('-',x,x)->ZERO;
+simplify('*',x==ONE,y)->y;
+simplify('*',x,y==ONE)->x;
+simplify('/',x,y==ONE)->x;
+simplify('/',x,x)->ONE;
+simplify('^',x,y==ONE)->x;
+simplify('^',x,y==ZERO)->ONE;
+simplify(op,x,y)->[op,x,y].toSyntaxTree;
+
+@Overload
+toSyntaxTree(n:Numeric)->['const',n].toSyntaxTree;
+@Overload
+toSyntaxTree(c:String)->['var',c].toSyntaxTree;
+
+
+OPERATOR_PLUS   (x:SyntaxTree,y)->simplify('+',x,toSyntaxTree(y));
+OPERATOR_PLUS   (x,y:SyntaxTree)->simplify('+',toSyntaxTree(x),y);
+OPERATOR_MINUS  (x:SyntaxTree,y)->simplify('-',x,toSyntaxTree(y));
+OPERATOR_MINUS  (x,y:SyntaxTree)->simplify('-',toSyntaxTree(x),y);
+OPERATOR_MULT   (x:SyntaxTree,y)->simplify('*',x,toSyntaxTree(y));
+OPERATOR_MULT   (x,y:SyntaxTree)->simplify('*',toSyntaxTree(x),y);
+OPERATOR_DIVREAL(x:SyntaxTree,y)->simplify('/',x,toSyntaxTree(y));
+OPERATOR_DIVREAL(x,y:SyntaxTree)->simplify('/',toSyntaxTree(x),y);
+OPERATOR_POT    (x:SyntaxTree,y)->simplify('^',x,toSyntaxTree(y));
+OPERATOR_POT    (x,y:SyntaxTree)->simplify('^',toSyntaxTree(x),y);
+
+ln (s:SyntaxTree)->['ln',s].toSyntaxTree;
+exp(s:SyntaxTree)->['exp',s].toSyntaxTree;
+sin(s:SyntaxTree)->['sin',s].toSyntaxTree;
+cos(s:SyntaxTree)->['cos',s].toSyntaxTree;
+sqrt(s:SyntaxTree)->simplify('^',s,HALF);
+//
+
+factorial(i>1)->i*factorial(i-1);
+factorial(i)->1;
+
+toExpression(v:Variable)->format('(%s)->%s',v[1],v[1]).toExpression;
+toExpression(c:Constant)->c[1];
+TEM:=['+'=>(p)->p.map(::toExpression).agg(+),// toExpression(p[0])+toExpression(p[1]),
+      '-'=>(p)->p.map(::toExpression).agg(-),// toExpression(p[0])-toExpression(p[1]),
+      '*'=>(p)->p.map(::toExpression).agg(*),// toExpression(p[0])*toExpression(p[1]),
+      '/'=>(p)->p.map(::toExpression).agg(/),// toExpression(p[0])/toExpression(p[1]),
+      '^'=>(p)->p.map(::toExpression).agg(^),// toExpression(p[0])^toExpression(p[1]),
+      'ln' =>(p)->ln (toExpression(p[0])),
+      'exp'=>(p)->exp(toExpression(p[0])),
+      'sin'=>(p)->sin(toExpression(p[0])),
+      'cos'=>(p)->cos(toExpression(p[0]))].toMap;
+toExpression(s:SyntaxTree)->begin
+  local f:=TEM[s[0]] orElse fail('Unexpected operation');
+  f(s.tail);
+end;
+
+private treePrint(Tree:SyntaxTree,indent,last:Boolean)->
+  Tree[0] in ['var','const']
+  ? print(indent,last ? '└──' : '├──',Tree[1])
+  : begin
+      print(indent,last ? '└──' : '├──',Tree[0]);
+      local newIndent:=last
+                       ? indent+'   '
+                       : indent+'│  ';
+
+      Tree.tail.each(child,child.treePrint(newIndent,index=Tree.size-2));
+    end;
+
+treePrint(Tree)->treePrint(Tree,'',true);
+//
+//treePrint((toSyntaxTree('x')+1)*(toSyntaxTree('x')-1)*toSyntaxTree('x'));
+
+[0..10].each(k,toSyntaxTree('x')^k/factorial(k),+).treePrint;
+[0..10].each(k,toSyntaxTree('x')^k/factorial(k),+).toExpression;
+
+
+
+
+
+
+

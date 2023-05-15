@@ -1,0 +1,51 @@
+USE complex;
+
+
+memoized
+  bc(0)->[1];
+  bc(n>0)->(bc(n-1)|0)+(0|bc(n-1));
+
+
+
+bc(0);
+bc(1);
+bc(2);
+bc(3);
+bc(4);
+bc(5);
+bc(6);
+
+
+
+zeta(x:Complex)->begin
+  local factor:=1/(1-2^(1-x));
+  local sum:=0;
+  local n:=0;
+  local nextTerm:=void;
+  while(n<1000 AND abs(nextTerm:= factor/2^(n+1)*[-1^[0..n]*bc(n),[1..n+1]].transpose.each(q,q[0]*q[1]^(-x),+))>1E-6,begin
+    sum+=nextTerm;
+    n+=1;
+  end);
+  format('zeta(%s+%si) = %s+%si [%s]',x[0],x[1],sum[0],sum[1],n).log;
+  sum;
+end;
+
+
+
+begin
+  local stepSize:=0.05;
+  local gen:=rangeGenerator(round(-3.45/stepSize),round(37.6/stepSize)).map((i)->toComplex([0.5,i*stepSize])).pMap(::zeta);
+  setOptions(["x0"=>-1,"x1"=>1,"y0"=>-1,"y1"=>1,"fontsize"=>10,"preserveAspect"=>true,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>0.995,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
+  local P:=gen.toList;
+  plot(P,'b 0.5');
+  gen:=void;
+
+//  local P:=[gen()];
+////  clearAnimation(true);
+//  while(true,begin
+//    P|=[gen()];
+//    plot(P,'black b 0.5');
+//    addAnimationFrame;
+//  end);
+
+end;

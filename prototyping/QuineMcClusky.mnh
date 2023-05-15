@@ -230,32 +230,6 @@ main('all',Arity)->begin
   (atoms.each(a,(a&"\tatoms"|primeTerms.each(p,atomAndPrimeTermCount[[a,p]] orElse '')).join("\t")).join("\n")));
 end;
 
-@SuppressUnusedWarning
-wikipediaExample:=[2^4-1,[0,1,4,5,6,7,8,9,11,15]].toCDNF;
-
-@SuppressUnusedWarning
-configExample:=
-{( $weiss and !$grau and !$schwarz and  $Stoff and !$Leder and  $Plastikfuss and !$Stahlfuss and  $fussWeiss and !$fussGrau and !$fussSchwarz and !$fussPoliert and !$fussGebuerstet) or
- (!$weiss and  $grau and !$schwarz and  $Stoff and !$Leder and  $Plastikfuss and !$Stahlfuss and  $fussWeiss and !$fussGrau and !$fussSchwarz and !$fussPoliert and !$fussGebuerstet) or
- (!$weiss and !$grau and  $schwarz and  $Stoff and !$Leder and  $Plastikfuss and !$Stahlfuss and  $fussWeiss and !$fussGrau and !$fussSchwarz and !$fussPoliert and !$fussGebuerstet) or
- (!$weiss and !$grau and  $schwarz and !$Stoff and  $Leder and  $Plastikfuss and !$Stahlfuss and  $fussWeiss and !$fussGrau and !$fussSchwarz and !$fussPoliert and !$fussGebuerstet) or
- ( $weiss and !$grau and !$schwarz and  $Stoff and !$Leder and  $Plastikfuss and !$Stahlfuss and !$fussWeiss and  $fussGrau and !$fussSchwarz and !$fussPoliert and !$fussGebuerstet) or
- (!$weiss and  $grau and !$schwarz and  $Stoff and !$Leder and  $Plastikfuss and !$Stahlfuss and !$fussWeiss and  $fussGrau and !$fussSchwarz and !$fussPoliert and !$fussGebuerstet) or
- (!$weiss and !$grau and  $schwarz and  $Stoff and !$Leder and  $Plastikfuss and !$Stahlfuss and !$fussWeiss and  $fussGrau and !$fussSchwarz and !$fussPoliert and !$fussGebuerstet) or
- (!$weiss and !$grau and  $schwarz and !$Stoff and  $Leder and  $Plastikfuss and !$Stahlfuss and !$fussWeiss and  $fussGrau and !$fussSchwarz and !$fussPoliert and !$fussGebuerstet) or
- ( $weiss and !$grau and !$schwarz and  $Stoff and !$Leder and  $Plastikfuss and !$Stahlfuss and !$fussWeiss and !$fussGrau and  $fussSchwarz and !$fussPoliert and !$fussGebuerstet) or
- (!$weiss and  $grau and !$schwarz and  $Stoff and !$Leder and  $Plastikfuss and !$Stahlfuss and !$fussWeiss and !$fussGrau and  $fussSchwarz and !$fussPoliert and !$fussGebuerstet) or
- (!$weiss and !$grau and  $schwarz and  $Stoff and !$Leder and  $Plastikfuss and !$Stahlfuss and !$fussWeiss and !$fussGrau and  $fussSchwarz and !$fussPoliert and !$fussGebuerstet) or
- (!$weiss and !$grau and  $schwarz and !$Stoff and  $Leder and  $Plastikfuss and !$Stahlfuss and !$fussWeiss and !$fussGrau and  $fussSchwarz and !$fussPoliert and !$fussGebuerstet) or
- ( $weiss and !$grau and !$schwarz and  $Stoff and !$Leder and !$Plastikfuss and  $Stahlfuss and !$fussWeiss and !$fussGrau and !$fussSchwarz and  $fussPoliert and !$fussGebuerstet) or
- (!$weiss and  $grau and !$schwarz and  $Stoff and !$Leder and !$Plastikfuss and  $Stahlfuss and !$fussWeiss and !$fussGrau and !$fussSchwarz and  $fussPoliert and !$fussGebuerstet) or
- (!$weiss and !$grau and  $schwarz and  $Stoff and !$Leder and !$Plastikfuss and  $Stahlfuss and !$fussWeiss and !$fussGrau and !$fussSchwarz and  $fussPoliert and !$fussGebuerstet) or
- (!$weiss and !$grau and  $schwarz and !$Stoff and  $Leder and !$Plastikfuss and  $Stahlfuss and !$fussWeiss and !$fussGrau and !$fussSchwarz and  $fussPoliert and !$fussGebuerstet) or
- ( $weiss and !$grau and !$schwarz and  $Stoff and !$Leder and !$Plastikfuss and  $Stahlfuss and !$fussWeiss and !$fussGrau and !$fussSchwarz and !$fussPoliert and  $fussGebuerstet) or
- (!$weiss and  $grau and !$schwarz and  $Stoff and !$Leder and !$Plastikfuss and  $Stahlfuss and !$fussWeiss and !$fussGrau and !$fussSchwarz and !$fussPoliert and  $fussGebuerstet) or
- (!$weiss and !$grau and  $schwarz and  $Stoff and !$Leder and !$Plastikfuss and  $Stahlfuss and !$fussWeiss and !$fussGrau and !$fussSchwarz and !$fussPoliert and  $fussGebuerstet) or
- (!$weiss and !$grau and  $schwarz and !$Stoff and  $Leder and !$Plastikfuss and  $Stahlfuss and !$fussWeiss and !$fussGrau and !$fussSchwarz and !$fussPoliert and  $fussGebuerstet)};
-
 oneOf      (...) -> trueCount(...) = 1;
 oneOrZeroOf(...) -> 0 <= trueCount(...) <= 1;
 enforces   (a,b) -> !a OR b;
@@ -275,21 +249,34 @@ complexityMeasure(s:String)->s.tokenSplit.lower.each(token,[ord(token='and'),
                                                             ord(token='or'),
                                                             ord(token.copy(0,1)='$')],+);
 
-//configExample.toCDNF.quineMcCluskySimplify;
-//configExample.toCDNF.extendedSimplify;
+//     023456789ACEF
+//    09F         07d
+//    4A          18
+//    5b          29
+//    6C          3A
+//    8E          4
+//     2345689AbdEF
+//    0b          05A
+//    2C          16b
+//    6d          27d
+//    8E          38
+//    AF          49
+//     0235689AbCdE
 
-//begin
-//  local r:=randomCdnfForArity(10);
-//  print(r);
-//  print(local a:=r.toBooleanExpression.toString.unbrace);
-//  print('  ',a.complexityMeasure);
-//  print(local b:=r.quineMcCluskySimplify);
-//  print('  ',b.complexityMeasure);
-//  print(local c:=r.extendedSimplify);
-//  print('  ',c.complexityMeasure);
-//end;
-//
-extendedSimplify({!$w AND !$x AND !$y AND $z OR
-                   $w and !$x and !$y and $z OR
-                   $x and $z or
-                   $x and $y and !$z}.toCDNF);
+memoized num(b0,b1,b2,b3)->ord(b0)+2*ord(b1)+4*ord(b2)+8*ord(b3);
+
+f0(a0,a1,a2,a3)-> (num(a0,a1,a2,a3) in [0,2,3,5,6,7,8,9,10,12,14,15]);
+f1(a0,a1,a2,a3)-> (num(a0,a1,a2,a3) in [0,4,5,6,8,9,10,11,12,14,15]);
+f2(a0,a1,a2,a3)-> (num(a0,a1,a2,a3) in [0,1,2,3,4,7,8,9,10,13]);
+f3(a0,a1,a2,a3)-> (num(a0,a1,a2,a3) in [2,3,4,5,6,8,9,10,11,13,14,15]);
+f4(a0,a1,a2,a3)-> (num(a0,a1,a2,a3) in [0,2,6,8,10,11,12,13,14,15]);
+f5(a0,a1,a2,a3)-> (num(a0,a1,a2,a3) in [0,1,3,4,5,6,7,8,9,10,11,13]);
+f6(a0,a1,a2,a3)-> (num(a0,a1,a2,a3) in [0,2,3,5,6,8,9,11,12,13,14]);
+
+print(extendedSimplify(::f0)) orElse
+print(extendedSimplify(::f1)) orElse
+print(extendedSimplify(::f2)) orElse
+print(extendedSimplify(::f3)) orElse
+print(extendedSimplify(::f4)) orElse
+print(extendedSimplify(::f5)) orElse
+print(extendedSimplify(::f6));

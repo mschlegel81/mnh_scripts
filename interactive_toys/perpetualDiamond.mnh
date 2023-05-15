@@ -44,7 +44,8 @@ main->begin
   local phaseDT   :=[0,0,0,0];
   local t:=0;
   local dt:=pi/10;
-  local restartRendering:={begin t:=0; end};
+  local restartRendering:={begin note('Resetting...'); clearAnimation(true); t:=0; end};
+  restartRendering();
   localAsync({
     while(true,begin
       (drawByA ? ::draw_A : ::draw_B)@((t+=dt)|(pi/2*cos(phaseT+=phaseDT)));

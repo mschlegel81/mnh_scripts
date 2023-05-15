@@ -1,0 +1,32 @@
+
+
+mirrorPairFilter(x)->begin
+  local y:=x.digits.reverseList.join.toInt;
+  y>x AND
+  (x*x).digits.reverseList.join==(y*y).toString;
+end;
+
+curry mirrorPairFilterForBase(base,x)->begin
+  local y:=x.digits(base).reverseList.composeDigits(base);
+  y>x AND
+  (x*x).digits(base).reverseList==(y*y).digits(base);
+end;
+
+DIGIT:=['0'..'9','A'..'Z'].each(x,index=>x).toMap;
+
+curry niceDigits(base,x)->DIGIT.getAll(x.digits(base)).join&'_'&base;
+
+
+printMirrorPair(x)->
+  printf('%{$0}s * %{$0}s = %{$0²}s | %{$1²}s = %{$1}s * %{$1}s',x,x.digits.reverseList.join.toInt);
+
+curry printMirrorPairForBase(base,x)->begin
+  local y:=x.digits(base).reverseList.composeDigits(base);
+  printf('%{$0}s * %{$0}s = %{$1}s | %{$3}s = %{$2}s * %{$2}s',niceDigits(base,x),niceDigits(base,x²),
+                                                               niceDigits(base,y),niceDigits(base,y²));
+end;
+
+//rangeGenerator(1).filter(::mirrorPairFilter).map(::printMirrorPair);
+
+rangeGenerator(1,1000).filter(mirrorPairFilterForBase(5))
+                          .map(printMirrorPairForBase(5));

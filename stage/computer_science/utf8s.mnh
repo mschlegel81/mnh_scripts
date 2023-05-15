@@ -1,0 +1,24 @@
+printf("private static final long serialVersionUID = {$0}L;",intRandom(2^63-1,10));
+
+
+
+uni(hex:String)->begin
+  local M:=['0'..'9','A'..'F'].each(c,c=>index).toMap;
+save;
+  local c:=hex.upper.clean(['0'..'9','A'..'F'],'');
+  c.length mod 2=0 ? void : fail('Must be even number of hex values');
+  c.copy([0..c.length div 2-1]*2,2).each(byte,chars[(M.getAll(byte.chars)*[16,1]).agg(+)],&);
+end;
+
+main->[[uni('e2 89 a0'),'!=' ],
+ [uni('e2 89 a4'),'<=' ],
+ [uni('e2 89 a5'),'>=' ],
+ [uni('e2 88 88'),'in' ],
+ [uni('e2 88 b7'),'::' ],
+ [uni('e2 86 92'),'->' ],
+ [uni('e2 87 92'),'=>' ],
+ [uni('e2 89 b6'),'<>' ],
+ [uni('e2 89 ab'),'>>' ],
+ [uni('c2 b7   '),'*'  ],
+ [uni('e2 80 a6'),'...'],
+ [uni('e2 80 a5'),'..' ]].each(e,e[0]&"\t"&e[0].escapePascal.unbrace&"\t"&e[1]).join("\n").print;

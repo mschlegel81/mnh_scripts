@@ -102,7 +102,11 @@ save;
 end;
 
 
-private serve_('download',...)->[KEY_PLAIN_TEXT_OUTPUT=>downloadData].toMap;
+private serve_('download',...)->begin
+  local response:=[KEY_PLAIN_TEXT_OUTPUT=>downloadData].toMap;
+  writeDataStores;
+  response;
+end;
 
 private stringToId(s:String)->begin local id:=s.clean(['0'..'9'],'').softCast; id.isInt ? id : void; end;
 private stringToId(i:Int)->i;
@@ -260,6 +264,7 @@ printServerResponse(response:Map)->begin
   ? void
   : printf('%s',response[KEY_PLAIN_TEXT_OUTPUT]);
 end;
+printServerResponse(response:String)->print(response);
 
 queryServer((STOP_SIGNAL),...)->begin
   ipcId.isIpcServerRunning ? sendIpcRequest(ipcId,STOP_SIGNAL|...) : void;
@@ -317,6 +322,7 @@ main('gen',id,elementsToGenerate)->printServerResponse(queryServer('gen',id,elem
 
 //*Starts the IPC server (do not call directly)
 main((START_PARMAETER))->begin
+  hideConsole;
   startIpcServer(ipcId,(parameters)->begin
     local t0:=scriptTime;
     print("Processing request: ",parameters);

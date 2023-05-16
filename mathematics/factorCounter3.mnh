@@ -31,23 +31,36 @@ begin
   groupToList(F.getInner(1),F.getInner(0),0,::+);
 end;
 
+USE factorCounter;
+
 main->begin
   local counts:=interestings.trailing;
   interestings.map(::logIfRelevant);
-  print('--------------------------------------- - - -  -  -  - ');
 
+  local otherHistoryCopy:=countHistory.map((ch)->(ch.tail.agg(+)+1)|ch.tail);
+  otherHistoryCopy:=otherHistoryCopy[otherHistoryCopy.getInner(0)>counts[0]];
+
+
+  print('--------------------------------------- - - -  -  -  - ');
   local lastSave:=scriptTime;
   local lastCount:=counts[0];
   while(true,begin
     local md:=minDelta(counts);
+    otherHistoryCopy:=otherHistoryCopy[otherHistoryCopy.getInner(0)>counts[0]];
     log(counts,md==0 ? ' ***********': format(' min delta=%s',md orElse '?'));
-    md==0 ? logIfRelevant(counts) : void;
-    local stepSize:=max(1,md orElse 1);
-    local increment:=scanInRange(counts[0]+1,local n:=counts[0]+stepSize);
-    while(counts.size<increment.size,counts|=0);
-    while(increment.size<counts.size,increment|=0);
-    counts+=increment;
-    counts[0]:=n;
+    local fromOtherCount:=otherHistoryCopy[otherHistoryCopy.getInner(0)<=counts[0]+md].trailing;
+    fromOtherCount.size>0 ? begin
+      note('Found other solution... (out of ',otherHistoryCopy.size,')');
+      counts:=fromOtherCount;
+    end : begin
+      md==0 ? logIfRelevant(counts) : void;
+      local stepSize:=max(1,md orElse 1);
+      local increment:=scanInRange(counts[0]+1,local n:=counts[0]+stepSize);
+      while(counts.size<increment.size,counts|=0);
+      while(increment.size<counts.size,increment|=0);
+      counts+=increment;
+      counts[0]:=n;
+    end;
     interestings|=[counts];
     scriptTime>lastSave+60
     ? begin
@@ -58,70 +71,94 @@ main->begin
   end);
 
 end;
-//
-//
 
+main('summary')->begin
+  assertGuiStarted;
+  showSummary;
+end;
 
-begin
-  local COLOR:=['RGB1,1,0','black','red','blue','green','orange','purple'];
+thinOut(L:List)->begin
 
-  local D:=interestings;
-  print('Number of points logged: ',D.size,' (',(local S:=D.map(::size)).agg(+),' values)');
-  local I:=D;
-  plot.resetOptions;
-  setOptions(["x0"=>2,"x1"=>D.getInner(0).max,"y0"=>0,"y1"=>0.5,"autoscaleX"=>false,"autoscaleY"=>false,"logscaleX"=>true,"logscaleY"=>false].toMap);
-  plot   (D.getInner(0),D.getInner(1)/(D.getInner(0)-1),COLOR[1]&' 0.5');
-  [2..6].each(k,begin
-    D:=D[S>k]; S:=S[S>k];
-    addPlot(D.getInner(0),D.getInner(k)/(D.getInner(0)-1),COLOR[k]&' 0.5');
+  local indexes:=L.pEach(n,minDelta(n).orElse(0) = 0 ? index : void);
+  L.size-1 in indexes ? void : indexes|=L.size-1;
+  [1..3].each(inter,begin
+    local n:=ln(L.getInner(0)[indexes]);
+
+    indexes:=indexes.union(pMap((n.leading+n.tail)/2,(k)->argMin(abs(L.getInner(0).ln-k)))).sort;
   end);
+  L[indexes];
 
-  D:=I.transpose(-1);
-
-  LOW.each(k,begin
-    local i:=indexOf(D[k[0]]=D[k[1]] and D[k[0]]>0);
-    i.size==0 ? void : begin
-      local x:=D[0,i];
-      local y:=D[k[0],i];
-      printf("P[%s] = P[%s] =\t%s\t@%s",k[0],k[1],x,y);
-      y/=(x-1);
-      addPlot(x,y,COLOR[k[1]]&' .');
-      addPlot(x,y,COLOR[k[0]]&' 0.5 .');
-    end;
-  end);
 
 end;
-addAnimationFrame;
-begin
 
-  local i0:=0;
-  local i1:=10;
-  local tgt:=30;
-  local plottable:=[];
-  while(i1<interestings.size-1,begin
-    log(i1,'/',interestings.size);
-    while((interestings[i1,0] orElse Inf)<tgt,i1+=1);
 
-    local A:=interestings[i0].head(7); while(A.size<=6,A|=0);
-    local B:=interestings[i1].head(7); while(B.size<=6,B|=0);
-    local x0:=A[0];
-    local x1:=B[0];
-    local y :=tail(B-A);
-    y/=y.agg(+);
-    //plottable|=[x0|y,
-    //            x1|y];
-    plottable|=[(x0+x1)/2|y];
-    i0:=i1; i1+=1;
-    tgt*=1.5;
-  end);
-  plottable:=plottable.leading.transpose;
-//  log(plottable);
-  setOptions(["x0"=>1E-100,"x1"=>1,"y0"=>1E-100,"y1"=>1,"fontsize"=>10,"preserveAspect"=>true,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>true,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>7,"axisStyleY"=>7].toMap);
-  plot   (plottable[0],plottable[1],'b');
-  addPlot(plottable[0],plottable[2],'b');
-  addPlot(plottable[0],plottable[3],'b');
-  addPlot(plottable[0],plottable[4],'b');
-  addPlot(plottable[0],plottable[5],'b');
-  addPlot(plottable[0],plottable[6],'b');
+showSummary->begin
+  begin
+    local COLOR:=['RGB1,1,0','black','red','blue','green','orange','purple'];
+
+    local I:=local D:=interestings;
+    print('Number of points logged: ',D.size,' (',(local S:=D.map(::size)).agg(+),' values)');
+    print(D.head(20));
+    plot.resetOptions;
+    setOptions(["x0"=>2,"x1"=>D.getInner(0).max,"y0"=>0,"y1"=>0.5,"autoscaleX"=>false,"autoscaleY"=>false,"logscaleX"=>true,"logscaleY"=>false].toMap);
+    plot   (D.getInner(0),D.getInner(1)/(D.getInner(0)-1),COLOR[1]&' 0.5');
+    [2..6].each(k,begin
+      D:=D[S>k]; S:=S[S>k];
+      addPlot(D.getInner(0),D.getInner(k)/(D.getInner(0)-1),COLOR[k]&' 0.5');
+    end);
+
+    D:=I.transpose(-1);
+
+    LOW.each(k,begin
+      local i:=indexOf(D[k[0]]=D[k[1]] and D[k[0]]>0);
+      i.size==0 ? void : begin
+        local x:=D[0,i];
+        local y:=D[k[0],i];
+        printf("P[%s] = P[%s] =\t%s\t@%s",k[0],k[1],x,y);
+        y/=(x-1);
+        addPlot(x,y,COLOR[k[1]]&' .');
+        addPlot(x,y,COLOR[k[0]]&' 0.5 .');
+      end;
+    end);
+
+  end;
+  addAnimationFrame;
+  begin
+
+    local i0:=0;
+    local i1:=10;
+    local tgt:=30;
+    local plottable:=[];
+    while(i1<interestings.size-1,begin
+      while((interestings[i1,0] orElse Inf)<tgt,i1+=1);
+
+      local A:=interestings[i0].head(7); while(A.size<=6,A|=0);
+      local B:=interestings[i1].head(7); while(B.size<=6,B|=0);
+      local x0:=A[0];
+      local x1:=B[0];
+      local y :=tail(B-A);
+      y/=y.agg(+);
+      //plottable|=[x0|y,
+      //            x1|y];
+      plottable|=[(x0+x1)/2|y];
+      i0:=i1; i1+=1;
+      tgt*=1.5;
+    end);
+    plottable:=plottable.leading.transpose;
+  //  log(plottable);
+    setOptions(["x0"=>1E-100,"x1"=>1,"y0"=>1E-100,"y1"=>1,"fontsize"=>10,"preserveAspect"=>true,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>true,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>7,"axisStyleY"=>7].toMap);
+    plot   (plottable[0],plottable[1],'b . 0.5');
+    addPlot(plottable[0],plottable[2],'b . 0.5');
+    addPlot(plottable[0],plottable[3],'b . 0.5');
+    addPlot(plottable[0],plottable[4],'b . 0.5');
+    addPlot(plottable[0],plottable[5],'b . 0.5');
+    addPlot(plottable[0],plottable[6],'b . 0.5');
+  end;
+  addAnimationFrame;
 end;
-addAnimationFrame;
+
+interestings.each(entry,assert(entry[0]==entry.tail.agg(+)+1));
+showSummary;
+
+interestings.trailing;
+

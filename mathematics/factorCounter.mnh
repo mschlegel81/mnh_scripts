@@ -81,7 +81,6 @@ main->begin
   end);
 end;
 
-
 begin
   local totals:=countHistory.map((h)->h.agg(+));
 
@@ -111,6 +110,5 @@ begin
   plot(totals,countHistory.map((H)->H.each(i,i*index,+)/H.agg(+)));
   addAnimationFrame;
 end;
-
 
 

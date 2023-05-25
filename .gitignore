@@ -9,3 +9,4 @@
 /tinyServer/tinyServer.log
 
 *.log
+/physics/doubleStar_*.dat

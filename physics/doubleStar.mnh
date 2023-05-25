@@ -36,8 +36,7 @@ nextOutputFile->begin
 end;
 
 replay(filename)->
-  filename.fileLineIterator.each(line,begin
-    local dat:=line.base92decode.deserialize;
+  filename.fileLineIterator.pMap((line)->line.base92decode.deserialize).each(dat,begin
     local P0:=dat[0,0];
     local P1:=dat[0,1];
     local P2:=dat[0,2];

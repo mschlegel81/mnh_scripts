@@ -98,7 +98,6 @@ showSummary->begin
 
     local I:=local D:=interestings;
     print('Number of points logged: ',D.size,' (',(local S:=D.map(::size)).agg(+),' values)');
-    print(D.head(20));
     plot.resetOptions;
     setOptions(["x0"=>2,"x1"=>D.getInner(0).max,"y0"=>0,"y1"=>0.5,"autoscaleX"=>false,"autoscaleY"=>false,"logscaleX"=>true,"logscaleY"=>false].toMap);
     plot   (D.getInner(0),D.getInner(1)/(D.getInner(0)-1),COLOR[1]&' 0.5');
@@ -125,40 +124,26 @@ showSummary->begin
   addAnimationFrame;
   begin
 
-    local i0:=0;
-    local i1:=10;
-    local tgt:=30;
-    local plottable:=[];
-    while(i1<interestings.size-1,begin
-      while((interestings[i1,0] orElse Inf)<tgt,i1+=1);
-
-      local A:=interestings[i0].head(7); while(A.size<=6,A|=0);
-      local B:=interestings[i1].head(7); while(B.size<=6,B|=0);
-      local x0:=A[0];
-      local x1:=B[0];
-      local y :=tail(B-A);
-      y/=y.agg(+);
-      //plottable|=[x0|y,
-      //            x1|y];
-      plottable|=[(x0+x1)/2|y];
-      i0:=i1; i1+=1;
-      tgt*=1.5;
+    local data:=interestings.transpose(0).head(7).transpose;
+    local toPlot:=data.head(1);
+    data.each(row,
+      row[0]<toPlot.trailing[0]+1000 OR row[0]<toPlot.trailing[0]*1.03
+      ? void : begin
+      toPlot|=[row];
+      void;
     end);
-    plottable:=plottable.leading.transpose;
-  //  log(plottable);
-    setOptions(["x0"=>1E-100,"x1"=>1,"y0"=>1E-100,"y1"=>1,"fontsize"=>10,"preserveAspect"=>true,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>true,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>7,"axisStyleY"=>7].toMap);
-    plot   (plottable[0],plottable[1],'b . 0.5');
-    addPlot(plottable[0],plottable[2],'b . 0.5');
-    addPlot(plottable[0],plottable[3],'b . 0.5');
-    addPlot(plottable[0],plottable[4],'b . 0.5');
-    addPlot(plottable[0],plottable[5],'b . 0.5');
-    addPlot(plottable[0],plottable[6],'b . 0.5');
+    data:=transpose([toPlot.leading,toPlot.tail]).map((x)->((x[0].head+x[1].head) div 2) | (x[1].tail-x[0].tail)/(x[1].head-x[0].head)).transpose;
+    setOptions(["x0"=>1E-100,"x1"=>1,"y0"=>-1,"y1"=>1,"fontsize"=>10,"preserveAspect"=>true,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>true,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>7,"axisStyleY"=>7].toMap);
+    plot   (data[0],data[1],'0.5 b');
+    addPlot(data[0],data[2],'0.5 b');
+    addPlot(data[0],data[3],'0.5 b');
+    addPlot(data[0],data[4],'0.5 b');
+    addPlot(data[0],data[5],'0.5 b');
+    addPlot(data[0],data[6],'0.5 b');
   end;
   addAnimationFrame;
 end;
 
 interestings.each(entry,assert(entry[0]==entry.tail.agg(+)+1));
 showSummary;
-
-interestings.trailing;
 

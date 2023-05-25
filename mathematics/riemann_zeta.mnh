@@ -1,20 +1,51 @@
 USE complex;
 
-
 memoized
   bc(0)->[1];
   bc(n>0)->(bc(n-1)|0)+(0|bc(n-1));
 
+zeta3(x:Complex)->begin
+  local factor:=1/(1-2^(1-x));
+  local sum:=0;
+  local n:=0;
+  local nextTerm:=void;
+  while(n<1000 and euklideanNorm(nextTerm:=begin
+      local F:=-1^[0..n]*bc(n)*exp((local logs:=ln([1..n+1]))*-x[0]);
+      local C:=(F*cos(local alphas:=logs*-x[1])).agg(+);
+      local S:=(F*sin(      alphas)            ).agg(+);
+      [factor[0]*C-factor[1]*S,
+       factor[0]*S+factor[1]*C]/2^(n+1);
+    end)>1E-4,begin
+    note(n,' ',euklideanNorm(nextTerm));
+    sum+=nextTerm;
+    n+=1;
+  end);
+  printf('%0.2f -> %s',x[1],n);
+  sum+nextTerm;
+end;
+
+zeta3b(x:Complex)->begin
+  local factor:=1/(1-2^(1-x));
+  local sum:=0;
+  local n:=0;
+  local floatingAbs:=2E-4;
 
 
-bc(0);
-bc(1);
-bc(2);
-bc(3);
-bc(4);
-bc(5);
-bc(6);
 
+  while(n<1000 and floatingAbs>1E-4,begin
+    local F:=-1^[0..n]*bc(n)*exp((local logs:=ln([1..n+1]))*-x[0]);
+    local C:=(F*cos(local alphas:=logs*-x[1])).agg(+);
+    local S:=(F*sin(      alphas)            ).agg(+);
+    local nextTerm:=[factor[0]*C-factor[1]*S,
+                     factor[0]*S+factor[1]*C]/2^(n+=1);
+    F:=nextTerm.euklideanNorm;
+    floatingAbs:=max(F,floatingAbs*0.8+F*0.2);
+//    note(n,' ',F);
+    sum+=nextTerm;
+  end);
+  printf('%0.2f -> %s',x[1],n);
+  sum;
+end;
 
 
 zeta(x:Complex)->begin
@@ -22,14 +53,103 @@ zeta(x:Complex)->begin
   local sum:=0;
   local n:=0;
   local nextTerm:=void;
-  while(n<1000 AND abs(nextTerm:= factor/2^(n+1)*[-1^[0..n]*bc(n),[1..n+1]].transpose.each(q,q[0]*q[1]^(-x),+))>1E-6,begin
+  while(n<1000 AND abs(nextTerm:= factor/2^(n+1)*[-1^[0..n]*bc(n),[1..n+1]].transpose.each(q,q[0]*q[1]^(-x),+))>1E-4,begin
     sum+=nextTerm;
     n+=1;
   end);
-  format('zeta(%s+%si) = %s+%si [%s]',x[0],x[1],sum[0],sum[1],n).log;
+//  format('zeta(%s+%si) = %s+%si [%s]',x[0],x[1],sum[0],sum[1],n).log;
   sum;
 end;
 
+
+//zeta3([0.5,89.95].toComplex);
+//zeta3([0.5,90.00].toComplex);
+//zeta3([0.5,90.05].toComplex);
+//zeta3([0.5,90.1 ].toComplex);
+//zeta3([0.5,91].toComplex);
+//
+//halt;
+
+
+//zeta_naive(x:Complex)->begin
+//  local sum:=0;
+//  local n:=1;
+//  local nextTerm:=void;
+//  while(n<1000 AND abs(nextTerm:=n^-x)>1E-10,begin
+//    sum+=nextTerm;
+//    n+=1;
+//  end);
+//  sum+nextTerm;
+//
+//end;
+
+animate->begin
+  local stepSize:=0.05;
+  local gen1:=rangeGenerator(0).map((i)->toComplex([0.5,i*stepSize])).pMap(::zeta3b);
+//  local gen2:=rangeGenerator(0).map((i)->toComplex([0.5,i*stepSize])).pMap(::zeta3);
+//  local gen3:=rangeGenerator(0).map((i)->toComplex([0.49,i*stepSize])).pMap(::zeta);
+
+
+  local k:=50;
+
+  setOptions(["x0"=>-1,"x1"=>1,"y0"=>-1,"y1"=>1,"fontsize"=>10,"preserveAspect"=>true,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>2,"axisStyleY"=>2].toMap);
+  clearAnimation(false);
+  local p1:=[gen1().toBuiltin];
+//  local p2:=[gen2().toBuiltin];
+//  local p3:=[gen3().toBuiltin];
+
+  local re:=0;
+  while(true,begin
+
+
+
+    p1:=(p1|[gen1().toBuiltin]).trailing(10*k);
+//    p2:=(p2|[gen2().toBuiltin]).trailing(10*k);
+//    p3:=(p3|[gen3().toBuiltin]).trailing(10*k);
+    plot(   p1.trailing(1*k)          ,'red l 1');
+    addPlot(p1.trailing(2*k).head(k+4),'red l 0.9');
+    addPlot(p1.trailing(3*k).head(k+4),'red l 0.8');
+    addPlot(p1.trailing(4*k).head(k+4),'red l 0.7');
+    addPlot(p1.trailing(5*k).head(k+4),'red l 0.6');
+    addPlot(p1.trailing(6*k).head(k+4),'red l 0.5');
+    addPlot(p1.trailing(7*k).head(k+4),'red l 0.4');
+    addPlot(p1.trailing(8*k).head(k+4),'red l 0.3');
+    addPlot(p1.trailing(9*k).head(k+4),'red l 0.2');
+    addPlot(p1.              head(k+4),'red l 0.1');
+    drawTextAbsolute(0,1,format('%0.2f',re+=stepSize),'TL');
+//    addPlot(p2.trailing(1*k)          ,'blue l 1');
+//    addPlot(p2.trailing(2*k).head(k+4),'blue l 0.9');
+//    addPlot(p2.trailing(3*k).head(k+4),'blue l 0.8');
+//    addPlot(p2.trailing(4*k).head(k+4),'blue l 0.7');
+//    addPlot(p2.trailing(5*k).head(k+4),'blue l 0.6');
+//    addPlot(p2.trailing(6*k).head(k+4),'blue l 0.5');
+//    addPlot(p2.trailing(7*k).head(k+4),'blue l 0.4');
+//    addPlot(p2.trailing(8*k).head(k+4),'blue l 0.3');
+//    addPlot(p2.trailing(9*k).head(k+4),'blue l 0.2');
+//    addPlot(p2.              head(k+4),'blue l 0.1');
+//
+//    addPlot(p3.trailing(1*k)          ,'green b 1');
+//    addPlot(p3.trailing(2*k).head(k+4),'green b 0.9');
+//    addPlot(p3.trailing(3*k).head(k+4),'green b 0.8');
+//    addPlot(p3.trailing(4*k).head(k+4),'green b 0.7');
+//    addPlot(p3.trailing(5*k).head(k+4),'green b 0.6');
+//    addPlot(p3.trailing(6*k).head(k+4),'green b 0.5');
+//    addPlot(p3.trailing(7*k).head(k+4),'green b 0.4');
+//    addPlot(p3.trailing(8*k).head(k+4),'green b 0.3');
+//    addPlot(p3.trailing(9*k).head(k+4),'green b 0.2');
+//    addPlot(p3.              head(k+4),'green b 0.1');
+
+
+    addAnimationFrame;
+    postDisplay;
+  end);
+
+
+end;
+
+
+animate;
+halt;
 
 
 begin

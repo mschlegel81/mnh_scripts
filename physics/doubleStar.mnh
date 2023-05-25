@@ -1,0 +1,267 @@
+
+
+
+
+
+
+dt:=0.02;
+
+accel(p0,p1)->begin
+  local a:=p1-p0;
+  a/euklideanNorm(a)³;
+end;
+
+accel(p0,p1a,p1b)->accel(p0,p1a)+accel(p0,p1b);
+
+VecAcc(px,py,p1:NumericList(2))->begin
+  local dx:=p1[0]-px;
+  local dy:=p1[1]-py;
+  local f:=(dx²+dy²)^(-3/2);
+  [dx*f,dy*f];
+end;
+
+newRandomParticle->begin
+  local a:=random*2*pi;
+  [[cos(a),sin(a)]*3*sqrt(random),[sin(a),-cos(a)]];
+end;
+
+STAR_RAD:=0.1;
+
+nextOutputFile->begin
+  local baseName:=myPath.changeFileExt('');
+  local i:=0;
+  local result:=void;
+  while(fileExists(result:=format('%s_%3.3d.dat',baseName,i)),i+=1);
+  result;
+end;
+
+replay(filename)->
+  filename.fileLineIterator.each(line,begin
+    local dat:=line.base92decode.deserialize;
+    local P0:=dat[0,0];
+    local P1:=dat[0,1];
+    local P2:=dat[0,2];
+    local dustPX:=dat[1]*dat[2];
+    local dustPY:=dat[1]*dat[3];
+
+    local sysRad:=dat[1]*2000;
+    setOptions(["x0"=>-sysRad,"x1"=>sysRad,"y0"=>-sysRad,"y1"=>sysRad,
+                "fontsize"=>10,"preserveAspect"=>true,"autoscaleX"=>false,"autoscaleY"=>false,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>2,"axisStyleY"=>2].toMap);
+    plot([P0-STAR_RAD,P0+STAR_RAD,P1-STAR_RAD,P1+STAR_RAD,P2-STAR_RAD,P2+STAR_RAD],'ellipse f orange');
+    addPlot(dustPX,dustPY,'black . 0.3');
+    addAnimationFrame;
+    postDisplay;
+  end);
+
+export(filename,xRes>0,yRes>0)->begin
+  local fileCounter:=-1;
+  filename.fileLineIterator.each(line,begin
+    local pngName:=format('%s_%4.4d.png',filename.changeFileExt(''),fileCounter+=1);
+    fileExists(pngName) ? void : begin
+      local dat:=line.base92decode.deserialize;
+      local P0:=dat[0,0];
+      local P1:=dat[0,1];
+      local P2:=dat[0,2];
+      local dustPX:=dat[1]*dat[2];
+      local dustPY:=dat[1]*dat[3];
+
+      //local sysRad:=(max(euklideanNorm(P0),euklideanNorm(P1),euklideanNorm(P2))+STAR_RAD)*sqrt(2);
+      local sysRad:=dat[1]*2000;
+      setOptions(["x0"=>-sysRad,"x1"=>sysRad,"y0"=>-sysRad,"y1"=>sysRad,
+                  "fontsize"=>10,"preserveAspect"=>true,"autoscaleX"=>false,"autoscaleY"=>false,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>2,"axisStyleY"=>2].toMap);
+      plot([P0-STAR_RAD,P0+STAR_RAD,P1-STAR_RAD,P1+STAR_RAD,P2-STAR_RAD,P2+STAR_RAD],'ellipse f orange');
+      addPlot(dustPX,dustPY,'black . 0.3');
+      renderToFile(pngName,xRes,yRes,true);
+      log('Writing ',pngName);
+    end;
+  end);
+  sleep(60);
+end;
+
+
+main('replay',filename)->replay(filename);
+main('export',filename,xRes,yRes)->export(filename,xRes.toInt,yRes.toInt);
+
+prepareOutput(p0,p1,p2,scale,dustX,dustY)->[[p0,p1,p2],scale,round(dustX/scale),round(dustY/scale)].serialize(true,false).base92encode;
+mutable outputFutures:=[];
+outputFile:=nextOutputFile;
+flush()->begin
+  local outputLines:=[];
+  while((outputFutures.size>0) AND (outputFutures[0].peekFuture),begin
+    outputLines|=outputFutures[0]();
+    outputFutures:=outputFutures.tail;
+  end);
+  outputLines.size>0 ? begin
+    outputFile.appendFileLines(outputLines);
+    note('output flushed');
+  end : void;
+end;
+
+sim1->begin
+  log('Writing to ',outputFile);
+
+  local P0:=[0,0];
+  local dust:=[1..100000].map(()->newRandomParticle);
+  local dustPX:=dust.getInner(0).getInner(0);
+  local dustPY:=dust.getInner(0).getInner(1);
+  local dustVX:=dust.getInner(1).getInner(0);
+  local dustVY:=dust.getInner(1).getInner(1);
+  dust:=void;
+
+
+  clearAnimation();
+  rangeGenerator(0,9999).each(step,begin
+
+    step mod 100 = 0 ? flush() : void;
+    local dustA:=VecAcc(dustPX,dustPY,P0);
+    dustPX+=(dustVX+=dustA[0]*dt)*dt;
+    dustPY+=(dustVY+=dustA[1]*dt)*dt;
+    local sysRad:=2;
+    setOptions(["x0"=>-sysRad,"x1"=>sysRad,"y0"=>-sysRad,"y1"=>sysRad,
+                "fontsize"=>10,"preserveAspect"=>true,"autoscaleX"=>false,"autoscaleY"=>false,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>2,"axisStyleY"=>2].toMap);
+
+
+    local mask:=sqr(dustPX-P0[0])+sqr(dustPY-P0[1])>sqr(STAR_RAD)
+            and sqr(dustPX)+sqr(dustPY)<100*sysRad*sysRad;
+    dustPX:=dustPX[mask];
+    dustPY:=dustPY[mask];
+    dustVX:=dustVX[mask];
+    dustVY:=dustVY[mask];
+
+
+    log(step,' ',dustPX.size);
+    plot([P0-STAR_RAD,P0+STAR_RAD#,P1-STAR_RAD,P1+STAR_RAD,P2-STAR_RAD,P2+STAR_RAD#],'ellipse f orange');
+    addPlot(dustPX,dustPY,'black . 0.3');
+
+    outputFutures|=future(prepareOutput,[P0,[Nan,Nan],[Nan,Nan],sysRad/2000,dustPX,dustPY]);
+
+    addAnimationFrame;
+    postDisplay;
+  end);
+  flush();
+end;
+
+sim2->begin
+  log('Writing to ',outputFile);
+  local P0:=[-1,0];
+  local P1:=[ 1,0];
+
+  local V0:=[0, 0.5];
+  local V1:=[0,-0.5];
+
+  local dust:=[1..100000].map(()->newRandomParticle);
+  local dustPX:=dust.getInner(0).getInner(0);
+  local dustPY:=dust.getInner(0).getInner(1);
+  local dustVX:=dust.getInner(1).getInner(0)*0;
+  local dustVY:=dust.getInner(1).getInner(1)*0;
+  dust:=0;
+
+  clearAnimation();
+  rangeGenerator(0,9999).each(step,begin
+
+    step mod 100 = 0 ? flush() : void;
+    local dustA:=VecAcc(dustPX,dustPY,P0)+
+                 VecAcc(dustPX,dustPY,P1);
+    dustPX+=(dustVX+=dustA[0]*dt)*dt;
+    dustPY+=(dustVY+=dustA[1]*dt)*dt;
+
+    [1..10].each(substep,begin
+      local A:=accel(P0,P1); V0+=A*dt*0.1; V1-=A*dt*0.1;
+      P0+=V0*dt*0.1;
+      P1+=V1*dt*0.1;
+      void;
+    end);
+
+    local sysRad:=(max(euklideanNorm(P0),euklideanNorm(P1))+STAR_RAD)*sqrt(2);
+    setOptions(["x0"=>-sysRad,"x1"=>sysRad,"y0"=>-sysRad,"y1"=>sysRad,
+                "fontsize"=>10,"preserveAspect"=>true,"autoscaleX"=>false,"autoscaleY"=>false,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>2,"axisStyleY"=>2].toMap);
+
+
+    local mask:=sqr(dustPX-P0[0])+sqr(dustPY-P0[1])>sqr(STAR_RAD)
+            and sqr(dustPX-P1[0])+sqr(dustPY-P1[1])>sqr(STAR_RAD)
+            and sqr(dustPX)+sqr(dustPY)<100*sysRad*sysRad;
+    dustPX:=dustPX[mask];
+    dustPY:=dustPY[mask];
+    dustVX:=dustVX[mask];
+    dustVY:=dustVY[mask];
+
+
+    log(step,' ',dustPX.size);
+    plot([P0-STAR_RAD,P0+STAR_RAD,P1-STAR_RAD,P1+STAR_RAD],'ellipse f orange');
+    addPlot(dustPX,dustPY,'black . 0.3');
+
+    outputFutures|=future(prepareOutput,[P0,P1,[Nan,Nan],sysRad/2000,dustPX,dustPY]);
+
+    addAnimationFrame;
+    postDisplay;
+  end);
+  flush();
+end;
+
+sim3->begin
+  log('Writing to ',outputFile);
+  local P0:=[1.0,0.0];
+  local P1:=[-0.49999999999999978,0.8660254037844388];
+  local P2:=[-0.5000000000000004,-0.86602540378443837];
+
+  local V0:=[4.6536578367599424E-17,0.76];
+  local V1:=[-0.6581793068761733,-0.3800000000000001];
+  local V2:=[0.6581793068761732,-0.38000000000000034];
+
+  local dust:=[1..100000].map(()->newRandomParticle);
+  local dustPX:=dust.getInner(0).getInner(0);
+  local dustPY:=dust.getInner(0).getInner(1);
+  local dustVX:=dust.getInner(1).getInner(0)*0;
+  local dustVY:=dust.getInner(1).getInner(1)*0;
+  dust:=0;
+
+  clearAnimation();
+  rangeGenerator(0,9999).each(step,begin
+
+    step mod 100 = 0 ? flush() : void;
+    local dustA:=VecAcc(dustPX,dustPY,P0)+
+                 VecAcc(dustPX,dustPY,P1)+
+                 VecAcc(dustPX,dustPY,P2);
+    dustPX+=(dustVX+=dustA[0]*dt)*dt;
+    dustPY+=(dustVY+=dustA[1]*dt)*dt;
+
+    [1..10].each(substep,begin
+      local A:=accel(P0,P1); V0+=A*dt*0.1; V1-=A*dt*0.1;
+            A:=accel(P0,P2); V0+=A*dt*0.1; V2-=A*dt*0.1;
+            A:=accel(P1,P2); V1+=A*dt*0.1; V2-=A*dt*0.1;
+      P0+=V0*dt*0.1;
+      P1+=V1*dt*0.1;
+      P2+=V2*dt*0.1;
+      void;
+    end);
+
+    local sysRad:=(max(euklideanNorm(P0),euklideanNorm(P1)#,euklideanNorm(P2)#)+STAR_RAD)*sqrt(2);
+    setOptions(["x0"=>-sysRad,"x1"=>sysRad,"y0"=>-sysRad,"y1"=>sysRad,
+                "fontsize"=>10,"preserveAspect"=>true,"autoscaleX"=>false,"autoscaleY"=>false,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>2,"axisStyleY"=>2].toMap);
+
+
+    local mask:=sqr(dustPX-P0[0])+sqr(dustPY-P0[1])>sqr(STAR_RAD)
+            and sqr(dustPX-P1[0])+sqr(dustPY-P1[1])>sqr(STAR_RAD)
+            and sqr(dustPX-P2[0])+sqr(dustPY-P2[1])>sqr(STAR_RAD)
+            and sqr(dustPX)+sqr(dustPY)<100*sysRad*sysRad;
+    dustPX:=dustPX[mask];
+    dustPY:=dustPY[mask];
+    dustVX:=dustVX[mask];
+    dustVY:=dustVY[mask];
+
+
+    log(step,' ',dustPX.size);
+    plot([P0-STAR_RAD,P0+STAR_RAD,P1-STAR_RAD,P1+STAR_RAD,P2-STAR_RAD,P2+STAR_RAD],'ellipse f orange');
+    addPlot(dustPX,dustPY,'black . 0.3');
+
+    outputFutures|=future(prepareOutput,[P0,P1,P2,sysRad/2000,dustPX,dustPY]);
+
+    addAnimationFrame;
+    postDisplay;
+  end);
+  flush();
+end;
+
+main('1')->sim1;
+main('2')->sim2;
+main('3')->sim3;

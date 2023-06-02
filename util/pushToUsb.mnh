@@ -1,0 +1,77 @@
+#!C:\bin\mnh.exe -quiet -convertPrintToLog -logDateFmt hh:mm:ss -logLocationLength 10 +log stdOut(2)
+USE fileUtils,smart7z,incrementalBackup;
+
+private DEV_PATH:=myPath.extractFileDirectory.replace('/','\');
+private writeTempFile(command:String)->writeTempFile(command.replace("\r","").split("\n"));  //tempFile('temp#.bat');
+private writeTempFile(command:StringList)->begin
+  local name:=tempFile('temp#.bat');
+  name.writeFileLines(command,"\r\n");
+  name;
+end;
+
+private runAndDeleteBat(name:String)->begin
+  print('Executing ',name);
+  'cmd'.teeExec(['/C',name]);
+  deleteFile(name);
+  print('Deleting ',name);
+end;
+
+DRIVES:=driveInfo;
+COPY_TASK_TEMPLATES:=[
+[#NAS#33884352,//!~
+robocopy % §:\dev *.mnh /MIR /NP /LEV:1 /FFT /MIR  /COPY:DT > pushToNas.log 2>&1
+robocopy %\ib §:\dev\ib *.ib /MIR /NP /LEV:1 /FFT /MIR /COPY:DT >> pushToNas.log 2>&1 ~],
+[#shared#2828497917,//!~
+robocopy % §:\dev *.mnh /MIR /NP /LEV:1 /FFT /MIR  /COPY:DT > pushToY.log 2>&1
+robocopy % §:\backup\dev *.7z /MIR /NP /LEV:1 /FFT /MIR  /COPY:DT > pushToY.log 2>&1
+robocopy %\ib §:\dev\ib *.ib /MIR /NP /LEV:1 /FFT /MIR /COPY:DT >> pushToY.log 2>&1~],
+[#keyfob#858215956,//!~
+robocopy % §:\dev *.mnh /MIR /NP /LEV:1 /FFT /MIR  /COPY:DT > pushToY.log 2>&1
+robocopy %\ib §:\dev\ib *.ib /MIR /NP /LEV:1 /FFT /MIR /COPY:DT >> pushToY.log 2>&1~],
+[#Samsung_T5#3404974937,//!~
+robocopy %\data §:\backup\dev\data /MIR /NP /FFT /DCOPY:D /COPY:DT -XF *.log >> pushToT5.log 2>&1
+robocopy % §:\backup\dev *.7z /MIR /NP /LEV:1 /FFT /COPY:DT >> pushToT5.log 2>&1
+robocopy %\ib §:\backup\dev\ib *.ib /MIR /NP /LEV:1 /FFT /COPY:DT >> pushToT5.log 2>&1
+robocopy % §:\backup\dev *.mnh /MIR /NP /LEV:1 /FFT /COPY:DT >> pushToT5.log 2>&1
+rem robocopy "C:\Users\Martin Schlegel\Documents\Martin" §:\Documents\Martin /MIR /NP /FFT /DCOPY:D /COPY:DT -XF >> pushToT5.log 2>&1~]];
+COPY_TASKS:=COPY_TASK_TEMPLATES
+.each(task,begin
+  local drive:=DRIVES.each(d,d[1,'serial']==task[0]  ? d[0] : void,head);
+  drive.isVoid
+  ? void
+  : task[1].replace(['%','§'],[DEV_PATH,drive]);
+end);
+
+blockPrint(s:String)->print('+',repeat('-',s.length+2),"+\n| ",s," |\n+",repeat('-',s.length+2),'+');
+
+prepareZips->begin
+  blockPrint('PACK');
+  folders('*')
+  .filter({!($x.matches('lazarus\d\d|temp|laz32c|data|art\.bin|art\.wip|ib|keylogger|grav_pas'))})
+  .map({future(::updateArchiveForFolder,[$folder])});
+end;
+
+main->begin
+  myPath.extractFileDirectory.changeDirectory;
+  assertUniqueInstance;
+  changeDirectory(myPath.extractFileDirectory);
+  local zipInBackground:=prepareZips;
+  incrementalBackup.doBackup;
+  print('...waiting for zip tasks');
+  zipInBackground.map({$f()});
+  blockPrint('COPY');
+  COPY_TASKS.toIteratableExpression
+    .map(::writeTempFile)
+    .pMap(::runAndDeleteBat)
+    .agg(|);
+  httpGet('http://192.168.1.100:80/addTask?scriptName=sync%2Ebat&cmdLineParameters=');
+  httpGet('http://192.168.1.100:80/addTask?scriptName=buildMnh%2Ebat&cmdLineParameters=status%20clean%20build%20status%20test%20status');
+end;
+
+//*Create zip files
+main('zip')->begin
+  myPath.extractFileDirectory.changeDirectory;
+  assertUniqueInstance;
+  changeDirectory(myPath.extractFileDirectory);
+  prepareZips;
+end;

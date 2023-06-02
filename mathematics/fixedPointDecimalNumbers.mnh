@@ -1,0 +1,106 @@
+pi_1000:='3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679821480865132823066470938446095505822317253594081284811174502841027019385211055596446229489549303819644288109756659334461284756482337867831652712019091456485669234603486104543266482133936072602491412737245870066063155881748815209209628292540917153643678925903600113305305488204665213841469519415116094330572703657595919530921861173819326117931051185480744623799627495673518857527248912279381830119491298336733624406566430860213949463952247371907021798609437027705392171762931767523846748184676694051320005681271452635608277857713427577896091736371787214684409012249534301465495853710507922796892589235420199561121290219608640344181598136297747713099605187072113499999983729780499510597317328160963185';
+
+DECIMAL_PLACES:=799;
+//DECIMAL_PLACES:=300;
+DP10:=10^DECIMAL_PLACES;
+type FixedPointDecimal(L:IntList(1))->true;
+
+toString(x:FixedPointDecimal)->begin
+  local s:=x[0].abs.toString;
+  local negative:=x[0]<0;
+  s:=repeat('0',DECIMAL_PLACES+1-s.byteLength)&s;
+  local i:=s.byteLength-DECIMAL_PLACES;
+  format('%s%s.%s',negative ? '-' : '' ,s.copy(0,i),s.copy(i));
+end;
+
+convertToFixedPointDecimal(i:Int)->[i*DP10].toFixedPointDecimal;
+convertToFixedPointDecimal(x:Real)->[round(x*DP10)].toFixedPointDecimal;
+
+inverseOf(i:Int)->[DP10 div i].toFixedPointDecimal;
+
+OPERATOR_PLUS   (x:FixedPointDecimal,y:FixedPointDecimal)->[x[0]+y[0]].toFixedPointDecimal;
+OPERATOR_PLUS   (x:Int              ,y:FixedPointDecimal)->[x*DP10+y[0]].toFixedPointDecimal;
+OPERATOR_MINUS  (x:FixedPointDecimal,y:FixedPointDecimal)->[x[0]-y[0]].toFixedPointDecimal;
+OPERATOR_MULT   (x:Int              ,y:FixedPointDecimal)->[x   *y[0]         ].toFixedPointDecimal;
+OPERATOR_MULT   (x:FixedPointDecimal,y:Int              )->[x[0]*y            ].toFixedPointDecimal;
+OPERATOR_MULT   (x:FixedPointDecimal,y:FixedPointDecimal)->[x[0]*y[0] div DP10].toFixedPointDecimal;
+OPERATOR_DIVREAL(x:FixedPointDecimal,y:FixedPointDecimal)->[x[0]*DP10 div y[0]].toFixedPointDecimal;
+OPERATOR_DIVREAL(x:Int,y:FixedPointDecimal)->[x*DP10*DP10 div y[0]].toFixedPointDecimal;
+sqrt(x:FixedPointDecimal)->[isqrt(x[0]*DP10)[0]].toFixedPointDecimal;
+
+memoized factorial(i<=1):=1; factorial(i>1)->i*factorial(i-1);
+
+
+
+hideCorrectDigits(s:String)->begin
+  local A:=pi_1000.copy(0,s.length).chars;
+  local B:=s.chars;
+  [B,A!=B or B='.'].transpose.each(p,p[1] ? p[0] : '_', &);
+end;
+hideCorrectDigits(d:FixedPointDecimal)->hideCorrectDigits(d.toString);
+
+
+//Ramanujan_Factor:=2*sqrt(convertToFixedPointDecimal(2))/convertToFixedPointDecimal(99²);
+//
+//Ramanujan_term(k>=0)->
+//  factorial(4*k)/convertToFixedPointDecimal(factorial(k)^4)*(26390*k+1103)/convertToFixedPointDecimal(396^(4*k));
+//
+//begin
+//  local sum:=convertToFixedPointDecimal(0);
+//  [0..99].each(k,begin
+//    sum+=Ramanujan_term(k);
+//    hideCorrectDigits(1/(Ramanujan_Factor*sum)).print;
+//  end);
+//end;
+
+
+//halt;
+
+
+FOUR:=convertToFixedPointDecimal(4);
+
+piCorrectionTerm(i>0)->begin
+  1/(i+(1/(4*i+i/FOUR)));
+end;
+
+
+//begin
+//  print(pi_1000);
+//
+//  local s:=[0].toFixedPointDecimal;
+//
+//  rangeGenerator(0)
+//  .map((i)->[i,((i and 1)=1 ? -1 : 1)*(i*2+1)])
+//  .pMap((n)->[piCorrectionTerm(n[0]+1),[DP10*4 div n[1]].toFixedPointDecimal])
+//  .map((summand)->(s+=summand[1])+summand[0])
+//  .pMap(::hideCorrectDigits)
+//  .agg((q)->print(q));
+//
+//
+//
+//
+//end;
+
+//begin
+//  local fibonacci:=[1,1];
+//  local prevString:='';
+//  local currString:='x';
+//  while(prevString!=currString,begin
+//    prevString:=currString;
+//    fibonacci:=[fibonacci[1],fibonacci[1]+fibonacci[0]];
+//    printf('%s = %s / %s',currString:=toString(fibonacci[1]/convertToFixedPointDecimal(fibonacci[0])),fibonacci[1],fibonacci[0]);
+//  end);
+//end;
+
+begin
+  local s:=[0].toFixedPointDecimal;
+  local prevString:='';
+  local currString:='x';
+  local k:=0;
+  while(prevString!=currString,begin
+    prevString:=currString;
+    currString:=toString(s+=[DP10 div factorial(k)].toFixedPointDecimal);
+    k+=1;
+    print('[',k,'] ',currString);
+  end);
+end;

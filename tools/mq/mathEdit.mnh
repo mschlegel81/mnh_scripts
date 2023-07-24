@@ -1,7 +1,6 @@
 #!C:\bin\mnh.exe -GUI -quiet -headless -convertPrintToLog -logDateFmt hh:mm:ss.zzz -logLocationLength 15 +log ?.log(1)
 IP_AND_PORT:='127.0.0.1:80';
 NULL_MARKER:='[[0]]';
-plain datastore contents:=[];
 
 datastore cachedSecondaries:=[].toMap;
 
@@ -103,6 +102,9 @@ page->begin
   [HEADER,table,MIDDLE,bindings,FOOTER].join;
 end;
 
+mutable contentsFileName:=void;
+mutable contents:=[];
+
 WRITE_INTERVAL:=10; //seconds
 backgroundUpdate->begin
   local lastWrite:=scriptTime;
@@ -110,6 +112,7 @@ save;
   scriptTime>lastWrite+WRITE_INTERVAL
   ? begin
       writeDataStores;
+      contentsFileName.writeFile(contents.serialize(true,true));
       log('Saved state:',"\n",contents.map(::toString).join("\n"));
       lastWrite:=scriptTime;
     end
@@ -167,7 +170,13 @@ handleRequest('GET',path,body)->obtainFile(path) orElse warnOnce('GET',path,body
 
 handleRequest(method,path,body)->warnOnce(method,path,body);
 
-main->begin
+main(filename:String)->begin
+  contentsFileName:=filename;
+  contents:=
+  fileExists(contentsFileName)
+  ? contentsFileName.fileContents.deserialize
+  : [];
+
   local serverIp:=startHttpServer(IP_AND_PORT,(request:Map)->handleRequest(request['request','method'],request['request','path'],request['body']) ,600);
   print('Now running at ',serverIp);
   openUrl('http://'&serverIp&'/page.html');
@@ -178,7 +187,7 @@ main->begin
   //  halt;
   //end});
   while(isServerRunning(serverIp),sleep(10));
+  contentsFileName.writeFile(contents.serialize(true,true));
 end;
 
-page.print;
 

@@ -1,0 +1,81 @@
+#!C:\bin\mnh.exe -GUI -quiet
+USE customFormUtil;
+
+Rule(n:Int)->begin
+  local m:=digits(n,2).reverseList;
+  while(m.size<8,m|=0);
+  m.head(8);
+end;
+
+cellularStep(state:IntList,rule:IntList(8))->
+  rule[
+  (0|state.leading)*4+
+  (state          )*2+
+  (state.tail|0   )];
+
+memoized deBruijn(n:Int)->begin
+  local a:=[1..2*n]*0;
+  local sequence:=[];
+  local constructSequence:=((t,p)->begin
+    t>n
+    ? n mod p=0
+      ? sequence|=a[[1..p]]
+      : void
+    : begin
+        a[t]:=a[t-p];
+        constructSequence(t+1,p);
+        2>a[t-p]+1 ?
+        [a[t-p]+1..1].each(j,
+          a[t]:=j,
+          constructSequence(t+1,t)) : void;
+      end; end);
+  constructSequence(1,1);
+  sequence;
+end;
+
+main->begin
+  hideConsole;
+  local state:=[0,1,0];
+  local rule:=Rule(local prevRuleIdx:=local ruleIdx:=30);
+  local rows:=[state];
+  local nextFrame:=scriptTime;
+
+  clearAnimation(true);
+  localAsync({
+  while(true,begin
+    setOptions(["x0"=>-1,"x1"=>1,"y0"=>-1,"y1"=>1,"fontsize"=>10,"preserveAspect"=>true,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
+    plot;
+    plotRasterImage(1-rows.flatten,rows[0].size);
+    addAnimationFrame;
+    sleepUntil(nextFrame+=0.05);
+    state:=cellularStep(state,rule);
+    rows:=trailing(rows|[state],max(plotImageSize[1],90) div 4);
+    state.size<max(plotImageSize[0],90) div 4-3
+    ?
+    begin
+      state:=0|state|0;
+      rows:=rows.map((r)->0|r|0);
+    end : state.size>max(plotImageSize[0],90) div 4
+    ? begin
+      state:=state.tail.leading;
+      rows:=rows.map((r)->r.tail.leading);
+    end : void;
+  end)});
+
+  showDialog('Linear cellular automata',
+    [newEdit.withCaption('Rule: ').bind(::ruleIdx).withActionOnChange(()->
+     begin
+       ruleIdx:=ruleIdx.softCast;
+       ruleIdx.isInt ? rule:=Rule(prevRuleIdx:=ruleIdx) : ruleIdx:=prevRuleIdx;
+     end),
+     newButton.withCaption('Init deBrujn').withAction(()->state:=deBruijn(ceil(ln(state.size)/ln(2))).head(state.size)),
+     newButton.withCaption('Init impulse').withAction(()->state:=ord([0..state.size-1]=state.size div 2)),
+     newPlotDock]);
+
+
+
+
+end;
+
+
+

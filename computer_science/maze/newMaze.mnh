@@ -370,46 +370,39 @@ end;
 
 
 begin
-  local res:=101;
-  local maze:=makeSymmetricMaze(res,res,5);
-//  maze.ord.plotRasterImage(res);
+  local mazeSize:=[19,9];
+  local maze:=makeMaze@mazeSize;
+  plot;plotRasterImage(ord(!maze),mazeSize[0]); addAnimationFrame;
+
+  warn(mazeSize);
+
+  local mask:=maze.scaleMaze(mazeSize[0],4); mazeSize*=4;
+  mask:=mask.halfGrowMaze(mazeSize[0]);
+  mask:=mask.shiftMazeUpRight(mazeSize[0]); mazeSize+=1;
+  plot;plotRasterImage(ord(!mask),mazeSize[0]); addAnimationFrame;
+
+  maze:=makeMaze(mazeSize[0],mazeSize[1],mask);
+  plot;plotRasterImage(ord(!maze),mazeSize[0]); addAnimationFrame;
+  warn(mazeSize);
+
+  mask:=maze.scaleMaze(mazeSize[0],4); mazeSize*=4;
+  mask:=mask.halfGrowMaze(mazeSize[0]);
+  mask:=mask.shiftMazeUpRight(mazeSize[0]); mazeSize+=1;
+  plot;plotRasterImage(ord(!mask),mazeSize[0]); addAnimationFrame;
+
+  maze:=makeMaze(mazeSize[0],mazeSize[1],mask);
+  plot;plotRasterImage(ord(!maze),mazeSize[0]); addAnimationFrame;
+  warn(mazeSize);
 
 
-//  local stack:=[[indexOf(maze).min.divMod(res),0]];
-  local distances:=[1..res*res]*0+Inf;
+  local V:=maze.chunkMap(mazeSize[0]).toList;
 
-  local mazePoints:=indexOf(maze).divMod(res).toSet;
-//  local stack:=[[mazePoints.each(p,[euklideanNorm(p-0.5*res),p],min)[1],0]];
+  plot;plotRasterImage(ord(!flatten(V)),mazeSize[0]); addAnimationFrame;
 
-  local stack:=[[mazePoints.min,0]];
+  log(typeOf(V));
+  log(typeOf(V[0]));
 
-  while(stack.size>0,  begin
-    local S:=stack.head; stack:=stack.tail;
-    mazePoints>>S[0];
-    distances[S[0,0]*res+S[0,1]]:=S[1];
-    local Q:=[S[0]+[1,0],S[1]+1]; Q[0] in mazePoints ? stack|=[Q] : void;
-          Q:=[S[0]-[1,0],S[1]+1]; Q[0] in mazePoints ? stack|=[Q] : void;
-          Q:=[S[0]+[0,1],S[1]+1]; Q[0] in mazePoints ? stack|=[Q] : void;
-          Q:=[S[0]-[0,1],S[1]+1]; Q[0] in mazePoints ? stack|=[Q] : void;
-
-  end);
-  local imd:=2/3/distances.filter(::isInt).max;
-
-  setOptions(["x0"=>-1,"x1"=>1,"y0"=>-1,"y1"=>1,"fontsize"=>10,"preserveAspect"=>false,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
-  distances.map((d)->d.isInfinite
-                     ? 0
-                     : hue(d*imd)).plotRasterImage(res);
-
-
-
-
-
-
-
-
-//  local H:=
-//  ([0..1000]/1000).map(::toReal).map(::hue);
-
+  print('const maze:bitpacked array[0..',V.size-1,',0..',V[0].size-1,'] of boolean=(',V.map((v)->'('&v.join(',')&')').join(",\n"),');');
 end;
 
 

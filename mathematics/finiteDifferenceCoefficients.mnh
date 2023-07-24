@@ -1,0 +1,22 @@
+USE linalg,rationals;
+
+memoized
+factorial(i=0):=1;
+factorial(i>0)->i*factorial(i-1);
+
+//*Returns a list of coefficients to calculate the 0th, 1st, ... derivative of the polynomial through fixed x and variable y at x=0
+finiteDifferenceCoeff(x:GeneralNumberList)->begin
+  //construct polynomial throught (x[0],y[0]), (x[1],y[1]), ...
+  [0..x.size-1].each(power,x^power).toMatrix.invert.transpose.each(col,col*factorial(index));
+end;
+
+//finiteDifferenceCoeff([-3/2,-1/2,1/2,3/2]).toMatrix.toString.print;
+
+
+
+//As above but with the integral over the cells being given by y (as by finite volumes discretization)
+[1..4].each(power,[-2..1].each(x0,((x0+1)^power-x0^power)/power)).toMatrix.invert.transpose.each(col,col*factorial(index)).toMatrix.toString.print;
+
+[1..2].each(power,[-1..0].each(x0,((x0+1)^power-x0^power)/power)).toMatrix.invert.transpose.each(col,col*factorial(index)).toMatrix.toString.print;
+
+finiteDifferenceCoeff([-1/2,1/2]).toMatrix.toString.print;

@@ -1,0 +1,276 @@
+USE multivariate_polynomials, rationals;
+
+make3Stages->
+begin
+  local aim:=odeTaylor(parsePoly('u*(x+u*y)'),'u',2);
+  local a10:=polyOf('a10');
+  local a20:=polyOf('a20');
+  local a21:=polyOf('a21');
+  local b0:=polyOf('b0');
+  local b1:=polyOf('b1');
+  local b2:=polyOf('b2');
+
+  local polySubstitutions:=['b0'=>1-b1-b2,
+                            'b1'=>(1/2 - a20*b2 - a21*b2)*a10^(-1),
+                            'b2'=>1/6*a10^(-1)*a21^(-1),
+                            'a20'=>0,
+                            'a21'=>1/2,
+                            'a10'=>0.78867513459481287];
+  local approx :=genericERK(3,(u)->u*(polyOf('x')+u*polyOf('y')),polySubstitutions);
+  local sub:=(p_in)->begin
+    local p_out:=p_in;
+    polySubstitutions.each(subst,p_out:=p_out.let(subst[0],subst[1]));
+    p_out;
+  end;
+
+  local err   :=aim-approx;
+  print('Aim      : ',aim    .reorder(['x','y']).toString);
+  print('Approx(3): ',approx .reorder(['x','y']).toString);
+  print('Order conditions: ');
+  local seen:=[];
+  local srcTxt:=
+  intersect(aim.allPowersOf(['x','y']),
+         approx.allPowersOf(['x','y']))
+  .sort.each(pow,begin
+      local delta:=err.isolate(pow).drop(['x','y']);
+      local lc:=delta.leadingCoefficient;
+      lc==0 ? void : delta/=lc;
+      delta:=delta.toString;
+      delta='0' OR delta in seen
+      ? void
+      : begin
+          seen|=delta;
+          print(powerToString(pow),': 0 = ',delta);
+         'sqr('&delta&')';
+        end;
+    end);
+  print(a10.sub.toString,"\n",
+        a20.sub.toString,"\t",a21.sub.toString,"\n",
+//        a30.sub.toString,"\t",a31.sub.toString,"\t",a32.sub.toString,"\n",
+         b0.sub.toString,"\t", b1.sub.toString,"\t",b2.sub.toString);//,"\t",b3.sub.toString);
+
+  //print('Function to minimize: ');
+  //print('begin');
+  //print('  local a10 := (1/3*(a20 + 3*a21) + sqrt(1/9*(-a20 - 3*a21)^2 - 4/3*a21*(a20 + a21)^2))/(2*a21);');
+  //polySubstitutions.reverseList.each(s,print('  local ',s[0],':= ',s[1].toString,';'));
+  //print('end;');
+end;
+
+makeErrorEstimationStage->begin
+  local aim:=odeTaylor(parsePoly('u*(x+u*y)'),'u',1);
+  local a10:=polyOf('a10');
+  local a20:=polyOf('a20');
+  local a21:=polyOf('a21');
+  local a30:=polyOf('a30');
+  local a31:=polyOf('a31');
+  local a32:=polyOf('a32');
+  local b0:=polyOf('b0');
+  local b1:=polyOf('b1');
+  local b2:=polyOf('b2');
+  local b3:=polyOf('b3');
+
+  local polySubstitutions:=['a30'=>1-a31-a32,
+                            'a31'=>(1/2 - a20*a32 - a21*a32)*a10^(-1),
+                            'a32'=>1/6*a10^(-1)*a21^(-1),
+                            'a20'=>0,
+                            'a21'=>1/2,
+                            'a10'=>0.78867513459481287,
+                            'b0'=>1-b1-b2-b3,
+                            'b1'=>(-1 + b2 + 2*b3)/-1.5773502691896257];
+  local approx :=genericERK(4,(u)->u*(polyOf('x')+u*polyOf('y')),polySubstitutions);
+  local sub:=(p_in)->begin
+    local p_out:=p_in;
+    polySubstitutions.each(subst,p_out:=p_out.let(subst[0],subst[1]));
+    p_out;
+  end;
+
+  local err   :=aim-approx;
+  print('Aim      : ',aim    .reorder(['x','y']).toString);
+  print('Approx(4): ',approx .reorder(['x','y']).toString);
+  print('Order conditions: ');
+  local seen:=[];
+  intersect(aim.allPowersOf(['x','y']),
+         approx.allPowersOf(['x','y']))
+  .sort.each(pow,begin
+      local delta:=err.isolate(pow).drop(['x','y']);
+      local lc:=delta.leadingCoefficient;
+      lc==0 ? void : delta/=lc;
+      delta:=delta.toString;
+      delta='0' OR delta in seen
+      ? void
+      : begin
+          seen|=delta;
+          print(powerToString(pow),': 0 = ',delta);
+        end;
+    end);
+  print(a10.sub.toString,"\n",
+        a20.sub.toString,"\t",a21.sub.toString,"\n",
+        a30.sub.toString,"\t",a31.sub.toString,"\t",a32.sub.toString,"\n",
+        b0.sub.toString,"\t", b1.sub.toString,"\t",b2.sub.toString,"\t",b3.sub.toString);
+
+  print('Function to minimize: ');
+  print('begin');
+  polySubstitutions.reverseList.each(s,print('  local ',s[0],':= ',s[1].toString,';'));
+  print('end;');
+end;
+
+
+SAMPLE:=
+begin
+  local f:=odeTaylor(parsePoly('u*(x+u*y)'),'u',10).toString;
+  f:=toExpression('(x,y)->'&f);
+  randomGenerator(intRandom(2^256))
+    .chunkMap(2,(r)->r*2-1)
+    .filter((x)->x.euklideanNorm<1)
+    .map((x)->x*random)
+    .pMap((p)->p|(f@p))
+    .head(1000);
+end;
+
+correlationCoefficient(L:List)->begin
+  local avgX:=L.getInner(0).agg(+)/L.size;
+  local avgY:=L.getInner(1).agg(+)/L.size;
+  L.each(xy,(xy[0]-avgX)*(xy[1]-avgY),+)/sqrt(
+    L.getInner(0).each(x,sqr(x-avgX),+)*
+    L.getInner(1).each(y,sqr(y-avgY),+));
+end;
+
+printRk(Q)->begin
+  local b2:=Q[1,0];
+  local b3:=Q[1,1];
+
+  local b1:= 0.6339745962155614 - 0.6339745962155614*b2 - 1.2679491924311228*b3;
+  local b0:= 1 - 1*b1 - 1*b2 - 1*b3;
+  local a10:= 0.78867513459481287;
+  local a21:= 0.5;
+  local a20:= 0;
+  local a32:= 1/6*a10^-1*a21^-1;
+  local a31:= 1/2*a10^-1 - 1*a10^-1*a20*a32 - 1*a10^-1*a21*a32;
+  local a30:= 1 - 1*a31 - 1*a32;
+  print;
+  print('Error corellation: ',-Q[0]);
+  print(a10,"\n",
+        a20,"\t",a21,"\n",
+        a30,"\t",a31,"\t",a32,"\n",
+        b0 ,"\t", b1,"\t",b2,"\t",b3);
+end;
+
+err(b2,b3)->begin
+  local b1:= 0.6339745962155614 - 0.6339745962155614*b2 - 1.2679491924311228*b3;
+  local b0:= 1 - 1*b1 - 1*b2 - 1*b3;
+  local a10:= 0.78867513459481287;
+  local a21:= 1/2;
+  local a20:= 0;
+  local a32:= 1/6*a10^-1*a21^-1;
+  local a31:= 1/2*a10^-1 - 1*a10^-1*a20*a32 - 1*a10^-1*a21*a32;
+  local a30:= 1 - 1*a31 - 1*a32;
+  SAMPLE.each(s,begin
+    local x:=s[0];
+    local y:=s[1];
+    local tgt:=s[2];
+    local f:=(u)->u*(x+u*y);
+    local F0:=f(1);
+    local F1:=f(1+a10*F0);
+    local F2:=f(1+a20*F0+a21*F1);
+    local F3:=f(local sol3:=1+a30*F0+a31*F1+a32*F2);
+    local sol2:=            1+ b0*F0+ b1*F1+ b2*F2+b3*F3;
+
+    [abs(sol3-tgt),abs(sol3-sol2)];
+  end).correlationCoefficient*-1 //Negative, because we want to maximize this one...
+  +[b0,b1,b2,b3].each(q,max(q-1,0,-0.5-q),+); //Penalty for "large" coefficients
+end;
+//0.99814863875641269 / -0.45612194538116463 0.5206048965454086
+
+USE downhillSimplex;
+
+begin
+  local A:=[0.98477395203467177,-0.3273802950693314];
+  A:=[-0.45612194538116463,0.5206048965454086];
+  downhillSimplex((a)->err@a,A,0.1,1E-6,DEFAULT_DOWNHILL_SIMPLEX_OPTIONS.withActionOnBestPoint(::printRk)).printRk;
+end;
+
+
+halt;
+
+
+
+
+
+
+//================================================================
+
+aim:=begin
+  local x:=polyOf('x');
+  local y:=polyOf('y');
+  1 + x + y + 1/2*(x^2 + 3*x*y + 2*y^2) + (x^3/6 + (7*x^2*y)/6 + 2*x*y^2 + y^3);// + 1/24*(x^4 + 15*x^3*y + 50*x^2*y^2 + 60*x*y^3 + 24*y^4) + (x^5/120 + (31*x^4*y)/120 + (3*x^3*y^2)/2 + (13*x^2*y^3)/4 + 3*x*y^4 + y^5);
+end.reorder(['x','y']);
+f(z)->(polyOf('x')+polyOf('y')*z)*z;
+
+//aim:=begin local x:=polyOf('x'); 1 + x + x²/2 + x³/6 + x^4/24 + x^5/120; end.reorder(['x','y']);
+//f(z)->polyOf('x')*z;
+
+
+begin
+  local approx:=genericERK(3,::f);
+  local b0 :=polyOf('b0');
+  local b1 :=polyOf('b1');
+  local b2 :=polyOf('b2');
+  local a10:=polyOf('a10');
+  local a20:=polyOf('a20');
+  local a21:=polyOf('a21');
+
+  local polySubstitutions:=['b0'=>1-b1-b2,
+                            'b1'=>(1/2 - a20*b2 - a21*b2)*a10^(-1),
+                            'b2'=>1/6*a10^(-1)*a21^(-1)];
+  local sub:=(p_in)->begin
+    local p_out:=p_in;
+    polySubstitutions.each(subst,p_out:=p_out.let(subst[0],subst[1]));
+    p_out;
+  end;
+  approx:=sub(approx);
+
+  local err   :=aim-approx;
+  print('Aim   : ',aim   .reorder(['x','y']).toString);
+  print('Approx: ',approx.reorder(['x','y']).toString);
+  print('Order conditions: ');
+  local seen:=[];
+  local srcTxt:=
+  intersect(aim.allPowersOf(['x','y']),
+            approx.allPowersOf(['x','y']))
+  .sort.each(pow,begin
+      local delta:=err.isolate(pow).drop(['x','y']);
+      local lc:=delta.leadingCoefficient;
+      lc==0 ? void : delta/=lc;
+      delta:=delta.toString;
+      delta='0' OR delta in seen
+      ? void
+      : begin
+          seen|=delta;
+          print(powerToString(pow),': 0 = ',delta);
+         'sqr('&delta&')';
+        end;
+    end);
+
+
+  err;
+
+
+  //print(a10.sub.toString,"\n",
+  //      a20.sub.toString,"\t",a21.sub.toString,"\n",
+  //       b0.sub.toString,"\t", b1.sub.toString,"\t",b2.sub.toString);
+  //halt;
+
+
+
+  //print('Function to minimize: ');
+  //print('begin');
+  //print('  local a10 := (1/3*(a20 + 3*a21) + sqrt(1/9*(-a20 - 3*a21)^2 - 4/3*a21*(a20 + a21)^2))/(2*a21);');
+  //polySubstitutions.reverseList.each(s,print('  local ',s[0],':= ',s[1].toString,';'));
+  //printf('  %s +',srcTxt);
+  //print('  (a10²+a20²+a21²+b0²+b1²+b2²)*1E-3;');
+  //print('end;');
+end.reorder(['x','y'])
+   .isolate([['y',3]]).drop(['x','y'])
+   .toString.print;
+
+

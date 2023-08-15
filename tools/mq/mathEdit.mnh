@@ -1,4 +1,4 @@
-#!C:\bin\mnh.exe -GUI -quiet -headless -convertPrintToLog -logDateFmt hh:mm:ss.zzz -logLocationLength 15 +log ?.log(1)
+#C:\bin\mnh.exe -GUI -quiet -headless -convertPrintToLog -logDateFmt hh:mm:ss.zzz -logLocationLength 15 +log ?.log(1)
 IP_AND_PORT:='127.0.0.1:80';
 NULL_MARKER:='[[0]]';
 
@@ -180,12 +180,12 @@ main(filename:String)->begin
   local serverIp:=startHttpServer(IP_AND_PORT,(request:Map)->handleRequest(request['request','method'],request['request','path'],request['body']) ,600);
   print('Now running at ',serverIp);
   openUrl('http://'&serverIp&'/page.html');
-  //localAsync({begin
-  //  ask('Press q to quit',['q']);
-  //  writeAllDataStores;
-  //  sleep(1);
-  //  halt;
-  //end});
+  localAsync({begin
+    ask('Press q to quit',['q']);
+    writeAllDataStores;
+    sleep(1);
+    halt;
+  end});
   while(isServerRunning(serverIp),sleep(10));
   contentsFileName.writeFile(contents.serialize(true,true));
 end;

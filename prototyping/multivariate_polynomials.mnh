@@ -25,18 +25,22 @@ toString(poly:Polynomial)->
       .replace("+-"," - ")
       .replace("+"," + ");
 
-isUnique(L:List)->L.size==L.unique.size;
+private isUnique(L:List)->L.size==L.unique.size;
 
-simplify(poly)->
-  poly.getInner(1).isUnique
-  ? poly.toPolynomial
-  : group(poly.getInner(0),poly.getInner(1).map(::sort),::+)
+ZEROS:=[0,0.0,-0.0,[0,0].toRational,[-0,0].toRational];
+
+simplify(poly)->begin
+  local filtered:=poly.filter((term)-> term[0] not in ZEROS);
+  filtered.getInner(1).isUnique
+  ? filtered.toPolynomial
+  : group(filtered.getInner(0),filtered.getInner(1).map(::sort),::+)
       .map((t)->t[1].toReal=0 ? void : [t[1],t[0]])
       .sort(1)
       .sort((t)->t[1].getInner(1).agg(+) orElse 0)
       .toPolynomial;
+end;
 
-memoized mult_powers(p0,p1)->
+mult_powers(p0,p1)->
   mergeMaps(p0.toMap,p1.toMap,::+)
   .filter((entry)->entry[1]!=0)
   .sort;
@@ -46,7 +50,7 @@ OPERATOR_PLUS(x:Polynomial,y:Polynomial)->simplify(x|y);
 OPERATOR_PLUS(x:Polynomial,y:GeneralNumber   )->simplify(x|polyOf(y));
 OPERATOR_PLUS(x:GeneralNumber   ,y:Polynomial)->simplify(polyOf(x)|y);
 OPERATOR_MINUS(x:Polynomial,y:Polynomial)->simplify(x|y.map((term)->[-1*term[0],term[1]]));
-OPERATOR_MINUS(x:Polynomial,y:GeneralNumber)->simplify(x|polyOf(-y));
+OPERATOR_MINUS(x:Polynomial,y:GeneralNumber)->simplify(x|polyOf(-1*y));
 OPERATOR_MINUS(x:GeneralNumber,y:Polynomial)->simplify(polyOf(x)|y.map((term)->[-1*term[0],term[1]]));
 
 OPERATOR_NEGATE_ARITHMETIC(x:Polynomial)->x.map((t)->[-t[0],t[1]]).toPolynomial;
@@ -54,20 +58,28 @@ OPERATOR_DIVREAL(x:Polynomial,y:GeneralNumber)->x*(1/y);
 
 OPERATOR_MULT(x:GeneralNumber,y:Polynomial)->y.map((t)->[t[0]*x,t[1]]).toPolynomial;
 OPERATOR_MULT(x:Polynomial,y:GeneralNumber)->x.map((t)->[t[0]*y,t[1]]).toPolynomial;
-OPERATOR_MULT(x:Polynomial,y:Polynomial)->x.simplify.cross(y.simplify).pEach(p,[p[0,0]*p[1,0],mult_powers(p[0,1],p[1,1])]).simplify;
+OPERATOR_MULT(x:Polynomial,y:Polynomial)->begin
+  local xs:=x.simplify;
+  local ys:=y.simplify;
+  xs.pEach(xTerm,ys.each(yTerm,[xTerm[0]*yTerm[0],mult_powers(xTerm[1],yTerm[1])]).simplify,|).simplify;
+end;
+
+
 OPERATOR_POT(x:Polynomial,i==1)->x;
+
 OPERATOR_POT(x:Polynomial,i>1)->
   (i and 1)=0
   ? (x*x)^(i/2)
   : x*(x^(i-1));
+
 OPERATOR_POT(x:Polynomial,i==0)->[1,[]].toPolynomial;
+
 OPERATOR_POT(x:Polynomial,i<0)->begin
   assert(x.size==1,'Operation not possible');
   local term:=x[0];
   local invTerm:=[1/term[0],term[1].map((p)->[p[0],-p[1]])];
   [invTerm].toPolynomial^(-i);
 end;
-
 
 let(poly:Polynomial,var:String,value:GeneralNumber)->begin
   poly.each(term,begin
@@ -123,7 +135,7 @@ allPowersOf(poly:Polynomial, variables:StringCollection)->
     P.filter((p)->p[0] in variables);
   end).unique;
 
-D(poly:Polynomial,variable:String)->begin
+derivative(poly:Polynomial,variable:String)->begin
   poly.map((term)->begin
     local pow:=term[1].toMap;
     pow[variable].isVoid
@@ -134,6 +146,14 @@ D(poly:Polynomial,variable:String)->begin
         [term[0]*k,pow.sort];
       end;
   end).toPolynomial;
+end;
+
+antiderivative(poly:Polynomial,variable:String)->begin
+  poly.map((term)->begin
+    local pow:=term[1].toMap;
+    local k:=toRational([1,(pow[variable] orElse 0)+1]);
+    [term[0]*k,term[1]];
+  end).toPolynomial*polyOf(variable);
 end;
 
 leadingCoefficient(poly:Polynomial)->poly==[] ? 0 : poly.filter((t)->t[1]==[]) [0,0] orElse poly[0,0];
@@ -150,19 +170,44 @@ genericERK(stages>=1,d:Expression(1),substitutions:List)->begin
                          pOut;
                        end);
     local Q:=1+rkParam.each(p,p*F[index],+);
-    F[stage]:=d(Q);
+    stage<stages ? F[stage]:=d(Q) : Q;
     Q;
-  end,trailing);
+  end).trailing(2);
 end;
 
 //*Taylor series from an ordinary differential equation (1st order)
+//Idea: construct terms iteratively by applying the chain rule
 odeTaylor(f:Polynomial,variable:String,terms>=1)->begin
-  local P:=[f];
-  1+f+
-  [1..terms].each(i,begin
-    P[i]:=P[i-1].D(variable)*P[0]/(i+1);
-  end,+);
+  local P:=[1,f];
+  1+f+(terms=1
+       ? void
+       : [2..terms].each(i,P[i]:=P[i-1].derivative(variable)*P[1]/i,+));
 end.let(variable,1);
+
+odeTaylor(f:Polynomial,variable:String,timeVar:String,initialValue,terms>=1)->begin
+  local P:=[initialValue,f*polyOf(timeVar)];
+  initialValue+f*polyOf(timeVar)+(terms=1
+       ? void
+       : [2..terms].each(i,P[i]:=P[i-1].derivative(variable)*P[1]/i,+));
+end.let(variable,initialValue);
+
+
+@SuppressUnusedWarning
+toFunction(f:Polynomial,var:String)->begin
+  local varEx:=format('(%s)->%s',var,var).toExpression;
+  f.each(term,begin
+    local powers:=term[1];
+    local outerFactor:=1;
+
+    powers:=powers.each(pow,pow[0]==var ? begin outerFactor*=varEx^pow[1]; void; end : pow);
+    outerFactor==1
+    ? [term].toPolynomial
+    : powers==[]
+      ? (term[0]==1 ? void : term[0])*outerFactor
+      : outerFactor*[[term[0],powers]].toPolynomial;
+  end,+);
+
+end;
 
 parsePoly(s:String)->begin
   local result:=
@@ -171,7 +216,7 @@ parsePoly(s:String)->begin
                ? format("polyOf('%s')",tok)
                : tok)
    .join
-   .interpret;
+   .interpret(['output']);
   assert(result.isPolynomial,'Could not parse polynomial');
   result;
 end;
@@ -182,15 +227,59 @@ findRoot(poly:Polynomial)->begin
 end;
 
 findRoot(poly:Polynomial,variable:String)->begin
-  local minPow:=poly.allPowersOf([variable]).agg(|).getInner(1).min;
-  local P:=minPow>=0 ? poly : poly * polyOf(variable,-minPow);
+  //find factor to eliminate all negative powers:
+  local factor:=[[1,poly.getInner(1).agg(|).{group($L.getInner(1),$L.getInner(0),::min)}.filter((p)->p[1]<0).map((p)->[p[0],-p[1]])]].toPolynomial;
+  local P:=poly*factor;
+  //find common factor of all entries:
+  factor:=toList(intersect@(poly.getInner(1))).map((pow)->[pow[0],-pow[1]]);
+  factor.size>0 ? P*=[[1,factor]].toPolynomial : void;
+
   local termContains:=P.getInner(1).each(pow,variable in pow.getInner(0));
   local lhs:=P[ termContains].toPolynomial.reorder([variable]);
   local rhs:=P[!termContains].map((term)->[-1*term[0],term[1]]).toPolynomial;
-  lhs.toString&' = '&rhs.toString;
-
+  lhs.size==1
+  ? begin
+      local factor:=[[1/lhs[0,0],lhs[0,1].filter((pow)->pow[0]!=variable).map((pow)->[pow[0],-pow[1]])]].toPolynomial;
+      lhs*=factor;
+      rhs*=factor;
+      format('![%s]: "%s" => %s',variable,lhs.toPolynomial.toString,rhs.horner);
+    end
+  : format('?[%s]: %s = %s',variable,lhs.toString,rhs.toString);
 end;
 
-parsePoly('1 - 1.5773502691896257*b1 - 1*b2 - 2.0*b3 ').findRoot;
+toRealCoeff(poly:Polynomial)->poly.map((p)->[p[0].isInt ? p[0] : p[0].toReal,p[1]]).toPolynomial;
+horner(poly:Polynomial)->begin
+  local toExtract:=poly.getInner(1).agg(|).min;
+  toExtract.isVoid ? return poly.toString : void;
+  local without:=[];
+  local within:=
+  poly.each(term,begin
+    local powers:=term[1].toMap;
+    powers[toExtract[0]].isVoid
+    ? begin
+        without||=term;
+        void;
+      end
+    : begin
+        powers[toExtract[0]]-=toExtract[1];
+        powers[toExtract[0]]==0 ? powers[toExtract[0]]:=void : void;
+        [term[0],powers.sort];
+      end;
+  end);
+  within.size==1
+  ? without.size==0
+    ? within.toPolynomial*[[1,[toExtract]]].toPolynomial
+    : format('%s + %s',
+        without.toPolynomial.horner,
+        within.toPolynomial*[[1,[toExtract]]].toPolynomial)
+  : without.size==0
+    ? format('%s * (%s)',
+        powerToString([toExtract]),
+        within.toPolynomial.horner)
+    : format('%s + %s * (%s)',
+        without.toPolynomial.horner,
+        powerToString([toExtract]),
+        within.toPolynomial.horner);
+end;
 
-//   a21² - (3*a10 - 2*a20 - 3*a10²)*a21  = a10*a20 - a20²
+

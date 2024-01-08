@@ -1,0 +1,115 @@
+USE complex;
+
+correlationCoefficient(L:List)->begin
+  local avgX:=L.getInner(0).agg(+)/L.size;
+  local avgY:=L.getInner(1).agg(+)/L.size;
+  L.each(xy,(xy[0]-avgX)*(xy[1]-avgY),+)/sqrt(
+    L.getInner(0).each(x,sqr(x-avgX),+)*
+    L.getInner(1).each(y,sqr(y-avgY),+));
+end;
+
+rand->begin
+  local r:=random(2)*2-1;
+  r*abs(r);
+end;
+
+
+
+SAMPLES:=
+begin
+  local Q:=(x,y)->y * (1 + y * (1 + y * (1 + y * (1 + y * (1 + y * (1 + y * (1 + y * (1 + y * (1 + y))))))))) + x * (1 + y * (1.5 + y * (2 + y * (2.5 + y * (3 + y * (3.5 + y * (4 + y * (4.5 + y * (5 + 5.5*y)))))))) + x * (0.5 + y * (1.1666666666666667 + y * (2.0833333333333335 + y * (3.25 + y * (4.666666666666667 + y * (6.333333333333333 + y * (8.25 + y * (10.416666666666666 + 12.833333333333334*y))))))) + x * (0.16666666666666666 + y * (0.625 + y * (1.5 + y * (2.9166666666666665 + y * (5 + y * (7.875 + y * (11.666666666666666 + 16.5*y)))))) + x * (0.041666666666666664 + y * (0.25833333333333336 + y * (0.8361111111111111 + y * (2.025 + y * (4.1375 + y * (7.5486111111111107 + 12.695833333333333*y))))) + x * (0.008333333333333333 + y * (0.0875 + y * (0.38333333333333336 + y * (1.15625 + y * (2.8125 + 5.9354166666666668*y)))) + x * (0.0013888888888888889 + y * (0.0251984126984127 + y * (0.15004960317460317 + y * (0.56390542328042326 + 1.6318121693121692*y))) + x * (0.0001984126984126984 + y * (0.006324404761904762 + y * (0.051421957671957674 + 0.24098875661375663*y)) + x * (0.0000248015873015873 + y * (0.001408179012345679 + 0.015708223104056437*y) + x * (0.0000027557319223985893 + 0.00028191137566137568*y + 0.00000027557319223985888*x)))))))));
+  rangeGenerator(1).pMap(()->begin
+    local x:=rand.toComplex;
+    local y:=rand.toComplex;
+    local q:=Q(x,y);
+    [x,y,q];
+  end)
+  .filter((s)->s[2].euklideanNorm<1)
+  .head(1000);
+end;
+
+
+f(u,x,y)->u*(x+u*y);
+
+butcherTab(E)->begin
+  local a20:=0;
+  local a21:=2/3;
+  local b2 :=E[1,0];
+  local b3 :=E[1,1];
+  local a10:=2/3;
+  local a30:=1/6*a10^-2 + 1/6*a10^-2*a20*a21^-1 - 1/6*a10^-1*a21^-1 - 1/2*a10^-1 + 1  ;
+  local a31:=-1/6*a10^-2 - 1/6*a10^-2*a20*a21^-1 + 1/2*a10^-1                         ;
+  local a32:=1/6*a10^-1*a21^-1                                                        ;
+  local b0 :=-1/2*a10^-1 + a10^-1*b3 + a10^-1*a21*b2 + a10^-1*a20*b2 + 1 - 1*b3 - 1*b2;
+  local b1 :=1/2*a10^-1 - 1*a10^-1*b3 - 1*a10^-1*a21*b2 - 1*a10^-1*a20*b2             ;
+
+  printf("Error:\t%s\nCC:\t%s\n%s\n%s\t%s\n%s\t%s\t%s\n%s\t%s\t%s\t%s\n",E[0],-E[0],a10,a20,a21,a30,a31,a32,b0,b1,b2,b3);
+  E;
+end;
+
+error(b2,b3)->begin
+  local a10:=2/3;
+  local a20:=0;
+  local a21:=2/3;
+  local a30:=1/6*a10^-2 + 1/6*a10^-2*a20*a21^-1 - 1/6*a10^-1*a21^-1 - 1/2*a10^-1 + 1  ;
+  local a31:=-1/6*a10^-2 - 1/6*a10^-2*a20*a21^-1 + 1/2*a10^-1                         ;
+  local a32:=1/6*a10^-1*a21^-1                                                        ;
+  local b0 :=-1/2*a10^-1 + a10^-1*b3 + a10^-1*a21*b2 + a10^-1*a20*b2 + 1 - 1*b3 - 1*b2;
+  local b1 :=1/2*a10^-1 - 1*a10^-1*b3 - 1*a10^-1*a21*b2 - 1*a10^-1*a20*b2             ;
+  abs([b0,b1,b2,b3]).max>1 ? return Inf : void;
+  local samples:=
+  SAMPLES.pEach(sample,begin
+    local x:=sample[0];
+    local y:=sample[1];
+    local exactSol:=sample[2];
+    local F0:=f(         1                            ,x,y);
+    local F1:=f(         1+a10*F0                     ,x,y);
+    local F2:=f(         1+a20*F0+a21*F1              ,x,y);
+    local F3:=f(local A:=1+a30*F0+a31*F1+a32*F2       ,x,y);
+    local B:=            1+b0 *F0+b1 *F1+b2 *F2+b3 *F3;
+
+//    local F4:=f(local A:=1+a40*F0+a41*F1+a42*F2+a43*F3,x,y);
+//    local B:=            1+b0 *F0+b1 *F1+b2 *F2+b3 *F3+b4*F4;
+    local trueError     :=euklideanNorm(A-1-exactSol);
+    local estimatedError:=euklideanNorm(A-B);
+    [trueError,estimatedError];
+  end);
+
+  //[samples.getInner(0).sqr.agg(+)/samples.size,
+  samples.correlationCoefficient*-1;
+end;
+
+//error(-0.9,-0.3,-0.14,0.42);
+
+USE downhillSimplex;
+
+
+A0:=begin
+  local k:=arity(::error);
+  local a:=random(k)*2-1;
+  while(isNan((error@a)) OR (isInfinite(error@a)),a:=random(k)*2-1);
+  butcherTab([error@a,a]);
+  a;
+end;
+//
+//downhillSimplex((a)->error@a,A0,0.5,1E-20,DEFAULT_DOWNHILL_SIMPLEX_OPTIONS.withActionOnBestPoint(::butcherTab));
+//
+//plot(::error,-1,1,100);
+
+// Error:             -0.903082381698387
+// CC:                 0.903082381698387
+// 0.6666666666666666
+// 0                   0.6666666666666666
+// 0.25                0.375                0.375
+// 0.3793441473719028  0.44252905233945938 -0.0805614944551678 0.2586882947438056
+
+//Error:             -0.9232887712688955
+//CC:                 0.9232887712688955
+//0.6666666666666666
+//0                   0.6666666666666666
+//0.25                0.375               0.375
+//0.5870584525780867  0.4867595643575605 -0.74793492209182066 0.6741169051561734
+
+
+
+butcherTab([error(-0.75,2/3),[-0.75,2/3]]);

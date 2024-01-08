@@ -1,0 +1,148 @@
+STEP_COUNT:=240;
+
+UNIT_NOISE:=randomGenerator(intRandom(2^64)).chunkMap(2).filter((r)->r.euklideanNorm<1).head(STEP_COUNT);
+
+
+
+makePeriodicSignal(periodicity>1)-> begin
+  local S:=map([1..periodicity],()->random(2)*2-1);
+  S[[1..STEP_COUNT] mod S.size]+0*UNIT_NOISE;
+
+end;
+
+detectPeriod(signal)->begin
+  local fft:=signal.trailing(STEP_COUNT).FFT;
+  fft[0]:=[0,0];
+  fft:=(fft.head(STEP_COUNT div 2).euklideanNorm²|0)
+          + (0|fft.tail(STEP_COUNT div 2).reverseList.euklideanNorm²);
+end;
+
+fuzzyOr(...)->1-(1-...).agg(*);
+plausiblePeriod(signal)->begin
+  local F:=signal.trailing(STEP_COUNT).FFT;
+  F[0]:=[0,0];
+  F:=(F.head(STEP_COUNT div 2).euklideanNorm²|0) + (0|F.tail(STEP_COUNT div 2).reverseList.euklideanNorm²) + 0.001;
+
+  local peak:=1-((F.tail(2)|0)+(0|F.leading(2)))/F.tail;
+  peak:=0|vectorIfThenElse(peak<0,0,peak);
+
+  local P:=
+  [0,0,peak[120],peak[80]];
+  P[4]:=peak[60];
+  P[5]:=fuzzyOr@peak[[48,96]];
+  P[6]:=peak[40];
+  P[7]:=fuzzyOr@peak[[34,69,103]];
+  P[8]:=fuzzyOr@peak[[30,90]];
+  P[9]:=fuzzyOr@peak[[27,53,107]];
+  P[10]:=fuzzyOr@peak[[24,72]];
+  P[11]:=fuzzyOr@peak[[22,44,65,87,109]];
+  P[12]:=fuzzyOr@peak[[20,100]];
+  P[13]:=fuzzyOr@peak[[37,74,111]];
+  P[14]:=fuzzyOr@peak[[17,51,86]];
+  P[15]:=fuzzyOr@peak[[16,32,64,112]];
+  P[16]:=fuzzyOr@peak[[15,45,75,105]];
+  P[17]:=        peak[ 113];
+  P[18]:=fuzzyOr@peak[[13,67,93]];
+  P[19]:=fuzzyOr@peak[[25,38,101]];
+  P[20]:=fuzzyOr@peak[[12,36,84,108]];
+  P[21]:=fuzzyOr@peak[[11,23,46,57,91,114]];
+  P[22]:=fuzzyOr@peak[[11,33,55,76,98]];
+  P[23]:=fuzzyOr@peak[[31,73,83,104]];
+  P[24]:=fuzzyOr@peak[[10,50,70,110]];
+
+  P[24]*=P[[2,3,4,6,8,12]].agg(*);
+  P[22]*=P[[2,11        ]].agg(*);
+  P[21]*=P[[3,7         ]].agg(*);
+  P[20]*=P[[2,4,5,10    ]].agg(*);
+  P[18]*=P[[2,3,6,9     ]].agg(*);
+  P[16]*=P[[2,4,8       ]].agg(*);
+  P[15]*=P[[3,5         ]].agg(*);
+  P[14]*=P[[2,7         ]].agg(*);
+  P[12]*=P[[2,3,4,6     ]].agg(*)*(1-P[24]);
+  P[11]*=                         (1-P[22]);
+  P[10]*=P[[2,5         ]].agg(*)*(1-P[20]);
+  P[ 9]*=P[ 3]                   *(1-P[18]).agg(*);
+  P[ 8]*=P[[2,4         ]].agg(*)*(1-P[[16,24]]).agg(*);
+  P[ 7]*=                         (1-P[[14,21]]).agg(*);
+  P[ 6]*=P[[2,3         ]].agg(*)*(1-P[[12,18,24]]).agg(*);
+  P[ 5]*=                         (1-P[[10,15,20]]).agg(*);
+  P[ 4]*=P[ 2]                   *(1-P[[8,12,16,20,24]]).agg(*);
+  P[ 3]*=                         (1-P[[6,9,12,15,18,21,24]]).agg(*);
+  P[ 2]*=                         (1-P[[4,6,8,10,12,14,16,18,20,22,24]]).agg(*);
+  (local total:=P.agg(+))<1
+  ? P
+  : P/total;
+end;
+
+
+testPlausiblePeriod->([''|[2..24]]|[2..24].each(k,k|format('%3.3f',makePeriodicSignal(k).plausiblePeriod.tail(2)).replace('0.000',''))).showTable(1,1,'Plausible period');
+
+generatePeakDetectionCode->begin
+  local Q:=[[0],[0]]|[2..STEP_COUNT div 10].each(i,unique(round(STEP_COUNT*[1..i div 2]/i)));
+  [4..24].each(i,begin
+    filter([2..i-1],(j)->gcd(i,j)<>1).each(j,
+    Q[i]:=Q[i].minus(Q[j]));
+  end);
+  Q.map(::sort)
+   .each(q,begin
+      local code:=
+      q.size==1
+      ? format('P[%s]:=peak[%s]',index,q[0])
+      : format('P[%s]:=fuzzyOr@peak[%s]',index,q.toString);
+
+      local factors:=[2..23].filter((i)->i<index AND index mod i=0).map((i)->format('P[%s]',i)).join('*');
+
+      factors==''
+      ? code &                 ';'
+      : code & '*' & factors & ';';
+      code &                 ';';
+    end).map(::print);
+end;
+
+freq_components(signal)->begin
+  local F:=signal.trailing(STEP_COUNT).FFT;
+  F[0]:=[0,0];
+  F:=(F.head(STEP_COUNT div 2).euklideanNorm²|0) + (0|F.tail(STEP_COUNT div 2).reverseList.euklideanNorm²);
+  F/=F.agg(+);
+end;
+
+M:=begin
+  local seen:=[].toSet;
+  local all:=
+  [2..STEP_COUNT div 10].each(period,begin
+    local K:=unique(round(STEP_COUNT*[1..period div 2]/period));
+    K:=K.minus(seen); seen|=K;
+    K.each(k,k=>[period,1/K.size]);
+  end,|);
+
+  group(all.getInner(1),all.getInner(0));
+end;
+
+Freqs:=M.getInner(1).agg(|).getInner(0).max+1;
+
+guessPeriod(signal)->begin
+  local F:=signal.trailing(STEP_COUNT).FFT;
+  F[0]:=[0,0];
+  F:=(F.head(STEP_COUNT div 2).euklideanNorm²|0) + (0|F.tail(STEP_COUNT div 2).reverseList.euklideanNorm²);
+  local Q:=F.each(a,begin
+             local per:=M[index];
+             note(index,per);
+             per.isVoid ? void : [per.getInner(0),per.getInner(1)*a].transpose;
+           end,|).transpose;
+  Q:=groupToList(Q[1],Q[0],0,::+,Freqs);
+  Q/=Q.agg(+);
+//  F.each(a,a>0.1 ? [a,index] : void).map(::log);
+//
+//  F.each(a,a>0.1 ? [a,M[index]] : void);
+end;
+
+testGuessPeriod->([''|[2..24]]|[2..24].each(k,k|format('%3.3f',makePeriodicSignal(k).guessPeriod.tail(2)).replace('0.000',''))).showTable(1,1,'Guess period');
+
+//setOptions(["x0"=>-1,"x1"=>1,"y0"=>-1,"y1"=>1,"fontsize"=>10,"preserveAspect"=>false,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>7,"axisStyleY"=>7].toMap);
+//makePeriodicSignal(2).freq_components.plot;
+//makePeriodicSignal(3).freq_components.addPlot;
+//makePeriodicSignal(4).freq_components.addPlot;
+//makePeriodicSignal(5).freq_components.addPlot;
+testGuessPeriod;
+testPlausiblePeriod;
+//guessPeriod(makePeriodicSignal(2));

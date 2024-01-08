@@ -1,0 +1,215 @@
+pointSeries(re_:Numeric,im_:Numeric, depth:Int)->begin
+  local c:=
+  local z:=[re_.toReal,im_.toReal];
+  [1..depth].each(step,(z:=complex_square@z+c).isNan.agg(or) ? void : z);
+end;
+
+projectedColor(c:NumericList(3))->c.map((k)->max(0,min(1,k)));
+
+hue(x<0.0)->hue(x+6);
+hue(x<1.0)->[1  ,x,0];
+hue(x<2.0)->[2-x,1,0];
+hue(x<3.0)->[0  ,1,x-2];
+hue(x<4.0)->[0  ,4-x,1];
+hue(x<5.0)->[x-4,0  ,1];
+hue(x<6.0)->[1  ,0  ,6-x];
+hue(x:Numeric)->hue(x-6);
+
+HARM_COL:=[[0  ,0  ,0], //0
+           [0  ,0  ,0], //1
+           [0.5,0  ,0], //2
+           [0  ,0.5,0], //3
+           [0.8,0  ,0], //4
+           [0  ,0  ,1], //5
+           [1  ,1  ,0], //6
+           [1  ,1  ,1], //7
+           [1  ,0  ,0], //8
+           [0  ,1  ,0], //9
+           [1  ,0  ,1], //10
+           [0.5,1,0.5], //11
+           [1  ,0.5,0], //12
+           [0.5,0.5,1], //13
+           [1  ,0.5,0.5], //14
+           [0  ,1  ,1], //15
+           [1  ,0.3,0.3], //16
+           [0.2,1  ,0.2], //17
+           [0.8  ,1  ,0], //18
+           [0.2,0.2 ,1], // 19
+           [0.7,0  ,1], //20
+           [0.8,1  ,0.8], //21
+           [0.8,0.8,0.8], //22
+           [0.6,0.6,0.6], //23
+           [1  ,1  ,0.3]]; //24
+
+
+fuzzyOr(...)->1-(1-...).agg(*);
+plausiblePeriod(signal)->begin
+  local F:=signal.trailing(240).FFT;
+  F[0]:=[0,0];
+  F:=(F.head(120).euklideanNorm²|0) + (0|F.tail(120).reverseList.euklideanNorm²) + 0.001;
+
+  local peak:=1-((F.tail(2)|0)+(0|F.leading(2)))/F.tail;
+  peak:=0|vectorIfThenElse(peak<0,0,peak);
+
+  local P:=
+  [0,0,peak[120],peak[80]];
+  P[4]:=peak[60];
+  P[5]:=fuzzyOr@peak[[48,96]];
+  P[6]:=peak[40];
+  P[7]:=fuzzyOr@peak[[34,69,103]];
+  P[8]:=fuzzyOr@peak[[30,90]];
+  P[9]:=fuzzyOr@peak[[27,53,107]];
+  P[10]:=fuzzyOr@peak[[24,72]];
+  P[11]:=fuzzyOr@peak[[22,44,65,87,109]];
+  P[12]:=fuzzyOr@peak[[20,100]];
+  P[13]:=fuzzyOr@peak[[37,74,111]];
+  P[14]:=fuzzyOr@peak[[17,51,86]];
+  P[15]:=fuzzyOr@peak[[16,32,64,112]];
+  P[16]:=fuzzyOr@peak[[15,45,75,105]];
+  P[17]:=        peak[ 113];
+  P[18]:=fuzzyOr@peak[[13,67,93]];
+  P[19]:=fuzzyOr@peak[[25,38,101]];
+  P[20]:=fuzzyOr@peak[[12,36,84,108]];
+  P[21]:=fuzzyOr@peak[[11,23,46,57,91,114]];
+  P[22]:=fuzzyOr@peak[[11,33,55,76,98]];
+  P[23]:=fuzzyOr@peak[[31,73,83,104]];
+  P[24]:=fuzzyOr@peak[[10,50,70,110]];
+
+  P[24]*=P[[2,3,4,6,8,12]].agg(*);
+  P[22]*=P[[2,11        ]].agg(*);
+  P[21]*=P[[3,7         ]].agg(*);
+  P[20]*=P[[2,4,5,10    ]].agg(*);
+  P[18]*=P[[2,3,6,9     ]].agg(*);
+  P[16]*=P[[2,4,8       ]].agg(*);
+  P[15]*=P[[3,5         ]].agg(*);
+  P[14]*=P[[2,7         ]].agg(*);
+  P[12]*=P[[2,3,4,6     ]].agg(*)*(1-P[24]);
+  P[11]*=                         (1-P[22]);
+  P[10]*=P[[2,5         ]].agg(*)*(1-P[20]);
+  P[ 9]*=P[ 3]                   *(1-P[18]).agg(*);
+  P[ 8]*=P[[2,4         ]].agg(*)*(1-P[[16,24]]).agg(*);
+  P[ 7]*=                         (1-P[[14,21]]).agg(*);
+  P[ 6]*=P[[2,3         ]].agg(*)*(1-P[[12,18,24]]).agg(*);
+  P[ 5]*=                         (1-P[[10,15,20]]).agg(*);
+  P[ 4]*=P[ 2]                   *(1-P[[8,12,16,20,24]]).agg(*);
+  P[ 3]*=                         (1-P[[6,9,12,15,18,21,24]]).agg(*);
+  P[ 2]*=                         (1-P[[4,6,8,10,12,14,16,18,20,22,24]]).agg(*);
+  (local total:=P.agg(+))<1
+  ? P
+  : P/total;
+end;
+
+
+complex_square(re,im)->[sqr(re)-sqr(im),2*re*im];
+pointInfo(re_:Numeric,im_:Numeric)->begin
+  local c:=
+  local z:=[re_.toReal,im_.toReal];
+  local harmonics:=[1..240].each(step,
+    (z:=complex_square@z+c).isNan.agg(or) ? return [0.3,0.3,0.3] : z).plausiblePeriod;
+  projectedColor((harmonics*HARM_COL).agg(+));
+end;
+
+time(::pointInfo,[-1.15143299767622,0.26723470178156467]);
+
+mutable bestRasterImage:=[[],1,0,-1.5,-1];
+
+makePlot->begin
+  local RES:=10;
+  local start:=scriptTime;
+
+  local colors:=
+  map([0..RES-1].cross([0..RES-1])/(RES-1)*2,(p)->p.reverseList+[-1.5,-1])
+  .pMap((p)->pointInfo@p);
+
+  local timeForCalculation:=scriptTime-start;
+  local timeForRefinement :=0;
+  bestRasterImage:=[colors,RES,2/RES,-1.5,-1];
+  plotRasterImage  (colors,RES,2/RES,-1.5,-1);
+  display;
+
+  local refMap:=[].toMap;
+
+  while(RES*2<plotImageSize.max,begin
+    start:=scriptTime;
+    local C:=colors.chunkMap(RES).toList;
+    refMap:=  [0..RES-1].pEach(i,[0..RES-1].each(j,
+    max(euklideanNorm(C[i,j]-(C[i-1,j-1] orElse C[i,j])),
+        euklideanNorm(C[i,j]-(C[i-1,j  ] orElse C[i,j])),
+        euklideanNorm(C[i,j]-(C[i-1,j+1] orElse C[i,j])),
+        euklideanNorm(C[i,j]-(C[i  ,j-1] orElse C[i,j])),
+        euklideanNorm(C[i,j]-(C[i  ,j+1] orElse C[i,j])),
+        euklideanNorm(C[i,j]-(C[i+1,j-1] orElse C[i,j])),
+        euklideanNorm(C[i,j]-(C[i+1,j  ] orElse C[i,j])),
+        euklideanNorm(C[i,j]-(C[i+1,j+1] orElse C[i,j])))<0.01
+      ? [[i,j],C[i,j]] : void
+    ),|)
+    .pEach(p,[ p[0,0]*2   *RES*2+p[0,1]*2  ,p[1]],
+             [ p[0,0]*2   *RES*2+p[0,1]*2+1,p[1]],
+             [(p[0,0]*2+1)*RES*2+p[0,1]*2  ,p[1]],
+             [(p[0,0]*2+1)*RES*2+p[0,1]*2+1,p[1]]).toMap;
+    timeForRefinement+={note('Refmap created in ',$L,'; mapSize= ',refMap.size) orElse $L}
+                       (scriptTime-start);
+
+    RES*=2;
+    log('Calculating ',RES*RES-refMap.size,' samples @',RES,'x',RES,' (',round(100-refMap.size/RES²*100),'%)');
+    start:=scriptTime;
+    colors:=
+    map([0..RES-1].cross([0..RES-1])/(RES-1)*2,(p)->p.reverseList+[-1.5,-1])
+    .pEach(p,refMap[index] orElse pointInfo@p);
+    timeForCalculation+={note('Calculated samples in ',$L) orElse $L}
+                        (scriptTime-start);
+
+    plot();
+    plotRasterImage(colors,RES,2/RES,-1.5,-1);
+    bestRasterImage:=[colors,RES,2/RES,-1.5,-1];
+  end);
+  log('Finished. Plot image size is ',plotImageSize,
+     "\nTotal refinement time: ",timeForRefinement,
+     "\n          calculation: ",timeForCalculation);
+end;
+
+USE customFormUtil;
+main->begin
+  setOptions(["x0"=>-1.5,"x1"=>0.5,"y0"=>-1,"y1"=>1,"fontsize"=>10,"preserveAspect"=>true,
+             "autoscaleX"=>false,"autoscaleY"=>false,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
+  async(::makePlot);
+  local lastBestHash:=0;
+  local path_style:='RGB0.9,0.9,0.9 0.5 . l';
+
+  showDialog('Mandelbrot periodicity',[
+    newPlotDock,
+    newPlotLink.withMouseMoved((x,y)->begin
+      local newSeries:=pointSeries(x,y,50);
+      local bestHash:=hash(bestRasterImage);
+      bestHash==lastBestHash
+      ? begin
+          setOptions(["x0"=>-1.5,"x1"=>0.5,"y0"=>-1,"y1"=>1,"fontsize"=>10,"preserveAspect"=>true,
+                      "autoscaleX"=>false,"autoscaleY"=>false,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
+          removePlot;
+          addPlot(newSeries,path_style);
+        end
+      : begin
+          plot();
+          plotRasterImage@bestRasterImage;
+          addPlot(newSeries,path_style);
+          lastBestHash:=bestHash;
+        end;
+
+      postDisplay;
+    end).withMouseClicked((x,y)->begin
+      print('Calculating around ',x,',',y);
+      local newSeries:=pointSeries(x,y,240);
+      removePlot;
+      addPlot(newSeries,path_style);
+      postDisplay;
+
+      newSeries.size>=240 ? begin
+        local per:=plausiblePeriod(newSeries).each(a, index<2 OR a<1E-4 ? void : index=>a);
+        printf("%s:\t%2.2f%% confidence",per.getInner(0),per.getInner(1)*100);
+      end : print('--diverges--');
+
+
+    end)
+  ]);
+
+end;

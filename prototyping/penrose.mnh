@@ -1,0 +1,114 @@
+phi:=1.6180339887498949;
+PentaNodes:=[0=>map(     [0..4] /5*2*pi,(x)->[sin(x),cos(x)]),
+             1=>map((1/2+[0..4])/5*2*pi,(x)->[sin(x),cos(x)])].toMap;
+type Pentagon(L:List(2))->L[0].isNumericList(2) AND L[1].isInt;
+pentagonsOverlap(p1:Pentagon,p2:Pentagon)->euklideanNorm(p1[0]-p2[0])<1.6;
+candidates(p:Pentagon)->PentaNodes[(1+p[1]) and 1].map((s)->[p[0]+s*phi,p[1]+1].toPentagon);
+memoized paintable(p:Pentagon)->begin
+  local n:=PentaNodes[p[1] and 1];
+  (n|[n[0]]).map((s)->p[0]+s)|[[Nan,Nan]];
+end;
+
+begin
+  local p:=[[[0,0],0].toPentagon];
+  setOptions(["x0"=>-1,"x1"=>1,"y0"=>-1,"y1"=>1,"fontsize"=>10,"preserveAspect"=>true,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
+  (3*[0..20] ).each(offset,begin
+    ([0..1]+offset).each(step,begin
+      p[p.getInner(1)=step]
+      .pMap(::candidates)
+      .flatMap
+      .each(candidate,begin
+         p.pEach(prev,pentagonsOverlap(prev,candidate),OR)
+         ? void
+         : begin p||=candidate; void; end;
+       end);
+    end);
+    local cand:=  p[p.getInner(1)=2+offset].pMap(::candidates).agg(|);
+    group(cand,cand.getInner(0).round(2)).filter((entry)->entry[1].size>1).map((entry)->entry[1,0])
+    .each(candidate,begin
+       p.pEach(prev,pentagonsOverlap(prev,candidate),OR)
+       ? void
+       : begin p||=candidate; void; end;
+     end);
+  //   p.each(poly,poly.paintable,|).plot('fs p 0 blue');
+  //   p.each(poly,poly.paintable,|).addPlot('p 1 -red');
+     local e:=sqrt(0.5)*p.getInner(0).euklideanNorm.max;
+
+     setOptions(["x0"=>-e,"x1"=>e,"y0"=>-e,"y1"=>e,"fontsize"=>10,"preserveAspect"=>true,"autoscaleX"=>false,"autoscaleY"=>false,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
+     p.each(poly,poly.paintable,|).plot('0.5 black');
+
+//    p[p.getInner(1) mod 3 = 0].each(poly,poly.paintable,|).plot('f p blue');
+//    p[p.getInner(1) mod 3 = 1].each(poly,poly.paintable,|).addPlot('f p black');
+//    p[p.getInner(1) mod 3 = 2].each(poly,poly.paintable,|).addPlot('f p red');
+    display;
+    log(p.size);
+  end);
+
+
+//  p[p.getInner(1)=2].map(::candidates).flatMap.elementFrequency.map((e)->e[1]=2 ? e[0] : void)
+//     .each(candidate,begin
+//       p.each(prev,pentagonsOverlap(prev,candidate),OR)
+//       ? void
+//       : begin p||=candidate; void; end;
+//     end);
+//
+//
+//
+
+end;
+
+//begin
+//  local p:=[[[0,0],false].toPentagon];
+//  setOptions(["x0"=>-1,"x1"=>1,"y0"=>-1,"y1"=>1,"fontsize"=>10,"preserveAspect"=>true,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
+////  clearAnimation(true);
+//
+//
+//  while(!plotClosed,begin
+//    local t0:=scriptTime;
+//
+//    p.size<1000
+//    ? p[p.size.random.sortPerm].map(::candidates).flatMap
+//       .each(candidate,begin
+//           p.each(prev,pentagonsOverlap(prev,candidate),OR)
+//           ? false
+//           : begin p||=candidate; true; end;
+//         end,OR)
+////    ? p.trailing.candidates
+////       .each(candidate,begin
+////          p.each(prev,pentagonsOverlap(prev,candidate),OR)
+////          ? false
+////          : begin p||=candidate; true; end;
+////        end,OR)
+////        ? void
+////        : begin
+////            log('Starting new walk');
+////            p:=p.sort((x,y)->x[0].euklideanNorm<=y[0].euklideanNorm);
+////            local k0:=
+////            p.pEach(t,t.candidates.each(candidate,p.each(prev,pentagonsOverlap(prev,candidate),OR),AND)
+////                      ? void
+////                      : index,orElse);
+////            local k1:=p.size-1;
+////            local tmp:=p[k0]; p[k0]:=p[k1]; p[k1]:=tmp;
+////          end
+//    : p[p.size.random.sortPerm].map(::candidates).flatMap
+//       .each(candidate,begin
+//           p.each(prev,pentagonsOverlap(prev,candidate),OR)
+//           ? void
+//           : begin p||=candidate; void; end;
+//         end);
+//
+//
+//    local t1:=scriptTime;
+//    p[ p.getInner(1)].each(poly,poly.paintable,|).plot('f p');
+//    p[!p.getInner(1)].each(poly,poly.paintable,|).addPlot('f p');
+//
+////    p.each(poly,poly.paintable,|).plot('f p');
+//    addAnimationFrame;
+//    local t2:=scriptTime;
+//    log(p.size,' Pentagons ',round((t1-t0),3),' +',round((t2-t1),3));
+//  end);
+//
+//
+//end;
+//
+//

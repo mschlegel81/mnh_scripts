@@ -1,0 +1,144 @@
+USE multivariate_polynomials, customFormUtil;
+
+//marker type
+@SuppressUnusedParameterWarning
+type BroadComplex(L:List(2))->L[0].isNumericList AND L[1].isNumericList AND L[0].size==L[1].size;
+
+OPERATOR_MULT(x:BroadComplex,y:BroadComplex)->[mnh.OPERATOR_MULT(x[0],y[0])-mnh.OPERATOR_MULT(x[1],y[1]),
+                                               mnh.OPERATOR_MULT(x[0],y[1])+mnh.OPERATOR_MULT(x[1],y[0])].toBroadComplex;
+OPERATOR_MULT(x:Numeric,y:BroadComplex)->toBroadComplex(mnh.OPERATOR_MULT(x,y.toBuiltin));
+OPERATOR_MULT(x:BroadComplex,y:Numeric)->toBroadComplex(mnh.OPERATOR_MULT(x.toBuiltin,y));
+
+OPERATOR_DIVREAL(x:BroadComplex,y:BroadComplex)->begin
+  local tmp:=1/(sqr(y[0])+sqr(y[1]));
+  [(mnh.OPERATOR_MULT(x[0],y[0])+mnh.OPERATOR_MULT(x[1],y[1]))*tmp,
+   (mnh.OPERATOR_MULT(x[1],y[0])-mnh.OPERATOR_MULT(x[0],y[1]))*tmp].toBroadComplex;
+end;
+
+OPERATOR_PLUS(x:BroadComplex,y:BroadComplex)->toBroadComplex(x.toBuiltin+y.toBuiltin);
+OPERATOR_PLUS(x:Numeric,y:BroadComplex)->[y[0]+x,y[1]].toBroadComplex;
+OPERATOR_PLUS(x:BroadComplex,y:Numeric)->[y+x[0],x[1]].toBroadComplex;
+OPERATOR_MINUS(x:BroadComplex,y:BroadComplex)->toBroadComplex(x.toBuiltin-y.toBuiltin);
+OPERATOR_MINUS(x:Numeric,y:BroadComplex)->[y[0]-x,y[1]].toBroadComplex;
+OPERATOR_MINUS(x:BroadComplex,y:Numeric)->[y-x[0],x[1]].toBroadComplex;
+
+OPERATOR_POT(x:BroadComplex,y=1)->x;
+OPERATOR_POT(x:BroadComplex,y>1)->x*x^(y-1);
+OPERATOR_POT(x:BroadComplex,y  )->fail;
+
+//P:=parsePoly('(x³-1)*x');
+
+//curry f:=format('(x)->x-(%s)/(%s)',P.horner,P.derivative('x').horner).toExpression;
+
+COLORS:=[[1,0,0],
+         [0,1,0],
+         [0,0,1],
+         [0,0,0],
+         [1,1,1],
+         [0,1,1],
+         [1,0,1]];
+
+// 1 2 3
+// 4 5 6
+// 7 8 9
+
+// 1 - 2 - 3 -
+// - - - - - -
+// 4 - 5 - 6 -
+// - - - - - -
+// 7 - 8 - 9 -
+// - - - - - -
+
+main->begin
+  local p_working:=
+  local p_txt:='x³-1';
+  local P:=parsePoly(p_txt);
+  local f:=(x)->x-(-1+x³)/(3*x²);
+  local restartRequested:=true;
+
+  localAsync(()->begin
+    local x0:=-3;
+    local x1:= 3;
+    local y0:=-3;
+    local y1:= 3;
+    local resolution:=50;
+    local Q:=cross(-3+([0..resolution-1]+0.5)/resolution*6,-3+([0..resolution-1]+0.5)/resolution*6).transpose.reverseList.toBroadComplex;
+    local Q_fixed:=[];
+    local iQ:=[0..Q.size-1];
+    local iQ_fixed:=[];
+    local k:=3;
+    local prevClass:=[];
+    local iterationDepth:=0;
+    local preIter:=0;
+    local calcDone:=false;
+
+    while(true,restartRequested ? begin
+      restartRequested:=false;
+      resolution:=plotImageSize.min.max(200);
+      Q:=cross(y0+([0..resolution-1]+0.5)/resolution*(y1-y0),
+               x0+([0..resolution-1]+0.5)/resolution*(x1-x0)).transpose.reverseList.toBroadComplex;
+      iterationDepth:=0;
+      preIter:=0;
+      local X:=[random(1000)*6-3,random(1000)*6-3].toBroadComplex;
+      k:=[1..100].each(_,X:=f(X),trailing).transpose.kMeans(P.allPowersOf(['x']).max[0][1],500,20)['centers'];
+      log('f(x)->',f);
+      prevClass:=[];
+      calcDone:=false;
+
+    end : calcDone ? sleep(1) : begin
+      local t0:=scriptTime;
+      Q:=f(Q);
+      print('Depth: ',iterationDepth+=1,' cost: ',scriptTime-t0);
+      iterationDepth>=preIter
+      ? begin
+          local km:=kMeans(Q.transpose,k,1,1);
+          plot();
+          COLORS.getAll(local class:=km['class']).plotRasterImage(resolution,(x1-x0)/resolution,x0,y0);
+          postDisplay;
+          local classCount:=[k,km['class'].elementFrequency.toList.sort.getInner(1)].transpose.map((x,y)->x|y);
+          print("Centers: ",classCount.map((x,y,count)->format("\t%{$0}1.5f\v{$1>0 ? '+i*': '-i*'}%{abs($1)}1.5f\tx {$2}",x,y,count)).join("\n"));
+          note(resolution,' ',Q[0].size.sqrt);
+          prevClass==class ? begin
+            print('This is quite ok @',resolution,' after ',iterationDepth,' steps');
+            print('We are done.');
+            calcDone:=true;
+          end : void;
+          prevClass:=class;
+        end
+      : void;
+      void;
+    end);
+
+  end);
+
+
+
+  showDialog('Newton fractals',[
+    newEdit.withCaption('Formula:').bind('p_txt').withAction((new_txt)->begin
+      local tmp:=try(::parsePoly,[new_txt],false);
+      tmp==false OR !(tmp.getInner(1).getInner(0).getInner(0).unique==['x']) OR tmp.allPowersOf(['x']).max[0][1]<2
+      ? p_txt:=p_working
+      : begin
+          P:=tmp;
+          f:=format('(x)->x-(%s)/(%s)',tmp.horner,tmp.derivative('x').horner).toExpression;
+          restartRequested:=true;
+        end;
+    end),
+    newPlotDock]);
+end;
+
+
+
+begin
+  local p_txt:='x^3-1';
+  local P:=parsePoly(p_txt);
+  local f:=format('(x)->x-(%s)/(%s)',P.horner,P.derivative('x').horner).toExpression;
+  print(f);
+  local X:=[random(1000)*6-3,random(1000)*6-3].toBroadComplex;
+  local km:=[1..100].each(_,X:=f(X),trailing).transpose.kMeans(4);
+
+  X.transpose.group(km['class']).map((key,value)->addPlot(value,'.')).toList;
+
+  [km['centers'],
+  group(X.transpose,km['class']).map((key,value)->key=>value.agg(+)/value.size).sort.getInner(1)];
+end;

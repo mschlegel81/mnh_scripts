@@ -1,0 +1,98 @@
+//d ra/dt = va + epsilon sum_b(m_b v_b/rho_b * W_ab)
+//
+//d rho_a/dt = -sum_b m_b v_ab Nabla_a W_ab
+//
+//d v_a/dt = -sum_b m_b (P_b/rho_b² + P_a/rho_a²) Nabla_a W_ab
+
+
+influence(x< 0.5)->(4+24*x²*(x-1))*0.4545454545454545;
+influence(x<=1.0)->((2-2*x)³     )*0.4545454545454545;
+
+dInfluence(x< 0.5)->( 72*x² - 48*x     )*0.4545454545454545;
+dInfluence(x<=1.0)->(-24 + 48*x - 24*x²)*0.4545454545454545;
+
+
+
+dt:=0.1;
+viscosity:=1;
+
+move(system:List(3))->begin
+
+  local V:=system[1];
+  local A_old:=system[2];
+  local PV:=
+  [system[0]+dt*V+(dt²/2)*A_old,V]
+  //[system[0]+dt*V,V]
+  .transpose.pEach(particle,begin
+    local p:=particle[0];
+    local v:=particle[1];
+    p[0]<-5 ? begin p[0]:=-5; v[0]:= abs(v[0]); end :
+    p[0]> 5 ? begin p[0]:= 5; v[0]:=-abs(v[0]); end : void;
+    p[1]<-5 ? begin p[1]:=-5; v[1]:= abs(v[1]); end :
+    p[1]> 5 ? begin p[1]:= 5; v[1]:=-abs(v[1]); end : void;
+    [p,v];
+  end);
+
+  PV:=PV.pEach(particle,begin
+    local skip:=index;
+    local p0:=particle[0];
+
+    local localGrad:=
+    PV.each(b,skip==index ? void :  begin
+      local dist:=(local dir:=(b[0]-p0)).euklideanNorm;
+      dist<1 ? dInfluence(dist)*dir/dist : [0,0];
+    end,+);
+    particle|[localGrad];
+  end);
+
+  local A_new:=
+  PV.pEach(a,begin
+    local skip:=index;
+    local p0:=a[0];
+    local v0:=a[1];
+    local Q:=
+    PV.each(b,skip==index ? void : begin
+      local dist:=(b[0]-p0).euklideanNorm;
+      dist<1 ? begin
+        //b|[influence(dist),dInfluence(dist),dir/dist];
+        local i:=influence(dist);
+
+        [i*viscosity*(b[1]-v0), //acceleration due to viscosity
+         i,                     //density / "influence"
+         a[2]+b[2]]; //density gradient
+      end : void;
+    end,+) orElse [[0,0],0,[0,0]];
+
+    (Q[1]==0
+     ? [0,0]
+     : Q[2]/2+Q[0]);
+  end);
+
+  [PV.getInner(0),
+   PV.getInner(1)+(A_old+A_new)*(dt/2),
+   A_new];
+end;
+
+temperature(sys)->begin
+  local v_:=sys[1].agg(+)/sys[1].size;
+  sqr(sys[1].getInner(0)-v_[0]).agg(+)+
+  sqr(sys[1].getInner(1)-v_[1]).agg(+);
+end;
+
+begin
+  local SYS:=[0..99].map(()->[(random(2)-0.5)*10,[0,0],[0,0]]).transpose;
+//  local SYS:=[0..99].map((i)->[(divMod(i,10)-4.5)*0.5,[0,0],[0,0]]).transpose;
+
+  [1..10000].each(_,begin
+    setOptions(["x0"=>-5,"x1"=>5,"y0"=>-5,"y1"=>5,"fontsize"=>10,"preserveAspect"=>true,"autoscaleX"=>false,"autoscaleY"=>false,
+      "logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>6,"axisStyleY"=>6].toMap);
+    plot(SYS[0].each(p,p-1,p+1),'fs ellipse RGB0,0,1,0.1 0');
+    addPlot(SYS[0],'. black');
+    SYS:=move(SYS);
+    addAnimationFrame;
+    postDisplay;
+    note(index,' ',temperature(SYS));
+  end);
+
+//  SYS.move.showVariable;
+end;

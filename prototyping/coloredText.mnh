@@ -1,0 +1,27 @@
+#!C:\bin\mnh.exe -pauseAfter -v1
+plain script;
+
+ANSI_RESET  := #27'[0m' ;
+RED := #27"[91;5m";
+GREEN := #27"[92m";
+YELLOW := #27"[93;3m";
+BLUE := #27"[94m";
+MAGENTA := #27"[95m";
+CYAN := #27"[96m";
+WHITE := #27"[97m";
+
+
+
+[RED ,
+GREEN ,
+YELLOW ,
+BLUE,
+MAGENTA ,
+CYAN,
+WHITE ].each(c,print(c,'Test - And a bit of special characters: öäüß€êµ',ANSI_RESET));
+
+print('This is printed');
+log ('This is lögged');
+note('This is a note');
+warn('This is a warning');
+fail('This is a failure');

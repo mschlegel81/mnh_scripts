@@ -1,0 +1,26 @@
+USE linalg;
+
+memoized finiteDifferenceCoeff(p)->begin
+  ([0..2*p].each(i,
+  [-p..p].each(j,j^i)).toMatrix.invert*
+  [0..2*p].each(i,
+  [0..2*p].each(j,i==j ? [1..i].agg(*) : 0)).toMatrix)
+  .transpose
+  .tail;
+end;
+
+pMax:=5;
+
+begin
+  local h :=0.1;
+  local x0:=4359364.2345345;
+  local exactSolution:=[cos(x0),-sin(x0),-cos(x0),sin(x0)];
+  exactSolution|=exactSolution|exactSolution;
+
+  [1..pMax].each(k,begin
+    local y:=sin([-k..k]*h+x0);
+    local d:=finiteDifferenceCoeff(k).each(c,(c*y).agg(+)/h^(index+1));
+    d-exactSolution.head(d.size);
+  end);
+end;
+

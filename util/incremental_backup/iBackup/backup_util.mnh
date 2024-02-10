@@ -1,0 +1,326 @@
+USE sync_util;
+ducktype FingerPrint(I:List(3))->I[0].isInt and I[1].isInt and I[2].isNumeric;
+type BackupConfig(M:Map(5))->M['backupNameBase'].isString  AND
+                             M['root']          .isString  AND
+                            (M['basePattern']   .isString OR
+                             M['basePattern']   .isStringList)  AND
+                             M['recurse']       .isBoolean AND
+                             M['matcher']       .isExpression(1);
+ducktype ContentMap(M:Map)->M.getInner(0).isStringSet AND M.getInner(1).each(value,value.isList(2) AND value[0].isFingerPrint AND value[1].isExpression(0),AND);
+
+DELETED_FINGERPRINT:=[0,-1,0];
+DELETED_ENTRY:=[DELETED_FINGERPRINT,()->''];
+MAX_CHUNK_SIZE:=500*1024²;
+BACKUP_ROOT_NAME:='iBackup';
+BACKUP_ROOT_DIR:=myPath.extractFileDirectory;
+
+formatSize(sizeInBytes:Int)->
+  sizeInBytes<9999     ?  sizeInBytes           &"\vB" :
+  sizeInBytes<10238976 ? (sizeInBytes div 1024 )&"\vkiB" :
+                         (sizeInBytes div 1024²)&"\vMiB";
+
+datastore cached_fingerprints:=[].toMap;
+obtainFingerprint(filename:String)->begin
+  local fromCache:=cached_fingerprints[filename];
+  local trueTime :=fileInfo(filename)['time'];
+
+  fromCache.isVoid OR fromCache.trailing<>trueTime
+  ? cached_fingerprints[filename]:=filename.fileStats.trailing(2)|trueTime
+  : fromCache;
+end;
+
+localFolderContents(config:BackupConfig)->begin
+  local trueRoot:=expandedFileName(config['root']);
+  allFiles(trueRoot,
+           config['basePattern'],
+           config['recurse']).filter(config['matcher'])
+  .map((filePath)->relativeFileName(trueRoot,filePath)=>[
+    obtainFingerprint(filePath),
+    ()->fileContents(filePath)]).toMap;
+end;
+
+writeContents(baseName:String,contents:ContentMap)->printWithSuccess('  Writing '&baseName&' containing '&contents.size&' files of '&formatSize(contents.getInner(1).getInner(0).getInner(0).agg(+)),begin
+  //Sorting the files by extension usually results in slightly improved compression
+  local asList:=contents.sort.sort((entry)->entry[0].extractFileExt).toList;
+  //Something may has changed. Checkout the actual contents...
+  asList:=asList.pMap((key,value)->begin
+    local actualContent:=value[1]();
+    local actualHash:=[actualContent.byteLength,actualContent.sha256];
+    value[0]==DELETED_FINGERPRINT OR actualHash==value[0].head(2)
+    ? [key,[value[0],actualContent]]
+    : begin
+        printWithTime(#27"[93;3m",key,' is excluded because of fingerprint mismatch'#27'[0m');
+        cached_fingerprints:=[].toMap;
+      end;
+  end);
+  local fileData       :=asList.map((key,value)->     value[1]);
+  local metadataSection:=asList.map((key,value)->[key,value[0]]);
+
+  local fileData_S:=fileData       .serialize(true,false);
+  local metaData_S:=metadataSection.serialize(true,false);
+
+  //((try(::deserialize,[fileData_S])==fileData       ) ? true : print('FILE DATA CORRUPTED') orElse false) AND
+  //((try(::deserialize,[metaData_S])==metadataSection) ? true : print('META DATA CORRUPTED') orElse false) AND
+  writeFile(baseName.changeFileExt(INDEX_EXTENSION),metaData_S) AND
+  writeFile(baseName.changeFileExt(DATA_EXTENSION ),fileData_S);
+end);
+
+private contentListWrapper(filePath:String)->(index:Int)->begin
+  local contentList:=filePath.fileContents.deserialize;
+save;
+  contentList[index];
+end;
+private apply(e:Expression,key:Int)->()->e(key);
+
+backupFileToContentMap(backupFilePath:String)->begin
+//  printWithTime('  Reading ',backupFilePath);
+  local metadataSection:=deserialize(backupFilePath.changeFileExt(INDEX_EXTENSION).fileContents);
+  local wrapper        :=contentListWrapper(backupFilePath.changeFileExt(DATA_EXTENSION));
+
+  metadataSection.each(entry,
+    entry[0]=>[entry[1],apply(wrapper,index)]).toMap;
+end;
+
+chunkContents(contents:ContentMap)->begin
+  local outputChunks:=[];
+  local currentChunk:=[];
+  local chunkSize:=0;
+  contents.sort.sort((entry)->entry[0].extractFileExt).each(entry,begin
+    chunkSize + entry[1,0,0] > MAX_CHUNK_SIZE
+    ? begin
+        outputChunks||=currentChunk.toMap;
+        currentChunk:=[entry];
+        chunkSize:=entry[1,0,0];
+      end
+    : begin
+        currentChunk||=entry;
+        chunkSize+=entry[1,0,0];
+      end;
+  end,trailing);
+  outputChunks||=currentChunk.toMap;
+  outputChunks;
+end;
+
+dropDeletes(delta:ContentMap)->delta.filter((key,value)->!(value[0]==DELETED_FINGERPRINT));
+
+//*Returns a content map containing all entries of Target where
+//* - no corresponding entry in Current exists
+//* - the fingerprint heads (size and hash) differ
+//*Additionally entries which are in Current and not in Target will be added as DELETED_ENTRY = {DELETED_ENTRY}
+contentsDelta(Current:ContentMap,Target:ContentMap)->begin
+  local newOrChanged:=Target.pFilter((key,value)->Current[key].isVoid OR !(Current[key,0].head(2)==value[0].head(2))).toMap;
+  local deleted:=Current.dropDeletes.getInner(0).minus(Target.getInner(0)).map((key)->key=>DELETED_ENTRY).toMap;
+  mergeMaps(newOrChanged,deleted,::orElse);
+end;
+
+currentMonth->formatTime('mm',systime);
+backupNameToMonth(backupName:String)->begin
+  local lastDatePart:=backupName.replace(BACKUP_ROOT_DIR,'').matchComposite('\d{8}').trailing[0];
+  assert(!lastDatePart.isVoid);
+  formatTime('mm',parseTime('yyyymmdd',lastDatePart));
+end;
+
+//*Returns a tuple [listOfBackups:StringList,fullBackupRequired:Boolean]
+@SuppressUnusedParameterWarning=Used in format statement
+findBackups(config:BackupConfig)->begin
+  local fileList:=[INDEX_EXTENSION,DATA_EXTENSION].each(ext,
+                   regex.replace(files(f'{BACKUP_ROOT_DIR}/{config["backupNameBase"]}*{ext}'),'\'&ext&'$',''));
+  local orphans:=
+  sort(fileList[0].minus(fileList[1]).toList&INDEX_EXTENSION |
+       fileList[1].minus(fileList[0]).toList&DATA_EXTENSION);
+  orphans.size=0 ? void : printf('  '#27'[91;5m  Orphaned file %s'#27'[0m',orphans);
+  fileList:=intersect(fileList[0],fileList[1]).sort;
+  local indexOfLastFullBackup:=indexOf(fileList.matches(FULL_BACKUP_STEM_SUFFIX&'$')).max;
+  indexOfLastFullBackup.isVoid
+  ? [[]                                  ,true]
+  : [fileList.tail(indexOfLastFullBackup), (backupNameToMonth(fileList[indexOfLastFullBackup])<>currentMonth) AND (indexOfLastFullBackup<fileList.size-20)];
+end;
+
+listDelta(config:BackupConfig)->begin
+  printWithTime('Listing delta for folder ',config['root']);
+  local backupState:=findBackups(config)[0]
+    .map(::backupFileToContentMap)
+    .agg((older,newer)->mergeMaps(newer,older,::orElse)).orElse([].toMap).dropDeletes;
+  local localState:=localFolderContents(config);
+  local listing:=
+  union(backupState.getInner(0),localState.getInner(0)).sort.pEach(key,begin
+    backupState[key].isVoid
+    ? key&"\t- "#27'[92mmissing in backup'#27'[0m'
+    : localState[key].isVoid
+      ? key&"\t- "#27'[91mmissing locally'#27'[0m'
+      : backupState[key,0].head(2)==localState[key,0].head(2)
+        ? void
+        : begin
+            local timeD:=sign(localState[key,0,2]-backupState[key,0,2]);
+            local sizeD:=sign(localState[key,0,0]-backupState[key,0,0]);
+            key&"\t- "#27'[93mdifferent: '&
+            (timeD>0 ? #27'[92mlocal is newer ' :
+             timeD<0 ? #27'[91mbackup is newer ' : void)&
+            (sizeD>0 ? #27'[92mlocal is larger' :
+             sizeD<0 ? #27'[91mbackup is larger' : void)&
+            (timeD=sizeD=0 ? #27'[93mhash differs' : void)&#27'[0m';
+          end;
+  end);
+  listing.size=0 ? printWithTime(#27'[96m  No diff'#27'[0m') : printf('  %s',listing);
+  printWithTime;
+end;
+
+backupFilenameGenerator(config:BackupConfig,full:Boolean)->toIteratableExpression({begin
+  @SuppressUnusedWarning
+  local prefix:=BACKUP_ROOT_DIR&'/'&config['backupNameBase']&'_'&formatTime('yyyymmdd',systime)&'_';
+  local counter:=formatTime('hhnn',systime).toInt;
+  @SuppressUnusedWarning
+  local suffix:=full ? FULL_BACKUP_STEM_SUFFIX : '';
+  local fname:='';
+  while(fileExists(fname:=f'{prefix}%{counter}4.4d{suffix}.{INDEX_EXTENSION}'),counter+=1);
+save;
+  fname:=f'{prefix}%{counter}4.4d{suffix}';
+  suffix:='';
+  counter+=1;
+  fname;
+end});
+
+createFullBackup(config:BackupConfig)->begin
+  printWithTime('Creating a full backup for ',config['root']);
+  zip(backupFilenameGenerator(config,true),
+      localFolderContents(config).chunkContents)
+  .map(::writeContents)
+  .agg(and);
+end;
+
+createBackup(config:BackupConfig)->begin
+  printWithTime('Creating backup for ',config['root']);
+  local backups:=findBackups(config);
+  local requireFullBackup:=backups[1];
+  local backupState:=backups[0]
+    .map(::backupFileToContentMap)
+    .agg((older,newer)->mergeMaps(newer,older,::orElse)) orElse [].toMap;
+  local localState:=localFolderContents(config);
+  local delta:=contentsDelta(backupState,localState);
+  delta.size=0
+  ? (printWithTime('  Backup for ',config['root'],' is up to date'))
+  : requireFullBackup
+    ? createFullBackup(config)
+    : begin
+        zip(backupFilenameGenerator(config,false),
+            delta.chunkContents)
+        .map(::writeContents)
+        .agg(and);
+      end;
+end;
+
+writeFileWithAge(filename:String,contentGetter:Expression(0),fingerprint:FingerPrint)->
+  printWithSuccess('Writing '&filename,
+                   writeFile(filename,contentGetter()) AND
+                   setFileDate(filename,fingerprint[2]));
+
+restoreBackup(config:BackupConfig, allowDelete:Boolean)->begin
+  printWithTime(allowDelete ? 'Restoring' : 'Merging',' backup for ',config['root']);
+  local backupState:=findBackups(config)[0]
+    .map(::backupFileToContentMap)
+    .agg((older,newer)->mergeMaps(newer,older,::orElse)) orElse [].toMap;
+  local localState:=localFolderContents(config);
+  local delta:=contentsDelta(localState,backupState).{allowDelete ? $D : $D.dropDeletes}.toContentMap;
+  //drop all deletes which refer to files not in local state (=which already have been deleted)
+  delta:=delta.filter((key,value)->!(localState[key].isVoid AND value[0]==DELETED_FINGERPRINT));
+  delta.size=0
+  ? printWithTime('Backup for ',config['root'],' contains no updates')
+  : begin
+      delta.map((key,value)->begin
+        local filename:=expandedFileName(config['root']&'/'&key);
+        value[0]==DELETED_FINGERPRINT
+        ? verboseDelete(filename)
+        : writeFileWithAge(filename,value[1],value[0]);
+      end);
+    end;
+  print;
+end;
+
+niceDiff(aState:StringList,bState:StringList,aCaption:String,bCaption:String,additionalLines>=0)->begin
+  local edit:=diff(aState,bState,true)['edit']
+    .pEach(e,e[0]='+' ? [e[0],e[1]+1,e[2]+1,bState[e[2]]]
+                      : [e[0],e[1]+1,e[2]+1,aState[e[1]]]);
+  local runs:=
+    begin
+      local indexes:=edit.pEach(e,e[0]<>' ' ? [index-additionalLines..index+additionalLines] : void,|) //add additional lines to each run and concatenate all
+                         .unique //remove duplicate lines and sort
+                         .each(i,i>=edit.size or i<0 ? void : i);
+      local splits:=(indexes.tail<>indexes.leading+1);
+      [indexes[true|splits],indexes[splits|true]].transpose;
+    end;
+  [#27'[91m--- '&aCaption&''#27'[0m',#27'[92m+++ '&bCaption&#27'[0m']|
+  runs.each(run,
+      join(['@@ '#27'[91m-',edit[run[0],1],',',edit[run[1],1]-edit[run[0],1]+1,
+              #27'[92m +',edit[run[0],2],',',edit[run[1],2]-edit[run[0],2]+1,#27'[0m @@']),
+      edit[[run[0]..run[1]]].each(e,(e[0]='.' ? '  ' : e[0].replace(['+','-'],[#27'[92m+',#27'[91m-'])&' ')&e[3]&#27'[0m'),|);
+end;
+
+fileDiff(config:BackupConfig, localFileName:String, additionalLines>=0)->begin
+  local nameInBackup:=relativeFileName(expandedFileName(config['root']),localFileName);
+  local stateFromBackup:=(
+  findBackups(config)[0]
+    .map(::backupFileToContentMap)
+    .agg((older,newer)->mergeMaps(newer,older,::orElse)) orElse [].toMap)[nameInBackup];
+  stateFromBackup.isVoid ? return void : begin
+    stateFromBackup:=regex.split(stateFromBackup[1](),"\r?\n");
+    local localState:=localFileName.fileLines;
+    niceDiff(stateFromBackup, localState, 'backup', localFileName,additionalLines);
+  end;
+end;
+
+fileRevert(config:BackupConfig, localFileName:String, pickLatest:Boolean, backup_id:String)->begin
+  !pickLatest AND !hasPrefix(backup_id,config['backupNameBase']) ? return void :
+  local nameInBackup:=relativeFileName(expandedFileName(config['root']),localFileName);
+  local states:=
+  findBackups(config)[0].map((backupName)->begin
+    [backupName.extractFileNameOnly,
+     backupName.backupFileToContentMap[nameInBackup]];
+  end)
+  .filter((b)->b.size=2).map((id,val)->[id,val[0,2],val[1]]);
+
+  states.size=0 ? return void : void;
+
+  local dataSource:=pickLatest ? states.trailing : states.filter((name,time,lines)->name==backup_id)[0];
+  dataSource.isVoid
+  ? return #27'[91mBackup '&backup_id&' could not be found'#27'[0m'
+  : begin
+      localFileName.writeFile(dataSource[2]());
+      localFileName.setFileDate(dataSource[1]);
+      ['File ',localFileName,' reset to state ',dataSource[0],' from ',formatTime(dataSource[1])].join;
+    end;
+end;
+
+fileHistory(config:BackupConfig, localFileName:String, additionalLines>=0)->begin
+  local nameInBackup:=relativeFileName(expandedFileName(config['root']),localFileName);
+  local states:=
+  findBackups(config)[0].map((backupName)->begin
+    ['backup:'&backupName.extractFileNameOnly,
+     backupName.backupFileToContentMap[nameInBackup]];
+  end)
+  .filter((b)->b.size=2).map((id,val)->[id&' ('&formatTime(val[0,2])&')',regex.split(val[1](),"\r?\n")]);
+  states.size=0 ? return void :
+
+  log(states.size,' Backups have been found');
+  print(#27'[92m+++ ',states.head[0],#27'[0m');
+  states.head[1].join("\n").print;
+
+  states||=[localFileName,fileLines(localFileName)];
+
+  [states.leading,states.tail].transpose
+  .map((older,newer)->niceDiff(older[1],newer[1],older[0],newer[0],3))
+  .agg(|);
+end;
+
+emergencyRestore->begin
+  local synthesizedConfigs:=
+    allFiles(myPath.extractFileDirectory,'*'&INDEX_EXTENSION,false)
+    .extractFileNameOnly
+    .map(::extractBackupPrefix)
+    .unique
+    .map((backupNameBase)->['backupNameBase'=>backupNameBase,
+                            'root'=>'emergency_restore_'&backupNameBase,
+                            'basePattern'=>'*.*',
+                            'recurse'=>true,
+                            'matcher'=>(x)->true].toMap.toBackupConfig);
+  synthesizedConfigs.map((cfg)->restoreBackup(cfg,false));
+end;

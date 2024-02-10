@@ -1,0 +1,171 @@
+DATA_EXTENSION:='.data';
+INDEX_EXTENSION:='.index';
+FULL_BACKUP_STEM_SUFFIX:='_full';
+
+private datastore ftp_server_time_offset:=[].toMap;
+private mutable ftp_server_time_pairs:=[].toMap;
+
+printWithTime(...)->formatTime('hh:mm:ss ',systime).print@...;
+SUCCESS_STRING:=[true=>#27'[92m(OK)'#27'[0m',
+                 false=>#27"[91;5m(failed)"#27'[0m'];
+printWithSuccess(message:String,ok:Boolean)->printWithTime(message,'  ',SUCCESS_STRING[ok]) orElse ok;
+
+extractBackupPrefix(name)->replace(name.extractFileNameOnly,name.extractFileNameOnly.matchComposite('_\d{8}_\d{4}(_full)?$')[0,0],'');
+
+private excludeOldBackups(list)->begin
+  local isMnh:=list.extractFileExt.lower!=DATA_EXTENSION and list.extractFileExt.lower!=INDEX_EXTENSION;
+  local backups:=list[!isMnh];
+  group(backups,backups.map(::extractBackupPrefix)).getInner(1).each(backupGroup,begin
+    local sorted:=backupGroup.sort;
+    local lastFullBackup:=sorted.extractFileNameOnly.sort.filter((name)->name.matches('_full$')).trailing;
+    lastFullBackup.isString
+    ? sorted[sorted>=lastFullBackup]
+    : sorted;
+  end,|)|list[isMnh];
+end;
+
+private getFilesForSync(folder:String,acceptor:Expression(1))->begin
+  local list:=allFiles(folder,'*',false)
+                .map((f)->relativeFileName(folder,f))
+                .filter(acceptor)
+                .excludeOldBackups;
+  zip(list,fileInfo(folder&'/'&list))
+    .map((name,info)->name=>[info['size'],info['time']])
+    .toMap;
+end;
+
+private getFilesForFTPSync(connection,folder:String,acceptor:Expression(1),prefix)->begin
+  local time_offset:=ftp_server_time_offset[prefix] orElse 0;
+  local fileInfos:=connection.getListing(folder)
+    .filter((entry)->!entry['directory'] AND acceptor(entry['filename']))
+    .map((entry)->entry['filename']=>[entry['size'],entry['time']-time_offset])
+    .toMap;
+  local list:=fileInfos.getInner(0).toList.excludeOldBackups;
+  list.map((id)->id=>fileInfos[id]).toMap;
+end;
+
+//*Returns a List: [copyPairList, deleteList]
+private getSyncPair(sourceFiles:Map,targetFiles:Map,allowDelete:Boolean)->begin
+  local toBeCopied :=sourceFiles.filter((name,sizeAndTime)->(
+    name.extractFileExt in [DATA_EXTENSION,INDEX_EXTENSION]
+    ? (targetFiles[name] orElse [-1,-1])[0]<>sizeAndTime[0]    //Copy backups whenever size is different
+    : (targetFiles[name] orElse [-1,-1])[1]< sizeAndTime[1])); //Copy other files only if they are newer
+  local toBeDeleted:=targetFiles.filter((name,sizeAndTime)->(sourceFiles[name].isVoid AND allowDelete));
+  [toBeCopied.getInner(0).sort,
+   toBeDeleted.getInner(0).sort];
+end;
+
+private withArrow(s:String)->begin
+  local maxLength:=-1;
+  local fmt:='%s => ';
+save;
+  length(s)>maxLength
+  ? fmt:='%-'&(maxLength:=length(s))&'s => '
+  : void;
+  format(fmt,s);
+end;
+
+verboseDelete   (filename                       )->printWithSuccess('Delete '&filename,deleteFile(filename));
+verboseCopy     (source,target                  )->begin
+  target.fileExists ? verboseDelete(target) : void;
+  printWithSuccess(withArrow('Copy '&source)&target,copyFile(source,target));
+end;
+verboseFtpDelete(file,connection,prefix         )->printWithSuccess('Delete '&prefix&file,connection.ftpDeleteFile(file));
+verboseUpload   (source,target,connection,prefix)->begin
+  local uploadOk:=connection.ftpUpload(source,target);
+  printWithSuccess(withArrow('Upload '&source)&prefix&target,uploadOk);
+  uploadOk
+  ? ftp_server_time_pairs[target.extractFileName]:=source.fileInfo['time']
+  : void;
+  uploadOk;
+end;
+verboseDownload (source,target,connection,prefix)->printWithSuccess(withArrow('Download '&prefix&source)&target,connection.ftpDownload(source,target));
+
+syncFlat(sourceFolder:String,targetFolder:String                          )->syncFlat(sourceFolder,targetFolder,false);
+syncFlat(sourceFolder:String,targetFolder:String,allowDelete:Boolean      )->syncFlat(sourceFolder,targetFolder,allowDelete,(f)->true);
+syncFlat(sourceFolder:String,targetFolder:String,includeFile:Expression(1))->syncFlat(sourceFolder,targetFolder,false,includeFile);
+syncFlat(sourceFolder:String,targetFolder:String,allowDelete:Boolean,includeFile:Expression(1))->begin
+  local SF:=getFilesForSync(sourceFolder,includeFile);
+  local TF:=getFilesForSync(targetFolder,includeFile);
+  local syncPair:=getSyncPair(SF,TF,allowDelete);
+  syncPair[0]
+    .map((f)->[expandedFileName(sourceFolder&'/'&f),expandedFileName(targetFolder&'/'&f)])
+    .each(pair,verboseCopy@pair);
+  syncPair[1]
+    .map((f)->expandedFileName(targetFolder&'/'&f))
+    .each(f,verboseDelete(f));
+  printWithTime(  #27'[92mSync ',sourceFolder,' => ',targetFolder,' finished'#27'[0m');
+end;
+
+timeOffsetToString(dt:Numeric)->begin
+  local a:=abs(dt)*24;
+  local hours  :=floor(a); a:=(a-hours)*60;
+  local minutes:=floor(a); a:=(a-minutes)*60;
+
+  f'{dt<0 ? "-" : ""}%{hours}2.2d:%{minutes}2.2d:%{round(a)}2.2d';
+end;
+
+syncToFTP(srcFolder:String,host:String,user:String,pass:String,ftpDestFolder:String                          )->syncToFTP(srcFolder,host,user,pass,ftpDestFolder,false);
+syncToFTP(srcFolder:String,host:String,user:String,pass:String,ftpDestFolder:String,allowDelete:Boolean      )->syncToFTP(srcFolder,host,user,pass,ftpDestFolder,allowDelete,(f)->true);
+syncToFTP(srcFolder:String,host:String,user:String,pass:String,ftpDestFolder:String,includeFile:Expression(1))->syncToFTP(srcFolder,host,user,pass,ftpDestFolder,false,includeFile);
+syncToFTP(srcFolder:String,host:String,user:String,pass:String,ftpDestFolder:String,allowDelete:Boolean,includeFile:Expression(1))->begin
+  ftp_server_time_pairs:=[].toMap;
+  local SF:=getFilesForSync(srcFolder,includeFile);
+  local connection:=ftpConnect(host,user,pass).setTimeout(10000);
+  local prefix:='ftp://'&host;
+  connection() ? void : return warn('Login failed ',connection:=void);
+  local TF:=getFilesForFTPSync(connection,ftpDestFolder,includeFile,prefix);
+  local syncPair:=getSyncPair(SF,TF,allowDelete);
+  syncPair[0]
+    .map((f)->[expandedFileName(srcFolder&'/'&f),(ftpDestFolder&'/'&f)])
+    .each(pair,verboseUpload(pair[0],pair[1],connection,prefix),AND) AND
+  syncPair[1]
+    .map((f)->(ftpDestFolder&'/'&f))
+    .each(f,verboseFtpDelete(f,connection,prefix),AND)
+  ? printWithTime(  #27'[92mSync ',srcFolder,' => ',prefix,' finished'#27'[0m')
+  : printWithTime(#27'[91;5mSync ',srcFolder,' => ',prefix,' failed'#27'[0m');
+
+  ftp_server_time_pairs.size>0
+  ? begin
+      local time_offset:=
+      connection.getListing(ftpDestFolder)
+                .filter((entry)->!entry['directory'])
+                .map((entry)->[entry['time'],ftp_server_time_pairs[entry['filename']]])
+                .filter((pairs)->pairs.size==2)
+                .map((x,y)->x-y) //=local time - server time
+                .toList
+                .{$L.agg(+)/$L.size};
+
+      local oldOffsetStr:=timeOffsetToString(ftp_server_time_offset[prefix] orElse 0);
+      local newOffsetStr:=timeOffsetToString(time_offset);
+      ftp_server_time_offset[prefix]:=time_offset;
+
+      oldOffsetStr==newOffsetStr
+      ? void
+      : printWithTime('Server time offset corrected from '&oldOffsetStr&' to ',newOffsetStr);
+    end
+  : void;
+
+  connection:=void;
+end;
+
+syncFromFTP(host:String,user:String,pass:String,ftpSrcFolder:String,destFolder                          )->syncFromFTP(host,user,pass,ftpSrcFolder,destFolder,false);
+syncFromFTP(host:String,user:String,pass:String,ftpSrcFolder:String,destFolder,allowDelete:Boolean      )->syncFromFTP(host,user,pass,ftpSrcFolder,destFolder,allowDelete,(f)->true);
+syncFromFTP(host:String,user:String,pass:String,ftpSrcFolder:String,destFolder,includeFile:Expression(1))->syncFromFTP(host,user,pass,ftpSrcFolder,destFolder,false,includeFile);
+syncFromFTP(host:String,user:String,pass:String,ftpSrcFolder:String,destFolder,allowDelete:Boolean,includeFile:Expression(1))->begin
+  local connection:=ftpConnect(host,user,pass).setTimeout(10000);
+  local prefix:='ftp://'&host;
+  connection() ? void : return warn('Login failed ',connection:=void);
+  local SF:=getFilesForFTPSync(connection,ftpSrcFolder,includeFile,prefix);
+  local TF:=getFilesForSync(destFolder);
+  local syncPair:=getSyncPair(SF,TF,allowDelete);
+  syncPair[0]
+    .map((f)->[(ftpSrcFolder&'/'&f),expandedFileName(destFolder&'/'&f)])
+    .each(pair,verboseDownload(pair[0],pair[1],connection,prefix),AND) AND
+  syncPair[1]
+    .map((f)->expandedFileName(destFolder&'/'&f))
+    .each(f,verboseDelete(f),AND)
+  ? printWithTime(#27'[92mSync ',prefix,' => ',destFolder,' finished'#27'[0m')
+  : printWithTime(#27'[91;5mSync ',prefix,' => ',destFolder,' failed'#27'[0m');
+  connection:=void;
+end;

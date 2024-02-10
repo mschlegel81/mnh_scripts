@@ -1,0 +1,1 @@
+main->encodeRequest('http://192.168.1.100','addTask',['scriptName'=>'D:\dokumente\iBackup.mnh','cmdLineParameters'=>''].toMap).httpGet;

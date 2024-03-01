@@ -1,6 +1,16 @@
 #!C:\bin\mnh.exe
 USE sync_util,iBackup_config,backup_util;
 
+ALL_FILES_OF_ME:=map(myPath | inspect['uses'].getInner(1),::expandedFileName);
+SELF_BACKUP_CONFIG:=
+  ['root'          =>'.',
+   'backupNameBase'=>'backup_tool',
+   'basePattern'   =>'*.mnh',
+   'recurse'       =>true,
+   'matcher'       =>(x)->x in ALL_FILES_OF_ME].toMap.toBackupConfig;
+
+CONFIGS_INCLUDING_SELF:=ALL_CONFIGS||SELF_BACKUP_CONFIG;
+
 @SuppressUnusedWarning=startup hook
 ensure_working_dir:=begin
   assertUniqueInstance;
@@ -13,12 +23,17 @@ main->begin
   main('sync');
 end;
 
-fileIsRelevantForSync    (filename)->(filename.extractFileExt='.mnh' AND filename.extractFileNameOnly<>'iBackup_config') OR filename.extractFileExt in [DATA_EXTENSION,INDEX_EXTENSION] AND filename.hasPrefix(ALL_CONFIGS.getInner('backupNameBase')).agg(OR);
-fileIsRelevantForFullSync(filename)->(filename.extractFileExt='.mnh' AND filename.extractFileNameOnly<>'iBackup_config') OR filename.extractFileExt in [DATA_EXTENSION,INDEX_EXTENSION];
+fileIsRelevantForSync    (filename)->filename.extractFileExt in [DATA_EXTENSION,INDEX_EXTENSION] AND filename.hasPrefix(CONFIGS_INCLUDING_SELF.getInner('backupNameBase')).agg(OR);
+fileIsRelevantForFullSync(filename)->filename.extractFileExt in [DATA_EXTENSION,INDEX_EXTENSION];
 
 syncPush(isRelevant:Expression(1))->begin
   local mounted:=driveInfo;
   copyFile(myPath,BACKUP_ROOT_DIR&'/'&myPath.extractFileName);
+  local ftpSyncFuture:=future({
+    FTP_SYNC_CONFIGS.each(cfg,begin
+    syncToFTP(BACKUP_ROOT_DIR,cfg['host'],cfg['user'],cfg['pass'],cfg['path']&'/'&BACKUP_ROOT_NAME,false,isRelevant);
+    true;
+  end)});
   SYNC_CONFIGS.pEach(cfg,begin
     local serial      :=cfg['drive_serial'] orElse fail;
     local description :=cfg['drive_description'] orElse fail;
@@ -29,9 +44,7 @@ syncPush(isRelevant:Expression(1))->begin
       syncFlat(BACKUP_ROOT_DIR,targetFolder&BACKUP_ROOT_NAME,false,isRelevant);
     end;
   end);
-  FTP_SYNC_CONFIGS.each(cfg,begin
-    syncToFTP(BACKUP_ROOT_DIR,cfg['host'],cfg['user'],cfg['pass'],cfg['path']&'/'&BACKUP_ROOT_NAME,false,isRelevant);
-  end);
+  ftpSyncFuture();
   afterSync;
 end;
 
@@ -60,11 +73,11 @@ main('sync','r')->syncPull(::fileIsRelevantForSync);
 //*Backup files; give an additional matcher to select one backup set
 main('delta',...)->map(filteredConfigs@...,::listDelta);
 
-filteredConfigs()->ALL_CONFIGS;
+filteredConfigs()->CONFIGS_INCLUDING_SELF;
 filteredConfigs(...)->begin
-  local f:=union@((...).map((r)->ALL_CONFIGS[ALL_CONFIGS.getInner('root').matches(r) or ALL_CONFIGS.getInner('backupNameBase').matches(r)]));
+  local f:=union@((...).map((r)->CONFIGS_INCLUDING_SELF[CONFIGS_INCLUDING_SELF.getInner('root').matches(r) or CONFIGS_INCLUDING_SELF.getInner('backupNameBase').matches(r)]));
   f.size==0
-  ? ALL_CONFIGS
+  ? CONFIGS_INCLUDING_SELF
   : f.sort;
 end;
 
@@ -82,25 +95,25 @@ main('list',...)->map(filteredConfigs@...,::listDelta);
 
 //*Show diff between file in backup and current state
 main('diff',filename)->begin
-  local diffListing:=ALL_CONFIGS.each(config,fileDiff(config,expandedFileName(filename), 3),orElse);
+  local diffListing:=CONFIGS_INCLUDING_SELF.each(config,fileDiff(config,expandedFileName(filename), 3),orElse);
   diffListing.isVoid ? printWithTime('File could not be found in backups') : printf('%s',diffListing);
 end;
 
 //*Show history of file
 main('history',filename)->begin
-  local diffListing:=ALL_CONFIGS.each(config,fileHistory(config,expandedFileName(filename), 3),orElse);
+  local diffListing:=CONFIGS_INCLUDING_SELF.each(config,fileHistory(config,expandedFileName(filename), 3),orElse);
   diffListing.isVoid ? printWithTime('File could not be found in backups') : printf('%s',diffListing);
 end;
 
 //*Revert single file to the latest backup
 main('revert',filename)->begin
-  local diffListing:=ALL_CONFIGS.each(config,fileRevert(config,expandedFileName(filename), true, ''),orElse);
+  local diffListing:=CONFIGS_INCLUDING_SELF.each(config,fileRevert(config,expandedFileName(filename), true, ''),orElse);
   diffListing.isVoid ? printWithTime('File could not be found in backups') : printf('%s',diffListing);
 end;
 
 //*Revert single file to a selected backup
 main('revert',filename,revision)->begin
-  local diffListing:=ALL_CONFIGS.each(config,fileRevert(config,expandedFileName(filename), false, revision),orElse);
+  local diffListing:=CONFIGS_INCLUDING_SELF.each(config,fileRevert(config,expandedFileName(filename), false, revision),orElse);
   diffListing.isVoid ? printWithTime('File could not be found in backups') : printf('%s',diffListing);
 end;
 
@@ -113,8 +126,11 @@ end;
 //*If all goes wrong, call this one...
 main('emergency_restore')->begin
   syncPull(::fileIsRelevantForFullSync);
-  emergencyRestore(ALL_CONFIGS);
+  emergencyRestore(CONFIGS_INCLUDING_SELF);
 end;
+
+//*Show a summary of backup sizes
+main('status')->printBackupSummary(CONFIGS_INCLUDING_SELF.getInner('backupNameBase'));
 
 @after
 checkBackupOfSelf->begin

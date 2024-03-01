@@ -75,7 +75,7 @@ verboseUpload   (source,target,connection,prefix)->begin
   local uploadOk:=connection.ftpUpload(source,target);
   printWithSuccess(withArrow('Upload '&source)&prefix&target,uploadOk);
   uploadOk
-  ? ftp_server_time_pairs[target.extractFileName]:=source.fileInfo['time']
+  ? ftp_server_time_pairs[target.extractFileName]:=systime
   : void;
   uploadOk;
 end;
@@ -135,6 +135,9 @@ syncToFTP(srcFolder:String,host:String,user:String,pass:String,ftpDestFolder:Str
                 .map((x,y)->x-y) //=local time - server time
                 .toList
                 .{$L.agg(+)/$L.size};
+      //time offset should be a multiple of 30 minutes...
+      local _30_minutes:=1/24/2;
+      time_offset:=round(time_offset/_30_minutes)*_30_minutes;
 
       local oldOffsetStr:=timeOffsetToString(ftp_server_time_offset[prefix] orElse 0);
       local newOffsetStr:=timeOffsetToString(time_offset);
@@ -157,7 +160,7 @@ syncFromFTP(host:String,user:String,pass:String,ftpSrcFolder:String,destFolder,a
   local prefix:='ftp://'&host;
   connection() ? void : return warn('Login failed ',connection:=void);
   local SF:=getFilesForFTPSync(connection,ftpSrcFolder,includeFile,prefix);
-  local TF:=getFilesForSync(destFolder);
+  local TF:=getFilesForSync(destFolder,includeFile);
   local syncPair:=getSyncPair(SF,TF,allowDelete);
   syncPair[0]
     .map((f)->[(ftpSrcFolder&'/'&f),expandedFileName(destFolder&'/'&f)])

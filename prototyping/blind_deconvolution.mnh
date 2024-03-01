@@ -1,0 +1,85 @@
+setOptions(["x0"=>-1,"x1"=>1,"y0"=>-1,"y1"=>1,"fontsize"=>10,"preserveAspect"=>false,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>7,"axisStyleY"=>7].toMap);
+
+constantPadding(L:NumericList,extras>0)->
+  ([1..extras]*0+L.head)|
+  L|
+  ([1..extras]*0+L.trailing);
+
+convolutionViaFFT(x,y)->begin
+  local X:=x.constantPadding(y.size div 2)|(0*y);
+  while(X.size.factorize.max>5,X|=0);
+  local YRight:=y.head(y.size div 2);
+  local YLeft :=y.tail(y.size div 2);
+  local fill:=[];
+  while(fill.size+YLeft.size+YRight.size<X.size,fill|=0);
+  local Y:=YLeft|fill|YRight;
+  zip(FFT(X),FFT(Y))
+    .pMap((a,b)->[a[0]*b[0]-a[1]*b[1],
+                  a[0]*b[1]+a[1]*b[0]])
+    .toList
+    .iFFT
+    .getInner(0)
+    .tail(y.size div 2);
+end;
+
+signal:=([1,1,1,1,1,1,1,1,1,1,1,2,2,2,3,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]/4)+0.1;
+
+gauss:=[-3..3].map((x)->exp(-x²)).{$L/$L.agg(+)};
+
+plot(signal,'.  l');
+
+blurred:=convolutionViaFFT(signal,gauss).head(signal.size)+random(signal.size)*0;
+
+addPlot(blurred,'.  l 0.5');
+
+guess0:=begin
+  local b:=blurred.convolutionViaFFT(gauss).head(blurred.size);
+  local g:=blurred-(b-blurred);
+  vectorIfThenElse(g<0,0,g);
+end;
+
+
+
+RichardsonLucyStep(observation,guess,kernel)->begin
+  local D:=convolutionViaFFT(guess,kernel);//.head(observation.size);
+  clearAnimation;
+  plot(D);
+  addPlot(observation);
+  addPlot(convolutionViaFFT(observation,observation));
+  addPlot(convolutionViaFFT(kernel,observation));
+
+  D:=vectorIfThenElse(D>1E-6, observation/D,0);
+  halt;
+  guess*convolutionViaFFT(D,kernel.reverseList).head(guess.size);
+end;
+
+////Richardson-Lucy:
+//begin
+//  local guess:=guess0;
+//  plot(signal,'stepLeft'); addPlot(blurred,'stepLeft'); addPlot(guess,'stepLeft'); addAnimationFrame;
+//  [1..100].each(_,begin
+//    guess:=RichardsonLucyStep(blurred,guess,gauss);
+//    //guess*=convolutionViaFFT(blurred/(1E-6+convolutionViaFFT(guess,gauss)),gauss.reverseList);
+//    plot(signal,'stepLeft'); addPlot(blurred,'stepLeft'); addPlot(guess,'stepLeft'); addAnimationFrame;
+//  end);
+//  guess;
+//end;
+
+//Blind deconvolution:
+begin
+  local guess:=guess0;
+  local kernel:=[-5..5]*0+1; kernel*=1/kernel.agg(+);
+  plot(signal,'stepLeft'); addPlot(guess,'stepLeft'); addPlot(gauss,'stepLeft'); addPlot(kernel,'stepLeft'); addAnimationFrame;
+  [1..1000].each(_,begin
+//    clearAnimation;
+    kernel:=RichardsonLucyStep(blurred,kernel,guess);
+    guess :=RichardsonLucyStep(blurred,guess,kernel);
+    plot(signal,'stepLeft'); addPlot(guess,'stepLeft'); addPlot(gauss,'stepLeft'); addPlot(kernel,'stepLeft');  addAnimationFrame;
+  end);
+  log(kernel);
+  guess;
+end.addPlot('. l');
+
+
+
+

@@ -322,7 +322,7 @@ main('gen',id,elementsToGenerate)->printServerResponse(queryServer('gen',id,elem
 
 //*Starts the IPC server (do not call directly)
 main((START_PARMAETER))->begin
-  hideConsole;
+  freeConsole;
   startIpcServer(ipcId,(parameters)->begin
     local t0:=scriptTime;
     print("Processing request: ",parameters);

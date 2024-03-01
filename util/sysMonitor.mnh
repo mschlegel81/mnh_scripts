@@ -1,0 +1,55 @@
+BLOCK:=[" ","▁","▂","▃","▄","▅","▆","▇","█"];
+CPU_LOAD_KEY:=' < cpu load > ';
+
+getCurrentInfo->getTaskInfo.map((ti)->ti['caption']=>ti['workingSetSize']).{$L.getInner(1).group($L.getInner(0),::+)}.mergeMaps([CPU_LOAD_KEY=>getCPULoadPercentage].toMap,::orElse);
+
+formatBlock(col1:String,col1Width:Int,
+            col2:String,col2Width:Int,
+            history:NumericList,totalWidth:Int,blockHeight:Int)->begin
+  local txt  :=[format('%-'&col1Width&'s %'&col2Width&'s ',col1,col2)];
+  local blank:=repeat(' ',col1Width+col2Width+2);
+  while(txt.size<blockHeight,txt:=blank|txt);
+  local bars:=history
+    .head(totalWidth - col1Width - col2Width-2)
+    .map((x)->round(8*blockHeight*x))
+    .map((H)->BLOCK[([blockHeight-1..0]*8).each(d,max(0,min(8,H-d)))])
+    .transpose
+    .map(::join);
+  txt&bars;
+end;
+
+main->begin
+  local quitFuture:=future(::ask,['',['q'],false]);
+
+  local nextConsoleSizeQuery:=0;
+  local conSize:=[80,40];
+
+  local infoHistory:=[].toMap;
+  while(!peekFuture(quitFuture),begin
+    local stepEnd:=scriptTime+2;
+    scriptTime>nextConsoleSizeQuery
+    ? begin
+        local newConSize:=exec('cmd',['/C','mode','con'])[0].filter((L)->L.matches(': *\d+$'))[[1,0]].split(':').getInner(1).trim.softCast;
+        newConSize==conSize ? void : execPipeless('cmd',['/C','cls']);
+        conSize:=newConSize;
+        nextConsoleSizeQuery:=scriptTime+30;
+        callMemoryCleaner;
+      end
+    : void;
+
+    local current:=getCurrentInfo;
+    infoHistory.getInner(0).minus(current.getInner(0)).each(key,infoHistory[key]:=void);
+    current.map((key,value)->infoHistory[key]:=trailing(infoHistory[key]|[value],500));
+
+    local top10:=infoHistory.filter((key,value)->key<>CPU_LOAD_KEY).sort((x)->x[1].trailing).trailing(10).reverseList;
+    local maxMem:=top10.getInner(1).flatten.max;
+    local output:=[['CPU',f'{infoHistory[CPU_LOAD_KEY].trailing}%%',infoHistory[CPU_LOAD_KEY].reverseList/100]]|top10.map((key,value)->[key,f'%{value.trailing/1024²}0.2fMiB',value.reverseList/maxMem]);
+    local col0Width:=output.getInner(0).length.max;
+    local col1Width:=output.getInner(1).length.max;
+    printf('%s',["\f"]|
+      output.map((id,load,hist)->formatBlock(id,col0Width,load,col1Width,hist,conSize[0],conSize[1] div 11)).agg(|));
+    sleepUntil(stepEnd);
+  end);
+end;
+
+

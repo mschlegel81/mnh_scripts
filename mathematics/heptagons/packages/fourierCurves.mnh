@@ -58,7 +58,6 @@ getCurveFunction2D(coeff:CurveCoefficients,dim1:Int,dim2:Int)->
 
 recommendedSampleCount(coeff:CurveCoefficients)->max(350,min(3500,(coeff[KEY_KOEFF].size*2-1)*4));
 
-
 //private combine4D(f:Expression(1),ps1,ps2,ps3)->(t)->[f(t),f(t-ps1),f(t-ps2),f(t-ps3)];
 private combine4D(f:Expression(1),ps1,ps2,ps3)->{begin
   local r:=[f($0),f($0-ps1),f($0-ps2),f($0-ps3)];

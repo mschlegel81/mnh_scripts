@@ -129,7 +129,8 @@ sim1->begin
 
 
     log(step,' ',dustPX.size);
-    plot([P0-STAR_RAD,P0+STAR_RAD#,P1-STAR_RAD,P1+STAR_RAD,P2-STAR_RAD,P2+STAR_RAD#],'ellipse f orange');
+    plot([P0-STAR_RAD,P0+STAR_RAD//#,P1-STAR_RAD,P1+STAR_RAD,P2-STAR_RAD,P2+STAR_RAD
+    ],'ellipse f orange');
     addPlot(dustPX,dustPY,'black . 0.3');
 
     outputFutures|=future(prepareOutput,[P0,[Nan,Nan],[Nan,Nan],sysRad/2000,dustPX,dustPY]);
@@ -234,7 +235,8 @@ sim3->begin
       void;
     end);
 
-    local sysRad:=(max(euklideanNorm(P0),euklideanNorm(P1)#,euklideanNorm(P2)#)+STAR_RAD)*sqrt(2);
+    local sysRad:=(max(euklideanNorm(P0),euklideanNorm(P1)#,euklideanNorm(P2)
+    )+STAR_RAD)*sqrt(2);
     setOptions(["x0"=>-sysRad,"x1"=>sysRad,"y0"=>-sysRad,"y1"=>sysRad,
                 "fontsize"=>10,"preserveAspect"=>true,"autoscaleX"=>false,"autoscaleY"=>false,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>2,"axisStyleY"=>2].toMap);
 

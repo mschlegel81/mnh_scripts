@@ -18,8 +18,8 @@ main->begin
   print('Found ',allScriptFiles.size,' scripts');
   print('Used scripts');
   printf('  %s',usedScripts.unique);
-  warnings:=warnings.map({[regex.replace($x[1],':\d+,\d+','').copy(1,10000),$x[2]]}).group(0).getInner(1).getInner(0)#map({[$x[0,0],$x.getInner(1)]})#.toMap;
-  errors  :=errors  .map({[regex.replace($x[1],':\d+,\d+','').copy(1,10000),$x[2]]}).group(0).getInner(1).getInner(0)#map({[$x[0,0],$x.getInner(1)]})#;
+  warnings:=warnings.map({[regex.replace($x[1],':\d+,\d+','').copy(1,10000),$x[2]]}).group(0).getInner(1).getInner(0).toMap;
+  errors  :=errors  .map({[regex.replace($x[1],':\d+,\d+','').copy(1,10000),$x[2]]}).group(0).getInner(1).getInner(0);
   errors.getInner(0).each(file,warnings[file]:=void);
   warnings:=warnings.sort(0);
   errors  :=errors  .sort(0);

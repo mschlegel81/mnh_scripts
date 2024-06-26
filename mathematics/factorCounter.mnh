@@ -1,114 +1,121 @@
-datastore countHistory:=void;
-CHUNK_SIZE:=1000;       //...factorize 1000 integers at a time
-META_CHUNK_SIZE:=1000;  //...output every 1000 chunks (if nothing interesting happens in between)
+CHUNK_SIZE:=100000;
 
-pad(A:List,B:List,defaultValue)->begin
-  local A_:=A; while(A_.size<B.size,A_|=defaultValue);
-  local B_:=B; while(B_.size<A.size,B_|=defaultValue);
-  [A_,B_];
-end;
+datastore interestings:=[[2,1]];
+datastore factorizationsPerSecond:=1000;
+mutable killRequested:=false;
+MY_IPC_ID:='B5BA32177D2BCDDC';
+KILL_MESSAGE:='KILL';
 
-listPlus   (A:IntList    ,B:IntList    )->A.size==B.size ? A+B     : OPERATOR_PLUS@pad(A,B,0);
-listsDiffer(A:BooleanList,B:BooleanList)->(A.size==B.size ? A xor B : OPERATOR_XOR@pad(A,B,false)).agg(or);
+logIfRelevant(state:IntList)->
+  state.unique.size==state.size
+  ? void
+  : begin
+      [2..state.size-1].each(i,[1..i-1].each(j,
+        state[i]==state[j]
+        ? format("P[%s]\t=\tP[%s]\t=\t%s\t@\v%s",j,i,state[i],state[0])
+        : void,|),|).join("\n").log;
+    end;
 
-countChunk(N:IntList)->begin
-  local cnt:=N.factorize.map(::size).elementFrequency.toList;
-  cnt.getInner(1).groupToList(cnt.getInner(0),0,::+);
-end;
+LOW:=[1..10].cross([1..10]).filter((i,j)->i<j);
 
-steps(before:IntList,increments:List)->begin
-  local output:=[];
-  local tally:=before;
-  increments.each(i,begin
-    local nextSum:=listPlus(tally,i);
-    listsDiffer(tally.tail>tally.leading,nextSum.tail>nextSum.leading)
-    ? begin
-        local T:=tally;
-        [tally.agg(+)+2..tally.agg(+)+2+i.agg(+)].factorize.map(::size).each(k,begin
-          T[k]+=1;
-          (T.tail=T.leading).agg(or) ? output|=[T] : void;
-        end);
-      end
-    : void;
-    tally:=nextSum;
-    void;
-  end);
-  output|[tally];
-end;
+minDelta(state:IntList)->state.getAll(LOW).map((n)->n.size==2 ? n.agg(-).abs : void).min;
 
-printAligned(x)->begin
-  local columnWidths:=[];
-save;
-  x.isString ? begin
-    local parts:=x.split("\t");
-    local pl:=parts.map(::length);
-    columnWidths:=[columnWidths,pl].transpose(0).map(::max);
-    [parts,columnWidths].transpose.map((q)->repeat(' ',q[1]-q[0].length)&q[0]).join(" ").print;
-  end : columnWidths:=[];
-end;
+scanInRange(n0,n1)->
+  (n1<n0+CHUNK_SIZE
+   ? factorize([n0..n1]).map(::size).elementFrequency
+   : begin
+       local k:=ceil((n1-n0)/CHUNK_SIZE);
+       k:=ceil(n0+(n1-n0+1)*[0..k]/k);
+       zip(k.leading,k.tail-1)
+         .pMap((i0,i1)->factorize([i0..i1]).map(::size).elementFrequency)
+         .agg((x,y)->mergeMaps(x,y,::+));
+     end)
+   .toList
+   .{groupToList($L.getInner(1),$L.getInner(0),0,::+)};
+
+main('kill')->sendIpcRequest(MY_IPC_ID,KILL_MESSAGE);
 
 main->begin
-  countHistory.isVoid
-  ? countHistory:=steps([0],[countChunk([2..CHUNK_SIZE-1])])
-  : void;
-  print('Previously on factor counter:');
-  countHistory.map((k)->format("n=\v%s\t:\t%s",k.agg(+)+1,k.tail.join("\t"))).agg(::printAligned);
-  local nextSave:=scriptTime+60;
-  print('----------------------------------------------------------------');
+  startIpcServer(MY_IPC_ID,
+    (ipcMessage)->ipcMessage==KILL_MESSAGE
+                  ? begin log('Received kill signal'); killRequested:=true; end
+                  : begin warn(ipcMessage); false; end);
 
-  local tally:=countHistory.trailing;
-  local startAt:=(tally.agg(+)+2)/CHUNK_SIZE;
-  assert(startAt.isInt);
-
-  rangeGenerator(startAt)
-  .pMap((k)->countChunk([0..CHUNK_SIZE-1]+(k*CHUNK_SIZE)))
-  .chunkMap(META_CHUNK_SIZE)
-  .agg((metaChunk)->
-  begin
-    local additionalSteps:=steps(tally,metaChunk);
-    additionalSteps.map((k)->format("n=\v%s\t:\t%s",k.agg(+)+1,k.tail.join("\t"))).agg(::printAligned);
-    countHistory|=additionalSteps;
-    tally:=countHistory.trailing;
-    scriptTime>nextSave
+  local counts:=interestings.trailing;
+  interestings.map(::logIfRelevant);
+  print('--------------------------------------- - - -  -  -  - ');
+  local lastSave:=scriptTime;
+  local lastCount:=counts[0];
+  while(!killRequested,begin
+    local md:=minDelta(counts);
+    md==0 ? logIfRelevant(counts) : void;
+    local stepsLeftInTime:=ceil((lastSave+90 - scriptTime)*factorizationsPerSecond).max(1);
+    local stepSize:=max(1,md orElse 1).min(stepsLeftInTime);
+    log(counts,md==0 ? ' ***********': format(' min delta=%s',md orElse '?')&(md==stepSize ? void : f' step size={stepSize}'));
+    local increment:=scanInRange(counts[0]+1,local n:=counts[0]+stepSize);
+    while(counts   .size<increment.size,counts   |=0);
+    while(increment.size<counts   .size,increment|=0);
+    counts+=increment;
+    counts[0]:=n;
+    interestings|=[counts];
+    scriptTime>lastSave+60 or killRequested
     ? begin
-        print(formatTime('hh:mm:ss',systime),' Updating data stores...');
+        factorizationsPerSecond:=(lastCount-lastCount:=counts[0])/(lastSave-lastSave:=scriptTime);
         writeDataStores;
-        nextSave:=scriptTime+60;
-//        callMemoryCleaner;
-        print(formatTime('hh:mm:ss',systime),' Data stores updated...');
+        log(f'Data stores updated %{factorizationsPerSecond}0.0f/s');
       end
     : void;
   end);
 end;
 
+
 begin
-  local totals:=countHistory.map((h)->h.agg(+));
+  ["x0"=>10,
+   "x1"=>interestings.trailing[0],
+   "y0"=>0.005,
+   "y1"=>0.5,
+   "fontsize"=>10,
+   "preserveAspect"=>false,
+   "autoscaleX"=>false,
+   "autoscaleY"=>false,
+   "logscaleX"=>true,
+   "logscaleY"=>true,
+   "axisStyleX"=>7,
+   "axisStyleY"=>7].toMap.setOptions;
 
-  setOptions(["x0"=>1E-100,"x1"=>1,"y0"=>1E-100,"y1"=>1,"fontsize"=>10,"preserveAspect"=>false,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>true,"logscaleY"=>true,"autoscaleFactor"=>1,"axisStyleX"=>7,"axisStyleY"=>7].toMap);
-  local rows:=countHistory.transpose(0);
 
-  plot   (totals,rows[1]/totals);
-  addPlot(totals,rows[2]/totals);
-  addPlot(totals,rows[3]/totals);
-  addPlot(totals,rows[4]/totals);
-  addPlot(totals,rows[5]/totals);
-  addAnimationFrame;
+  local D:=interestings.transpose(0).head(11);
+  [1..10].each(k,D[k]/=D[0]);
+
+  local COLORS:=[1=>'black',
+                 2=>'red',
+                 3=>'blue',
+                 4=>'green',
+                 5=>'RGB1,0,1',
+                 6=>'RGB1,0.5,0',
+                 7=>'RGB0.5,0.5,0.5',
+                 8=>'RGB0,1,0',
+                 9=>'RGB0.2,0.2,0.2',
+                 10=>'RGB0,0.5,0'].toMap;
 
 
-  resetOptions;
-  local densities:=[countHistory.leading,countHistory.tail].transpose.each(P,listPlus(P[1],-P[0])/(P[1].agg(+)-P[0].agg(+))).transpose(0);
-  local midPoints:=(totals.tail+totals.leading)*0.5;
-  plot   (midPoints.tail(20),densities[1].tail(20));
-  addPlot(midPoints.tail(20),densities[2].tail(20));
-  addPlot(midPoints.tail(20),densities[3].tail(20));
-  addPlot(midPoints.tail(20),densities[4].tail(20));
-  addPlot(midPoints.tail(20),densities[5].tail(20));
-  setOptions(["x0"=>0,"x1"=>1,"y0"=>0,"y1"=>0.25,"fontsize"=>10,"preserveAspect"=>false,"autoscaleX"=>true,"autoscaleY"=>false,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>7,"axisStyleY"=>7].toMap);
-  addAnimationFrame;
 
-  setOptions(["x0"=>1E-100,"x1"=>1,"y0"=>-1,"y1"=>1,"fontsize"=>10,"preserveAspect"=>false,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>true,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>7,"axisStyleY"=>7].toMap);
-  plot(totals,countHistory.map((H)->H.each(i,i*index,+)/H.agg(+)));
-  addAnimationFrame;
+  plot;
+  COLORS.pMap((k,style)->addPlot(D[0],D[k],'0.5 '&style));
+
+  cross([10..1],[10..1])
+    .filter((i,j)->i>j)
+    .pMap((i,j)->[i,j,indexOf(D[i]=D[j]>0)])
+    .pFilter((i,j,indexes)->indexes.size>0)
+    .pMap((i,j,indexes)->begin
+       local P:=transpose([D[0,indexes],D[i,indexes]]);
+       addPlot(P,COLORS[j]&' . 1');
+       addPlot(P,COLORS[i]&' . 0.5');
+       [cross(interestings[indexes].getInner(0),[i],[j]),interestings[indexes].getInner(i)].transpose.map(::flatten);
+     end)
+    .agg(|)
+    .sort
+    .map((x,i,j,y)->f"P[{i}]\t=\tP[{j}]\t=\t{y}\t@\t{x}")
+    .join("\n")
+    .print;            //Log @factorCounter.mnh:16,33 P[2] = P[5] = 535514860 @3468361808
 end;
-
-

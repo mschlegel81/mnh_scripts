@@ -141,8 +141,8 @@ makeSymmetricMaze(width,height,symmetry in [0..5])->begin
     end
   : symmetry=5
   ? begin
-      mazePoints:=cross(#(height mod 4)=1 ? [height div 2+1] :# height div 2+[-1..1],
-                        #(width mod 4)=1  ? [width  div 2+1] :# width  div 2+[-1..1])
+      mazePoints:=cross(height div 2+[-1..1],
+                        width  div 2+[-1..1])
       .filter((p)->(p[0] and 1)=0 xor (p[1] and 1)=0).toSet;
       toBeVisited:=toBeVisited.minus(mazePoints);
 

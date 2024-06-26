@@ -25,8 +25,9 @@ skipEntriesFromIterator(i:IteratableExpression,count>0)->begin
   i;
 end;
 
+nextIterator(currentLogFile,linesReadFromLog)->fileLineIterator(currentLogFile,UNCHANGED_TIMEOUT).skipEntriesFromIterator(linesReadFromLog[currentLogFile] orElse 0);
 main->begin
-  async({begin ask('Press enter to quit'); halt; end});
+  async({begin ask('Press Q to quit',['q']); halt; end});
   sleep(1);
   print;
   local currentLogFile:=0;
@@ -38,7 +39,7 @@ main->begin
     fileChanged
     ? printf("==========================================\nNow displaying: %s\n==========================================",currentLogFile)
     : void;
-    fileLineIterator(currentLogFile,UNCHANGED_TIMEOUT).skipEntriesFromIterator(linesReadFromLog[currentLogFile] orElse 0);
+    try(::nextIterator,[currentLogFile,linesReadFromLog],(x)->begin warn(x); sleep(10); ['Unable to fetch log at '&formatTime(systime)].toIteratableExpression; end);
   end};
   local nextLineFromLog:=getFileIterator();
   sleep(1);

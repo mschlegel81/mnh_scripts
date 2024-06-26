@@ -1,0 +1,30 @@
+constantPadding(L:NumericList,extras>0)->
+  ([1..extras]*0+L.head)|
+  L|
+  ([1..extras]*0+L.trailing);
+
+convolutionViaFFT(x,y)->begin
+  local X:=x.constantPadding(y.size div 2)|(0*y);
+  while(X.size.factorize.max>5,X|=0);
+  local YRight:=y.head(y.size div 2);
+  local YLeft :=y.tail(y.size div 2);
+  local fill:=[];
+  while(fill.size+YLeft.size+YRight.size<X.size,fill|=0);
+  local Y:=YLeft|fill|YRight;
+  zip(FFT(X),FFT(Y))
+    .pMap((a,b)->[a[0]*b[0]-a[1]*b[1],
+                  a[0]*b[1]+a[1]*b[0]])
+    .toList
+    .iFFT
+    .getInner(0)
+    .tail(y.size div 2);
+end;
+
+
+signal:=([0..59] div 10) and 1;
+kernel:=[-5..5].map((x)->exp(-x²/10)).{$L/$L.agg(+)};
+
+plot(signal);
+addPlot(convolve1D(signal,kernel));
+addPlot(convolutionViaFFT(signal,kernel));
+

@@ -1,9 +1,28 @@
 USE tinyServer_html;
 
-stopProcess(pid:Int)->execAsync('taskkill',['/f','/PID',toString(pid)]);
+stopProcess(pid:Int)->begin
+  local execResult:=exec('taskkill',['/f','/PID',toString(pid)])
+  execResult[1]==0
+  ? log('Process kill (PID=',pid,') was successful')
+  : log('Process kill (PID=',pid,") failed: \n",execResult[0].join("\n"));
+end;
 
 getProcessMap->begin
-  local PM:=getTaskInfo.map({$x['PID'] => $x.mergeMaps(['children'=>[]].toMap,::orElse)}).toMap;
+  local proc0:=getTaskInfo.map((info)->info['PID']=>info).toMap;
+  local cpuLoad:=getCPULoadPercentage;
+  local proc1:=getTaskInfo.map((info)->info['PID']=>info).toMap;
+
+  local totalUserModeTimeDelta:=0;
+  local PM:=
+  intersect(proc0.getInner(0),proc1.getInner(0))
+    .map((PID)->PID=>begin
+       local userModeTimeDelta:=proc1[PID,'userModeTime']-proc0[PID,'userModeTime'];
+       totalUserModeTimeDelta+=userModeTimeDelta;
+      ['cpu'=>userModeTimeDelta,
+       'children'=>[]].toMap.mergeMaps(proc1[PID],::orElse);
+     end)
+    .map((key,value)->key=>['cpu'=>value['cpu']*cpuLoad/totalUserModeTimeDelta].toMap.mergeMaps(value,::orElse))
+    .toMap;
   PM.getInner(1).each(p,begin
     local parent:=p['parentPID'];
     PM[parent].isVoid
@@ -21,7 +40,7 @@ end;
 killProcess(parameters:Map)->begin
   local PID:=parameters['index'];
   PID.isInt
-  ? begin stopProcess(PID); sleep(1); end
+  ? stopProcess(PID)
   : void;
   redirectTo('/processes');
 end;
@@ -39,27 +58,38 @@ processesPage(parameters:Map)->begin
   local roots:=ordered.filter({!isProcessChildOfAnyOther(PM,$PID)});
   local printed:=[].toSet;
   local result:=[];
-  local recurse:={begin
-    result|=[[$indent&($last ? '\--' : '+--')&(PM[$pid,'caption'] orElse '<?>'),$pid,PM[$pid,'commandLine'] orElse '']];
-    printed|=$pid;
-    local newIndent:=$last
-          ? $indent + '   '
-          : $indent + '|  ';
-    local children:=(PM[$pid,'children'] orElse []).sort.filter({!($c in printed)});
+  local recurse:=(indent,last,PID)->begin
+    result|=[[indent&(last ? '\--' : '+--')&(PM[PID,'caption'] orElse '<?>'),
+              PID,
+              PM[PID,'workingSetSize'] < 1024² ? '' : format('%3.0fMiB',PM[PID,'workingSetSize']/1024²),
+              PM[PID,'cpu']            < 0.1   ? '' : format('%3.1f%%' ,PM[PID,'cpu']),
+              PM[PID,'commandLine'] orElse '']];
+    printed|=PID;
+    local newIndent:=last
+          ? indent + '   '
+          : indent + '|  ';
+    local children:=(PM[PID,'children'] orElse []).sort.filter((child)->child not in printed);
     children.each(child,recurse(newIndent,index+1=children.size,child));
-  end};
+  end;
 
   roots.each(r,recurse('',index+1=roots.size,r));
-  result:=[['Caption'.tag('b'),'PID'.tag('b'),'','Command Line'.tag('b')]]|
-          result.map({[tag($x[0].copy(3).niceBoxGlyphs,'code'),
-                       $x[1],
-                       htmlLink(tag('kill','b'),encodeRequest('','processes/kill',['index'=>$x[1]].toMap)),
-                       tag($x[2],'code')]});
-
+  result;
+  result:=([['Caption'.tag('b'),'PID'.tag('b'),'MEM'.tag('b'),'CPU'.tag('b'),'','Command Line'.tag('b')]]|
+           result.map((caption,pid,mem,cpu,cmdLine)->
+                       [tag(caption.copy(3).niceBoxGlyphs,'code'),
+                        pid,
+                        mem,
+                        cpu,
+                        htmlLink(tag('kill','b'),encodeRequest('','processes/kill',['index'=>pid].toMap)),
+                        cmdLine.tag('code')]))
+  .map((name,pid,mem,cpu,killLink,cmdLine)->
+        f'<tr class = "hoverCol"><td>{name}</td><td align="right">{pid}</td><td align="right">{mem}</td><td align="right">{cpu}</td><td>{killLink}</td><td>{cmdLine}</td></tr>')
+  .join;
+  result:=f'<table>{result}</table>';
   htmlPage('Processes',
-    getHeadLinks&
+   getHeadLinks&
     tag('Processes','h2')&
-    htmlTable(result),
+    result,
     false).wrapTextInHttp;
 end;
 

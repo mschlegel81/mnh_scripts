@@ -294,7 +294,7 @@ main('infoTable')->begin
   tabData:=tabData.transpose('');
   tabData:=tabData.each(col,
     index=5 ? col.head | col.tail.barVisualization(100)
-            : col#.map((x)->x.isNumeric AND x.isNan ? '' : x)#);
+            : col);
   tabData:=tabData.transpose('');
 
   isGuiStarted

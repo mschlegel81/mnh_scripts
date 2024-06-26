@@ -15,14 +15,16 @@ STATUS_BOX_CANCELLED     :='<div style="background-color: #F00; padding: 0px">&n
 STATUS_BOX_FINISHED      :='<div style="background-color: #090; padding: 0px">&nbsp;&nbsp;<br><br></div>';
 STATUS_BOX_KILL_REQUESTED:='<div style="background-color: #F80; padding: 0px">&nbsp;&nbsp;<br><br></div>';
 
-scriptDefInTable(script)   ->tag(script in SPECIAL_TASKS.getInner(0) ? script : script.extractFileName,'code');
-scriptDefInTable(script,'')->tag(script in SPECIAL_TASKS.getInner(0) ? script : script.extractFileName,'code');
+private shortScriptName(script)->
+  script in SPECIAL_TASKS.getInner(0) ? script :
+  script.extractFileDirectory == SCRIPT_FOLDER ? script.extractFileName : script;
+
+scriptDefInTable(script)   ->tag(shortScriptName(script),'code');
+scriptDefInTable(script,'')->tag(shortScriptName(script),'code');
 scriptDefInTable(script,param)->begin
   local parameters:=(param orElse '').trim;
   parameters.length>30 ? parameters:=parameters.copy(0,27)&'...' : void;
-  tag(script.extractFileName,'code')&(parameters==''
-                                      ? ''
-                                      : '<br>'& tag('   '&parameters,'code'));
+  tag(shortScriptName(script),'code')&(parameters=='' ? '' : '<br>'& tag('   '&parameters,'code'));
 end;
 
 getQueuedTable(forOverviewPage:Boolean)->
@@ -78,7 +80,8 @@ getTasksSection->begin
          r[FILESTATS]==[0.0,-1] ? '- log missing -' : htmlLink(getLogName(r['index']).extractFileName,
                                                          encodeRequest('','displayFile',['filename'=>getLogName(r['index'])].toMap)),
          statusBox,
-         stateMessage];
+         stateMessage,
+         htmlLink('reschedule',encodeRequest('','addTask',['scriptName'=>r[SCRIPT],'cmdLineParameters'=>r[PARAMETERS],'mainView'=>1].toMap))];
       end)),'div');
 end;
 
@@ -105,7 +108,7 @@ end;
 addTask(parameters:Map)->begin
   enqueueTask(parameters['scriptName'],
               parameters['cmdLineParameters'] orElse '');
-  redirectTo(ENQUEUE_PAGE);
+  parameters['mainView']==1 ? redirectTo(START_PAGE) : redirectTo(ENQUEUE_PAGE);
 end;
 
 enqueuePage(parameters:Map)->begin
@@ -116,7 +119,7 @@ enqueuePage(parameters:Map)->begin
   !(selectedScript  .isVoid) AND
   !(scriptParameters.isVoid)
   ? begin
-      enqueueTask(selectedScript,
+      enqueueTask(selectedScript.fullScriptName,
                   scriptParameters);
       return redirectTo(ENQUEUE_PAGE);
     end
@@ -137,14 +140,14 @@ enqueuePage(parameters:Map)->begin
                   ? begin
                       ((prevMap[script] orElse []).each(par,
                         htmlLink(trim(par)='' ? '&lt;no parameters&gt;' : tag(par,'code'),
-                                 encodeRequest('','addTask',['scriptName'=>script,'cmdLineParameters'=>par].toMap)),
+                                 encodeRequest('','addTask',['scriptName'=>script.fullScriptName,'cmdLineParameters'=>par].toMap)),
                         '<br>',&))&
                       jsTextInputField('cmdLineParameters','',parameters,100);
                     end
                   : begin
                       local par:=prevMap[script,0] orElse '';
                       htmlLink(trim(par)='' ? '&lt;no parameters&gt;' : tag(par,'code'),
-                               encodeRequest('','addTask',['scriptName'=>script,'cmdLineParameters'=>par].toMap));
+                               encodeRequest('','addTask',['scriptName'=>script.fullScriptName,'cmdLineParameters'=>par].toMap));
                     end]
                  ))&
   tag(tag('Special actions', 'h2')&htmlTable(
@@ -159,7 +162,7 @@ enqueuePage(parameters:Map)->begin
 
   jsHiddenInputFields(parameters).join
   ,'div')&
-  (parameters['scriptName'].isVoid ? void : '<br>'&htmlLink('enqueue task',http.encodeRequest('','addTask',parameters)))
+  (parameters['scriptName'].isVoid ? void : '<br>'&htmlLink('enqueue task',http.encodeRequest('','addTask',['scriptName'=>selectedScript.fullScriptName].toMap.mergeMaps(parameters,::orElse))))
   &'</FORM>'
   ,false).wrapTextInHttp;
 end;
@@ -203,7 +206,7 @@ startNextTask->queued.size<=0 ? false : begin
       SPECIAL_TASKS[scriptName]();
       true;
     end
-  : loggingRunner.startExecution(scriptName.fullScriptName.systemSpecificFilename,scriptParams);
+  : loggingRunner.startExecution(scriptName,scriptParams);
 end;
 
 forceStart(parameters:Map)->begin
@@ -233,14 +236,17 @@ moveToFront(parameters:Map)->begin
    redirectTo(parameters['mainView']=1 ? START_PAGE : ENQUEUE_PAGE);
 end;
 
-private addToPrevious(script,parameters)->begin
-  previous:=[[script,parameters]]|previous;
-  previous.size>1
-  ? [1..previous.size-1].each(i,previous[i]==previous[0] ? previous[i]:=void
-                                                         : void)
+private addToPrevious(script,parameters)->
+  script.extractFileDirectory==SCRIPT_FOLDER
+  ? begin
+      previous:=[[script.extractFileName,parameters]]|previous;
+      previous.size>1
+      ? [1..previous.size-1].each(i,previous[i]==previous[0] ? previous[i]:=void
+                                                             : void)
+      : void;
+      previous:=head(previous,MAX_HISTORY_SIZE);
+    end
   : void;
-  previous:=head(previous,MAX_HISTORY_SIZE);
-end;
 
 enqueueTask(script,parameters)->begin
   log('Planned new task ',script,' ',parameters.toString);

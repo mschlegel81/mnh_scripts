@@ -100,7 +100,7 @@ isLoggingRunnerIpcServerRunning->IPC_ID.isIpcServerRunning;
 ensureServer->isLoggingRunnerIpcServerRunning ? void :
   begin
     startIpcServer(IPC_ID,{postScriptRunning($X)});
-    while(!isIpcServerRunning(IPC_ID),sleep(0.001));
+    while(!isLoggingRunnerIpcServerRunning,sleep(0.001));
   end;
 
 private postScriptRunning(id:Int)->taskHistory[id].isVoid ? false : begin

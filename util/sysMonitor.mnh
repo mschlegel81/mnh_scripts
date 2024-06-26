@@ -1,55 +1,212 @@
 BLOCK:=[" ","▁","▂","▃","▄","▅","▆","▇","█"];
-CPU_LOAD_KEY:=' < cpu load > ';
+TOTAL_KEY:='TOTAL';
 
-getCurrentInfo->getTaskInfo.map((ti)->ti['caption']=>ti['workingSetSize']).{$L.getInner(1).group($L.getInner(0),::+)}.mergeMaps([CPU_LOAD_KEY=>getCPULoadPercentage].toMap,::orElse);
+private memoized singleton(x)->x;
 
-formatBlock(col1:String,col1Width:Int,
-            col2:String,col2Width:Int,
-            history:NumericList,totalWidth:Int,blockHeight:Int)->begin
-  local txt  :=[format('%-'&col1Width&'s %'&col2Width&'s ',col1,col2)];
-  local blank:=repeat(' ',col1Width+col2Width+2);
-  while(txt.size<blockHeight,txt:=blank|txt);
-  local bars:=history
-    .head(totalWidth - col1Width - col2Width-2)
-    .map((x)->round(8*blockHeight*x))
-    .map((H)->BLOCK[([blockHeight-1..0]*8).each(d,max(0,min(8,H-d)))])
-    .transpose
-    .map(::join);
-  txt&bars;
+getCurrentInfo->begin
+  local obtainInfo:=()->getTaskInfo
+     .map((ti)->ti['PID'].singleton=>[ti['caption'       ].singleton,
+                                      ti['commandLine'   ].singleton,
+                                      ti['workingSetSize'].singleton,
+                                      ti['userModeTime'  ].singleton]).toMap;
+  local prevInfo:=obtainInfo();
+save;
+  local cpuLoad:=getCPULoadPercentage;
+  local currInfo:=obtainInfo();
+  local totalMemory:=currInfo.getInner(1).getInner(2).agg(+);
+  local totalUserModeTimeDelta:=0;
+  local result:=currInfo.map((PID,value)->begin
+    local prevValue:=prevInfo[PID];
+    prevValue.isVoid
+    ? void
+    : begin
+        local userModeTimeDelta:=max(0,value[3]-prevValue[3]);
+        totalUserModeTimeDelta+=userModeTimeDelta;
+        [PID,value[0],value[1]]=>[value[2],userModeTimeDelta];
+      end;
+  end);
+  prevInfo:=currInfo;
+  local loadFactor:=[1,10*cpuLoad/totalUserModeTimeDelta];
+  ['load'=>mergeMaps(result.map((keys,value)->keys[0]=>round(value*loadFactor).map(::singleton)).toMap,[TOTAL_KEY=>[totalMemory,cpuLoad*10].map(::singleton)].toMap,::orElse),
+   'caption'=>result.getInner(0).map((pid,caption,cmdLine)->pid=>caption).toMap.mergeMaps([TOTAL_KEY=>TOTAL_KEY].toMap,::orElse),
+   'cmdLine'=>result.getInner(0).map((pid,caption,cmdLine)->pid=>cmdLine).toMap.mergeMaps([TOTAL_KEY=>''       ].toMap,::orElse)].toMap;
 end;
 
+formatBlock(text:StringList,col1Width:Int,
+            history:NumericList,totalWidth:Int,blockHeight:Int,lineIndex:Int)->begin
+  local txt:=begin
+    local T:=format('%-'&col1Width&'s',text)&' ';
+    local blank:=repeat(' ',col1Width+1);
+    lineIndex=0
+    ? begin
+        T:=format("\e[90m%s\e[0m",T.leading)|T.trailing;
+        T[0]:="\e[1;1H"&T[0];
+        while(T.size<blockHeight,T:=T.leading|blank|T.trailing);
+      end
+    : while(T.size<blockHeight,T:=blank|T);
+    T;
+  end;
+
+
+  local totalBarSize:=totalWidth-col1Width-1;
+  local _H:=history;
+  local
+  H0:=_H.head((totalBarSize div 4)); _H:=_H.tail((totalBarSize div 4)).chunkMap(2).each(x,x.agg(+)*0.5);
+  H0|=_H.head((totalBarSize div 4)); _H:=_H.tail((totalBarSize div 4)).chunkMap(2).each(x,x.agg(+)*0.5);
+  H0|=_H.head((totalBarSize div 4)); _H:=_H.tail((totalBarSize div 4)).chunkMap(2).each(x,x.agg(+)*0.5);
+  H0|=_H.head(totalBarSize-3*(totalBarSize div 4));
+  while(H0.size<totalWidth - col1Width - 1,H0|=0);
+
+  local splitAtIdx:=(totalBarSize div 4)*[1,2,3];
+  local bars:=H0
+    .head(totalWidth - col1Width - 1)
+    .each(x,[round(8*blockHeight*x),index in splitAtIdx
+                                    ? (lineIndex and 1)=1
+                                      ? "\e[0m│\e[94m"
+                                      : '│'
+                                    : ' '])
+    .map((H,space)->BLOCK[([blockHeight-1..0]*8).each(d,max(0,min(8,H-d)))].replace(' ',space))
+    .transpose
+    .map(::join);
+  (lineIndex and 1)=1
+  ? "\e[94m"&txt&bars&"\e[0m"
+  :          txt&bars;
+end;
+
+formatSampleTimes(history:NumericList,col1Width:Int,totalWidth:Int)->begin
+  local totalBarSize:=totalWidth-col1Width-1;
+  local _H:=history        .tail((totalBarSize div 4)).chunkMap(2).each(x,x.agg(+)/x.size);
+  local T1:=_H.head; _H:=_H.tail((totalBarSize div 4)).chunkMap(2).each(x,x.agg(+)/x.size);
+  local T2:=_H.head; _H:=_H.tail((totalBarSize div 4)).chunkMap(2).each(x,x.agg(+)/x.size);
+  local T3:=_H.head;
+  local T4:=_H.head(totalBarSize-3*(totalBarSize div 4)).trailing;
+
+  local splitAtIdx:=(totalBarSize div 4)*[1,2,3,4];
+
+  [repeat(' ',col1Width+1+splitAtIdx[0]-8),
+   T1==[] ? '        ' : formatTime('hh:mm:ss',T1),
+   '│',
+   repeat(' ',splitAtIdx[1]-splitAtIdx[0]-9),
+   T2==[] ? '        ' : formatTime('hh:mm:ss',T2),
+   '│',
+   repeat(' ',splitAtIdx[2]-splitAtIdx[1]-9),
+   T3==[] ? '        ' : formatTime('hh:mm:ss',T3),
+   '│',
+   repeat(' ',splitAtIdx[3]-splitAtIdx[2]-10),
+   T4==[] ? '        ' : formatTime('hh:mm:ss',T4),
+   "\e[K\r"
+  ].join;
+end;
+
+SMOOTH:=exp(-[0..100]²/1000);
+
+formatMemAndCpu(mem:Int,cpu:Int,textWidth:Int,focusCpu:Boolean)->begin
+  local cpuStr:=format('CPU:%4.0f%%',cpu/10);
+  local memStr:=format('%7.2fMiB',mem/1024²);
+  focusCpu
+  ? memStr&repeat(' ',textWidth-length(cpuStr)-length(memStr))&cpuStr
+  : cpuStr&repeat(' ',textWidth-length(cpuStr)-length(memStr))&memStr;
+end;
+
+sumLists(x,y)->x.size=y.size ? x+y : transpose([x,y],[0,0]).transpose.agg(+);
+
 main->begin
-  local quitFuture:=future(::ask,['',['q'],false]);
+  local cpuGraphs:=false;
+  local continue:=true;
+  local groupByCaption:=false;
+
+  localAsync({while(continue,begin
+    (local signal:=ask('',['q','c','g'],false))=='q'
+    ? continue:=false
+    : signal=='g'
+      ? groupByCaption:=!groupByCaption
+      : cpuGraphs     :=!cpuGraphs;
+  end)});
 
   local nextConsoleSizeQuery:=0;
   local conSize:=[80,40];
-
-  local infoHistory:=[].toMap;
-  while(!peekFuture(quitFuture),begin
+  local barHeight:=8;
+  local topCount:=10;
+  local captions:=[].toMap;
+  local loadHistory:=[].toMap;
+  local relevantKeys:=[].toSet;
+  local sampleTimes:=systime-[0..10000]/24/60/60*2;
+  while(continue,begin
     local stepEnd:=scriptTime+2;
-    scriptTime>nextConsoleSizeQuery
+
+    local current:=getCurrentInfo;
+    local load    :=current['load'];
+          captions:=current['caption'].mergeMaps(captions,::orElse);
+    union(load.getInner(0),loadHistory.getInner(0)).map((key)->loadHistory[key]:=head([load[key] orElse [0,0]]|(loadHistory[key] orElse []),conSize[0]*4));
+    sampleTimes:=                                                                head( systime                | sampleTimes                ,conSize[0]*4);
+
+    scriptTime>nextConsoleSizeQuery AND !isGuiStarted
     ? begin
         local newConSize:=exec('cmd',['/C','mode','con'])[0].filter((L)->L.matches(': *\d+$'))[[1,0]].split(':').getInner(1).trim.softCast;
         newConSize==conSize ? void : execPipeless('cmd',['/C','cls']);
         conSize:=newConSize;
+        barHeight:=max(4,(conSize[1]-1) div 11);
+        topCount:=(conSize[1]-1) div barHeight-1;
         nextConsoleSizeQuery:=scriptTime+30;
-        callMemoryCleaner;
+        mnhInfo['used_mem']>209715200
+        ? begin
+            //Housekeeping:
+            relevantKeys|=TOTAL_KEY;
+            captions:=captions.filter((key,value)->key in relevantKeys or value in relevantKeys).toMap;
+            relevantKeys|=captions.flatten.toSet;
+            loadHistory:=loadHistory.filter((key,value)->key in relevantKeys).toMap;
+            relevantKeys:=[].toSet;
+            callMemoryCleaner;
+            loadHistory:=loadHistory.map((key,value)->key.singleton=>value.map(::singleton)).toMap;
+            captions   :=captions   .map((key,value)->key.singleton=>value      .singleton).toMap;
+          end
+        : void;
       end
     : void;
 
-    local current:=getCurrentInfo;
-    infoHistory.getInner(0).minus(current.getInner(0)).each(key,infoHistory[key]:=void);
-    current.map((key,value)->infoHistory[key]:=trailing(infoHistory[key]|[value],500));
+    local ProcessCountHistoric:=groupByCaption ? loadHistory.getInner(0).map((pid)->captions[pid] orElse f'PID:{pid}?').elementFrequency : void;
+    local ProcessCountCurrent :=groupByCaption ? load       .getInner(0).map((pid)->captions[pid] orElse f'PID:{pid}?').elementFrequency : void;
+    local entries:=groupByCaption
+                   ? begin
+                       local L:=loadHistory.toList;
+                       group(L.getInner(1),
+                             L.getInner(0).map((pid)->captions[pid] orElse f'PID:{pid}?'),::sumLists);
+                     end
+                   : loadHistory;
 
-    local top10:=infoHistory.filter((key,value)->key<>CPU_LOAD_KEY).sort((x)->x[1].trailing).trailing(10).reverseList;
-    local maxMem:=top10.getInner(1).flatten.max;
-    local output:=[['CPU',f'{infoHistory[CPU_LOAD_KEY].trailing}%%',infoHistory[CPU_LOAD_KEY].reverseList/100]]|top10.map((key,value)->[key,f'%{value.trailing/1024²}0.2fMiB',value.reverseList/maxMem]);
-    local col0Width:=output.getInner(0).length.max;
-    local col1Width:=output.getInner(1).length.max;
-    printf('%s',["\f"]|
-      output.map((id,load,hist)->formatBlock(id,col0Width,load,col1Width,hist,conSize[0],conSize[1] div 11)).agg(|));
+    local sortKey:=entries.map((key,value)->key==TOTAL_KEY ? void : key|zip(value,SMOOTH).map((x,y)->x*y).agg(+));
+
+    local top_k:=TOTAL_KEY|sortKey[sortKey.getInner(1+ord(cpuGraphs)).sortPerm.reverseList.head(topCount)].getInner(0);
+    top_k:=transpose([top_k,entries.getAll(top_k)]).map((key,value)->[key,value.getInner(ord(cpuGraphs))]|value.head);
+    relevantKeys|=top_k.getInner(0).toSet;
+
+    top_k:=top_k.map((key,bar,mem,cpu)->[key==TOTAL_KEY
+                                         ? ['[Q]uit',
+                                            cpuGraphs ? 'Top [C]pu users' : '[C] Top memory users',
+                                            groupByCaption ? '[G]rouped' : 'un[G]rouped']
+                                         : groupByCaption
+                                           ? [ProcessCountCurrent[key]==ProcessCountHistoric[key]==1 ? void : format('%s/%s processes',ProcessCountCurrent[key] orElse 0,ProcessCountHistoric[key] orElse 0),
+                                              key.toString]
+                                           : [key.isInt ? f'PID: {key}' : key,
+                                              captions[key]]
+                                         ,mem,cpu
+                                         ,key==TOTAL_KEY ? bar/bar.max : bar/top_k.tail.getInner(1).flatten.max]);
+    local textWidth:=max(20,top_k.getInner(0).flatten.length.max);
+
+    local lineNumber:=-1;
+
+    top_k.map((txt,mem,cpu,bar)->
+      formatBlock(txt|formatMemAndCpu(mem,cpu,textWidth,cpuGraphs),
+                  textWidth,
+                  bar,
+                  conSize[0],barHeight,
+                  lineNumber+=1))
+      .agg(|)
+      .join("\e[K\n")
+      .&("\e[K\n")
+      .&(formatSampleTimes(sampleTimes,textWidth,conSize[0]))
+      .printDirect;
     sleepUntil(stepEnd);
   end);
 end;
-
 

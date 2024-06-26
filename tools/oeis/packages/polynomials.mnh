@@ -1,6 +1,5 @@
 type Polynomial(L:NumericList)->L.size>=1;
 
-@SuppressUnusedWarning
 factorial(n:Int)->n<=1 ? 1 : [2..n].agg(*);
 
 ducktype OddInt(i:Int)->(i and 1)=1;

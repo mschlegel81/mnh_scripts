@@ -185,12 +185,12 @@ mutable D:=D_serial;
 
 //*Bogacki-Shampine step
 private microTimestep(y0:List(2),inflow,t0,dt)->begin
-  local F0:=dt*D(y0        ,inflow#,t0#);
-  local F1:=dt*D(y0+0.5*F0 ,inflow#,t0+dt*0.5#);
-  local F2:=dt*D(y0+0.75*F1,inflow#,t0+dt*0.74#);
+  local F0:=dt*D(y0        ,inflow);
+  local F1:=dt*D(y0+0.5*F0 ,inflow);
+  local F2:=dt*D(y0+0.75*F1,inflow);
   local F3:=dt*D(local result:=y0+0.2222222222222222*F0+
                                   0.3333333333333333*F1+
-                                  0.4444444444444444*F2,inflow#,t0#);
+                                  0.4444444444444444*F2,inflow);
   [result,
     ((y0+0.29166666666666669*F0
         +0.25               *F1

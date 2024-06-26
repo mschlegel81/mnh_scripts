@@ -17,22 +17,27 @@ end;
 
 DRIVES:=driveInfo;
 COPY_TASK_TEMPLATES:=[
-[#AGFA 8GB stick#140636347,//!~
+[#AGFA 8GB stick#
+ 140636347,//!~
 robocopy %\art.bin §:\dev\art.bin /MIR /NP /FFT /DCOPY:D /COPY:DT -XF *.log > pushToAgfa.log 2>&1
 robocopy % §:\dev7z *.7z /MIR /NP /LEV:1 /FFT /COPY:DT >> pushToAgfa.log 2>&1~],
-[#SanDik 128GB thumb#1287186536,//!~
+[#SanDik 128GB thumb#
+ 1287186536,//!~
 robocopy %\art.bin §:\dev\art.bin /MIR /NP /FFT /DCOPY:D /COPY:DT -XF *.log > pushToSanDisk.log 2>&1
 robocopy % §:\dev7z *.7z /MIR /NP /LEV:1 /FFT /COPY:DT >> pushToSanDisk.log 2>&1~],
-[#NAS#33884352,//!~
+[#NAS#
+ 33884352,//!~
 robocopy % §:\dev *.mnh /MIR /NP /LEV:1 /FFT /MIR  /COPY:DT > pushToNas.log 2>&1
 robocopy %\ib §:\dev\ib *.ib /MIR /NP /LEV:1 /FFT /MIR /COPY:DT > pushToNas.log 2>&1
 robocopy %\art.bin §:\dev\art.bin /MIR /NP /FFT /MIR /DCOPY:D /COPY:DT -XF *.log >> pushToNas.log 2>&1 ~],
-[#Big SD#2321689788,//!~
+[#Big SD#
+ 2321689788,//!~
 robocopy %\art.bin §:\dev\art.bin /MIR /NP /FFT /DCOPY:D /COPY:DT -XF *.log > pushToSd.log 2>&1
 robocopy %\data §:\dev\data /MIR /NP /FFT /DCOPY:D /COPY:DT -XF *.log >> pushToSd.log 2>&1
 robocopy % §:\dev7z *.mnh /MIR /NP /LEV:1 /FFT /COPY:DT >> pushToSd.log 2>&1
 robocopy %\ib §:\dev7z\ib *.ib /MIR /NP /LEV:1 /FFT /COPY:DT >> pushToSd.log 2>&1~],
-[#Samsung_T5#3404974937,//!~
+[#Samsung_T5#
+ 3404974937,//!~
 robocopy %\art.bin §:\dev\art.bin /MIR /NP /FFT /DCOPY:D /COPY:DT -XF *.log > pushToT5.log 2>&1
 robocopy %\data §:\dev\data /MIR /NP /FFT /DCOPY:D /COPY:DT -XF *.log >> pushToT5.log 2>&1
 robocopy % §:\dev7z *.7z /MIR /NP /LEV:1 /FFT /COPY:DT >> pushToT5.log 2>&1

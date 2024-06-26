@@ -2,115 +2,28 @@ USE backup_util;
 
 @SuppressUnusedParameterWarning
 matchAll(filename:String)->true;
-dropPascalCompilates(x)->!(x.matches('\.(exe|log|o|ppu|a)$|\.git'));
-DEV_CONFIG:=
-  ['root'          => '.',
-   'backupNameBase'=>'dev',
-   'basePattern'   =>'*.*',
-   'recurse'       =>false,
-   'matcher'       =>{!($x.matches('(\.(ib|log|7z))|(\.datastore0)|(smart7z\.datastore.)$'))}].toMap.toBackupConfig;
-MNH_CONFIG:=
-  ['root'          =>'mnh5',
-   'backupNameBase'=>'mnh5',
-   'basePattern'   =>'*.*',
-   'recurse'       =>true,
-   'matcher'       =>{!($x.matches('\.(exe|log|png)$|\.git|(demos\.datastore)|(testExpectation\.datastore1)|/consoles/lib|/ide/compilates|/backup/'))}].toMap.toBackupConfig;
-FINISHED_PROJECTS_CFG:=
-  ['root'=>'finished_projects',
-   'backupNameBase'=>'finished_projects',
-   'basePattern'   =>'*.*',
-   'recurse'       =>true,
-   'matcher'       =>(n)->!n.matches('(particles\.settings)|(sudoku3\.cfg)')].toMap.toBackupConfig;
-DIGITALTRAINER_CFG:=
-  ['root'=>'digitaltrainer',
-   'backupNameBase'=>'digitaltrainer',
-   'basePattern'   =>'*.*',
-   'recurse'       =>true,
-   'matcher'       =>{!($x.matches('\.(exe|log|o|ppu|a)$|\.git|lib/|backup/'))}].toMap.toBackupConfig;
-GIT_CONFIG:=
-  ['root'=>'git',
-   'backupNameBase'=>'git',
-   'basePattern'   =>'*.*',
-   'recurse'       =>true,
-   'matcher'       =>::matchAll].toMap.toBackupConfig;
-SCRIPTS_CONFIG:=
-  ['root'          =>'mnh_scripts',
-   'backupNameBase'=>'mnh_scripts',
-   'basePattern'   =>'*.*',
-   'recurse'       =>true,
-   'matcher'       =>{!($x.matches('(\.git)|(/oeis/.*datastore)|(/physics/doubleStar.*\.dat)'))}].toMap.toBackupConfig;
-ART_SRC_CONFIG:=
-  ['root'          =>'art.source',
-   'backupNameBase'=>'art_source',
-   'basePattern'   =>'*.*',
-   'recurse'       =>true,
-   'matcher'       =>::dropPascalCompilates].toMap.toBackupConfig;
-ART_BIN_CONFIG:=
-  ['root'          =>'art.bin',
-   'backupNameBase'=>'art_bin',
-   'basePattern'   =>'*.*',
-   'recurse'       =>true,
-   'matcher'       =>{!($x.matches('picInfo\.*datastore|\.fileHist'))}].toMap.toBackupConfig;
-//GRAV_PARTICLES_CONFIG:=
-//  ['root'          =>'grav_particles',
-//   'backupNameBase'=>'ib/grav_particles',
-//   'basePattern'   =>'*.*',
-//   'recurse'       =>true,
-//   'matcher'       =>{$x.matches('upx\.exe') OR !($x.matches('\.(exe|o|ppu|obj|txt)$|\.git|/backup/|/lib/|gravity_debug'))}].toMap;
-
-//RETROSPECTIVE_CONFIG:=
-//  ['root' => fail,
-//   'backupNameBase'=>'ib/retrospective',
-//   'basePattern'   =>'*.*',
-//   'recurse'       =>true,
-//   'matcher'       =>{!($x.matches('\.datastore'))}].toMap;
-//SUDOKU_CONFIG:=
-//  ['backupNameBase'=>'ib/sudoku',
-//   'basePattern'   =>'*.*',
-//   'recurse'       =>true,
-//   'matcher'       =>::dropPascalCompilates].toMap;
-//GRAVEYARD_CONFIG:=
-//  ['root'          =>'graveyard',
-//   'backupNameBase'=>'ib/graveyard',
-//   'basePattern'   =>'*.*',
-//   'recurse'       =>true,
-//   'matcher'       =>::matchAll].toMap;
-//WEB_CONFIG:=
-//  ['root'          =>'web',
-//   'backupNameBase'=>'ib/web',
-//   'basePattern'   =>'*.*',
-//   'recurse'       =>true,
-//   'matcher'       =>::dropPascalCompilates].toMap;
-TP_CONFIG:=
-  ['root'          =>'3rd_party',
-   'backupNameBase'=>'3rd_party',
-   'basePattern'   =>'*.*',
-   'recurse'       =>true,
-   'matcher'       =>::dropPascalCompilates].toMap.toBackupConfig;
-KEYLOGGER_CONFIG:=
-  ['root'          =>'keylogger',
-   'backupNameBase'=>'keylogger',
+dropPascalCompilates(x)->!(x.matches('\.(exe|log|o|ppu|a)$|\.git')) AND !(x.matches('/backup/'));
+GENERIC_CONFIG:=
+  ['root'          =>'.',
+   'backupNameBase'=>'generic',
    'basePattern'   =>'*.*',
    'recurse'       =>true,
    'matcher'       =>::dropPascalCompilates].toMap.toBackupConfig;
 
-ALL_CONFIGS:=[MNH_CONFIG,DEV_CONFIG,ART_SRC_CONFIG,ART_BIN_CONFIG,SCRIPTS_CONFIG,FINISHED_PROJECTS_CFG,DIGITALTRAINER_CFG,TP_CONFIG,GIT_CONFIG,KEYLOGGER_CONFIG];
+//*Backup configs - these are the configurations for backing up files, no sync
+ALL_CONFIGS:=[GENERIC_CONFIG];
 
-SYNC_CONFIGS:=[['drive_serial'=>3404974937,
+//*Sync config for (potentially removeable or remote) drives. This list may be empty.
+//Note: It is not intended that there are multiple backup folders on the same device.
+//      This would ot help much anyway in the case of a hardware failure.
+SYNC_CONFIGS:=[['drive_serial'=>3404974937,  //Find a matching serial using method "driveInfo"
                 'drive_description'=>'Samsung_T5',
-                'target_folder'=>'\backup\dev'].toMap,
-               ['drive_serial'=>858215956,
-                'drive_description'=>'Thumb drive',
-                'target_folder'=>'\dev'].toMap,
-               ['drive_serial'=>887393342,
-                'drive_description'=>'MicroSD',
-                'target_folder'=>''].toMap,
-               ['drive_serial'=>2320311319,
-                'drive_description'=>'shared folder',
-                'target_folder'=>'\dev'].toMap];
+                'target_folder'=>'\backup\dev'].toMap];
+//*FTP sync configs, if needed. This list may be empty.
 FTP_SYNC_CONFIGS:=[['host'=>'192.168.1.1',
                     'user'=>'user',
                     'pass'=>'pwd',
                     'path'=>'/volume'].toMap];
-
+//*Hook. You may implement something here that is called after sync.
 afterSync->void;
+

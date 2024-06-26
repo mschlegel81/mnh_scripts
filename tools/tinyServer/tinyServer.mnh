@@ -1,9 +1,12 @@
 #!C:\bin\mnh.exe -GUI -quiet -headless -logDateFmt hh:mm:ss.zzz -logLocationLength 30 +log D:\server\logs\tinyServer.log(1)
-private LOG_NAME:=                             'D:\server\logs\tinyServer.log';
-USE tinyServer_html,tinyServer_config,loggingRunner,serveTasks,cpuUsage;
-
-@SuppressUnusedWarning
-USE serveProcesses,serveFiles;
+USE tinyServer_html,
+    tinyServer_config,
+    loggingRunner,
+    serveTasks,
+    cpuUsage,
+    serveProcesses,
+    serveFiles;
+private LOG_NAME:=LOG_FOLDER&'tinyServer.log';
 
 private uptimeFormat:='{floor($0/3600)}:%{floor($0/60) mod 60}2.2d:%{floor($0) mod 60}2.2d';
 
@@ -17,6 +20,7 @@ private getStatusSection->tag(
     systime>doNotStartTasksBefore ? void :['','','<b style="color:red">Delayed until:</b>',
                                            '<b style="color:red">'&formatTime('hh:nn:ss',doNotStartTasksBefore)&'</b>']])
     &getCpuDiagram,'div');
+
 
 @SuppressUnusedParameterWarning
 startPage(parameters:Map)->htmlPage('Server Overview',getHeadLinks&getStatusSection&getTasksSection,true).wrapTextInHttp;
@@ -137,6 +141,7 @@ PAGE_MAP:=[
   '/delay24'     => genericSpecialTaskPage(SPECIAL_TASK_DELAY_EXECUTION_UNTIL_24),
   '/ping'        => ::ping,
   '/favicon.ico' => ::favicon,
+  '/cpuusage.png'=> ::cpuUsage_png,
   '/gc' =>
     {begin
        isMap($0);
@@ -200,6 +205,7 @@ ONE_HOUR:=1/24;
 
 main->begin
   assertUniqueInstance;
+  freeConsole;
   local sinceLastTaskStart:=0;
   startHttpServer(SERVE_AT_IP&':'&SERVE_AT_SOCKET,::serve,-1);
   loggingRunner.ensureServer;

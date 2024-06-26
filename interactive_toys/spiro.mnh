@@ -66,6 +66,7 @@ end;
 USE customFormUtil;
 
 begin
+  freeConsole;
   local radius_:=toString(radius);
   local trace_ :=toString(tracePoint);
   showDialog('Spiro',[

@@ -17,19 +17,20 @@ end;
 
 main->main('3/7');
 main(innerRadius)->begin
-setOptions([['x0',-1],['x1',1],
-            ['y0',-1],['y1',1],
-            ['autoscaleX',false],
-            ['autoscaleY',false],
-            ['axisStyleX',0],
-            ['axisStyleY',0]]);
-clearAnimation;
-local r0:=interpret(innerRadius);
-r0.isNumeric AND 0<r0<1 ? void : fail('Invalid radius: ',innerRadius);
-local f:=1-1/r0;
-local period:=begin
-  local p0:=tracepoint(r0,0);
-  ([1..100]*2*pi).each(t,[t,(tracepoint(r0,t)-p0).sqr.agg(+).sqrt*t]).sort(1).head.head;
+  freeConsole;
+  setOptions([['x0',-1],['x1',1],
+              ['y0',-1],['y1',1],
+              ['autoscaleX',false],
+              ['autoscaleY',false],
+              ['axisStyleX',0],
+              ['axisStyleY',0]]);
+  clearAnimation;
+  local r0:=interpret(innerRadius);
+  r0.isNumeric AND 0<r0<1 ? void : fail('Invalid radius: ',innerRadius);
+  local f:=1-1/r0;
+  local period:=begin
+    local p0:=tracepoint(r0,0);
+    ([1..100]*2*pi).each(t,[t,(tracepoint(r0,t)-p0).sqr.agg(+).sqrt*t]).sort(1).head.head;
 end;
 
 getTrace(r0,period).plot;

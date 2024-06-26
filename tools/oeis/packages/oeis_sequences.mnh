@@ -421,3 +421,6 @@ guessImplementation(sequence:IntList)->
   findFibonacciParam(sequence);
 
 main->implemented.map({print($x[0],"\n  ",$x[1])});
+
+
+

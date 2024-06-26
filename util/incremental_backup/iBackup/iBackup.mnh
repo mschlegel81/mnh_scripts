@@ -23,7 +23,11 @@ createSyntheticConfig(s)->begin
   beep;
   ask('Do you want to create a synthetic config?',['Yes','No'])=='No'
   ? halt
-  : s.map(::makeConfig);
+  : [['root'          =>'tmp_'&s.head,
+      'backupNameBase'=>s.head,
+      'basePattern'   =>'*.*',
+      'recurse'       =>true,
+      'matcher'       =>(x)->true].toMap.toBackupConfig];
 end;
 
 filteredConfigsForBackup()->CONFIGS_INCLUDING_SELF;
@@ -48,15 +52,21 @@ ensure_working_dir:=begin
   myPath.extractFileDirectory.changeDirectory;
 end;
 
+//*Backup and sync...
+main->begin
+  main('backup');
+  main('sync');
+end;
+
 fileIsRelevantForSync    (filename)->filename.extractFileExt=='.mnh' OR filename.extractFileExt in [DATA_EXTENSION,INDEX_EXTENSION] AND filename.hasPrefix(CONFIGS_INCLUDING_SELF.getInner('backupNameBase')).agg(OR);
 fileIsRelevantForFullSync(filename)->filename.extractFileExt in [DATA_EXTENSION,INDEX_EXTENSION,'.mnh'];
 
-syncPush(isRelevant:Expression(1),allowDelete:Boolean)->begin
+syncPush(isRelevant:Expression(1))->begin
   local mounted:=driveInfo;
   copyFile(myPath,BACKUP_ROOT_DIR&'/'&myPath.extractFileName);
   local ftpSyncFuture:=future({
     FTP_SYNC_CONFIGS.each(cfg,begin
-    syncToFTP(BACKUP_ROOT_DIR,cfg['host'],cfg['user'],cfg['pass'],cfg['path']&'/'&BACKUP_ROOT_NAME,allowDelete,isRelevant);
+    syncToFTP(BACKUP_ROOT_DIR,cfg['host'],cfg['user'],cfg['pass'],cfg['path']&'/'&BACKUP_ROOT_NAME,false,isRelevant);
     true;
   end)});
   SYNC_CONFIGS.pEach(cfg,begin
@@ -66,7 +76,7 @@ syncPush(isRelevant:Expression(1),allowDelete:Boolean)->begin
     targetFolder:=mounted.map((info)->info[1,'serial']==serial ? info[0]&':'&targetFolder&'\' : void).agg(orElse);
     BACKUP_ROOT_DIR == targetFolder ? void :
     targetFolder.isVoid ? printWithTime(description,' is not mounted') : begin
-      syncFlat(BACKUP_ROOT_DIR,targetFolder&BACKUP_ROOT_NAME,allowDelete,isRelevant);
+      syncFlat(BACKUP_ROOT_DIR,targetFolder&BACKUP_ROOT_NAME,false,isRelevant);
     end;
   end);
   ftpSyncFuture();
@@ -90,22 +100,26 @@ syncPull(isRelevant:Expression(1))->begin
   end);
 end;
 
-//*Backup and sync...
-main->begin
-  main('backup');
-  main('sync');
-end;
+//*Sync (i.e. copy from local backup folder to all remote backup folders)
+main('sync')->syncPush(::fileIsRelevantForSync);
+
+//*Reverse sync
+main('sync','r')->syncPull(::fileIsRelevantForSync);
+
+//*Backup files; give an additional matcher to select one backup set
+main('delta',...)->map(filteredConfigsForBackup@...,::listDelta);
 
 //*Backup files; give an additional matcher to select one backup set
 main('backup',...)->map(filteredConfigsForBackup@...,::createBackup);
 
-//TODO: Implement restoring of a specific revision ?
 //*Restore files; give an additional matcher to select one backup set
 main('restore',...)->map(filteredConfigsForRestore@...,(config)->restoreBackup(config,true));
 
 //*Restore files without deleting missing files and without overwriting newer files
-//*
 main('merge',...)-> map(filteredConfigsForRestore@...,(config)->restoreBackup(config,false));
+
+//*List currently backed up files (it is best to redirect the output into a text file)
+main('list',...)->map(filteredConfigsForBackup@...,::listAll);
 
 //*Show diff between file in backup and current state
 main('diff',filename)->begin
@@ -125,69 +139,17 @@ main('revert',filename)->begin
   diffListing.isVoid ? printWithTime('File could not be found in backups') : printf('%s',diffListing);
 end;
 
-//*Revert to a selected backup
-main('revert','*',revision)->begin
-  local baseName:=extractBackupPrefix(revision);
-  local config:=CONFIGS_INCLUDING_SELF.filter((c)->c['backupNameBase']==baseName);
-  config.size==0
-  ? config:=filteredConfigsForRestore([baseName]).filter((c)->c['backupNameBase']==baseName)
-  : void;
-  assert(config.size==1,'No unique config could be found for revision ',revision);
-  fullRevert(config[0],revision);
-end;
-
 //*Revert single file to a selected backup
-//
 main('revert',filename,revision)->begin
   local diffListing:=CONFIGS_INCLUDING_SELF.each(config,fileRevert(config,expandedFileName(filename), false, revision),orElse);
   diffListing.isVoid ? printWithTime('File could not be found in backups') : printf('%s',diffListing);
 end;
 
-//*Show a backup status; give an additional matcher to select one backup set
-main('status',...)->
-  size(...)==0 ? printBackupSummary(CONFIGS_INCLUDING_SELF       ,false,false)
-               : printBackupSummary(filteredConfigsForRestore@...,true ,false);
-
-//*Show summary of changed files; give an additional matcher to select one backup set
-main('delta',...)->printBackupSummary(filteredConfigsForRestore@...,true,true);
-
-//*List currently backed up files (it is best to redirect the output into a text file)
-main('list',...)->map(filteredConfigsForBackup@...,::listAll);
-
-//*List stored revisions
-main('revision')->printf('%s',listRevisions);
-
-//*List revision contents
-//*
-main('revision',nameOrPart)->listRevisionContents(nameOrPart);
-
-//*Sync (i.e. copy from local backup folder to all remote backup folders)
-main('sync')->syncPush(::fileIsRelevantForSync,false);
-
-//*Reverse sync
-main('sync','r')->syncPull(::fileIsRelevantForSync);
-
 //*Pull all remote repositories and push all to distribute copies
-//*
 main('distribute')->begin
-  local checked:=deleteBrokenFiles([]);
   syncPull(::fileIsRelevantForFullSync);
-  deleteBrokenFiles(checked);
-  syncPush(::fileIsRelevantForFullSync,true);
-end;
-
-//*Delete backups which cannot be read
-main('repair')->deleteBrokenFiles([]);
-
-//*Delete backups before last full backup locally
-main('purge')->deleteOldBackups;
-
-//*Delete backups before last full backup locally and remotely
-main('purge','remote')->begin
-  syncPull(::fileIsRelevantForSync);
-  printWithTime('Analyzing backups: delete broken and/or old ones');
-  deleteOldBackups;
-  syncPush(::fileIsRelevantForSync,true);
+  deleteBrokenFiles;
+  syncPush(::fileIsRelevantForFullSync);
 end;
 
 //*If all goes wrong, call this one...
@@ -196,3 +158,9 @@ main('emergency_restore')->begin
   deleteBrokenFiles;
   emergencyRestore(CONFIGS_INCLUDING_SELF_EXCLUDING_CONFIG);
 end;
+
+//*Show a summary of backup sizes
+main('status')->printBackupSummary(CONFIGS_INCLUDING_SELF.getInner('backupNameBase'));
+
+//*Delete backups which cannot be read
+main('repair')->deleteBrokenFiles;

@@ -203,15 +203,15 @@ synchronized calculateSystemHeadless(  geometryName in (GEOMETRIES.getInner(0)),
       storeInitial(sys[0],sys[1]);
       prettyStatus(-1,-1,-1);
     end;
-  local timeout:=time+60;
-  while(stillMoving AND time<timeout,
+  local timeout:=scriptTime+60;
+  while(stillMoving AND scriptTime<timeout,
     begin
       sys:=evolve@sys;
       storeStep(sys[1]);
     end);
   storeReplay(sys[2],name);
   stillMoving
-  ? print('Calulation aborted after ',round(time+60-timeout,2),' seconds')
+  ? print('Calulation aborted after ',round(scriptTime+60-timeout,2),' seconds')
   : print('Done calculating');
   true;
 end;
@@ -314,24 +314,25 @@ end;
 //*Time limit is 1 minute per scenario, 30 minutes globally
 main('defaults')->begin
   assert(HAS_WRITE_ACCESS);
-  local scriptTimeout:=time+1800; //=30 minutes
-  local lastSave:=time;
-  while(time<scriptTimeout,begin
+  local scriptTimeout:=scriptTime+1800; //=30 minutes
+  local lastSave:=scriptTime;
+  while(scriptTime<scriptTimeout,begin
     local anyMoving:=
       GEOMETRIES.getInner(0).each(geometry,
       INITIAL_BALL_POSITIONS.getInner(0).each(initial,
-        time<scriptTimeout
+        scriptTime<scriptTimeout
         ? calculateSystemHeadless(geometry,initial,20)
         : void,
-        time-lastSave>600 //=10 minutes
+        scriptTime-lastSave>600 //=10 minutes
         ? begin
             async(::writeAllDataStores);
-            lastSave:=time;
+            lastSave:=scriptTime;
+            void;
           end
         : void,or),or);
     anyMoving
     ? void
-    : scriptTimeout:=time;
+    : scriptTimeout:=scriptTime;
   end);
 end;
 

@@ -1,0 +1,57 @@
+datastore TOTAL_FREQUENCY:=void;
+
+outOfOrderMap(input,mapping:Expression(1))->{begin
+  local pending:=input.each(item,future(mapping,[item]));
+save;
+  pending.size==0
+  ? generatorClosed
+  : begin
+      local k:=void;
+      while(k.isVoid,begin
+        k:=pending.each(F,F.peekFuture ? index : void,orElse);
+        k.isVoid ? sleep(1) : void;
+      end);
+      local output:=pending[k]();
+      pending:=pending.each(F,index==k ? void : F);
+      output;
+    end;
+end}.toGenerator;
+
+begin
+  TOTAL_FREQUENCY:=TOTAL_FREQUENCY orElse
+  allFiles('C:\dev\fft_grav_backup\','*.anim')
+  .sort((n)->n.extractFileNameOnly.copy(4))
+  .outOfOrderMap((filename)->begin
+      log('Reading ',filename);
+      local res:=filename.extractFileNameOnly.clean(['0'..'9'],'').softCast;
+      assert(res in [32,64,128,256]);
+      local chunkSize:=res*res*2;
+      local I1:=(local I0:=[0..res*res-1]*2)+1;
+      local output:=
+      byteStreamIterator(filename,chunkSize+8)
+        .map((line)->begin
+           local n:=line.head(chunkSize);
+           n:=n[I0]+n[I1]*256;
+           n-=65536*ord((n and 32768)>0);
+           vectorIfThenElse(n<0,n+1024,n);
+         end)
+        .flatMap
+        .elementFrequency;
+      log('   Done ',filename);
+      output;
+    end)
+  .agg((F1,F2)->begin
+      local result:=mergeMaps(F1,F2,::+);
+      result.sort.plot;
+      display;
+      result.sort((x)->abs(x[0])).map((i,count)->f"table[\v{i}\v]:=initNode(\v{count}\t,\v{i}\t,leaf);").join("\n").print;
+      note('Status ',typeOf(result),' min:',result.getInner(1).min,' total:',result.getInner(1).agg(+),' of int64:',result.getInner(1).agg(+)/(2^63-1));
+      result;
+   end);
+  void;
+end;
+
+//TOTAL_FREQUENCY.sort.plot;
+//TOTAL_FREQUENCY.sort(0).map((index,count)->f"table[\v{index+1023}\v]:=initNode(\v{count}\t,\v{index}\t,leaf);").join("\n").print;
+
+

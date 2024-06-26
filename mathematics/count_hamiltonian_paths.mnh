@@ -1,0 +1,139 @@
+_T_->f"\e[90m{formatTime('hh:nn:ss',systime)}\e[0m ";
+
+findPathsStartingFrom(Adjacency:List,last:Int,[])->[last];
+findPathsStartingFrom(Adjacency:List,last:Int,toBeVisited:IntList)->begin
+  toBeVisited.isSubsetOf(Adjacency.flatten)
+  ? Adjacency[last].each(next,
+      findPathsStartingFrom(Adjacency.each(a,index=last ? [] : a[a<>next]),
+                            next,
+                            toBeVisited[toBeVisited!=next]),|)
+  : [];
+end;
+
+findPaths_2(gridWidth,gridHeight)->begin
+  print(_T_,'Next: ',gridWidth,'x',gridHeight);
+  local adjacency:=cross([0..gridWidth-1],[0..gridHeight-1])
+    .map((x,y)->[x<gridWidth-1  ? (x+y*gridWidth)=>(x+1+y  *gridWidth) : void,
+                 x>0            ? (x+y*gridWidth)=>(x-1+y  *gridWidth) : void,
+                 y<gridHeight-1 ? (x+y*gridWidth)=>(x+(y+1)*gridWidth) : void,
+                 y>0            ? (x+y*gridWidth)=>(x+(y-1)*gridWidth) : void])
+    .agg(|);
+  adjacency:=groupToList(adjacency.getInner(0),adjacency.getInner(1),[],::|).map(::sort);
+
+  local symmetries:=[cross([0..gridHeight-1],[0..gridWidth-1])]
+  .each(s,s,s.map((c)->[gridHeight-1-c[0],c[1]]))
+  .each(s,s,s.map((c)->[c[0],gridWidth-1-c[1]]));
+  gridWidth==gridHeight
+  ? symmetries:=symmetries.each(s,s,s.map((c)->c.reverseList))
+  : void;
+  symmetries:=symmetries.map((s)->s.getInner(0)*gridWidth+s.getInner(1)).unique;
+
+
+  begin
+    local rest:=[0..gridWidth*gridHeight-1];
+    local out:=[];
+    rest.each(i,i in rest
+                ? begin
+                    out|=i;
+                    rest:=rest.minus(symmetries.getInner(i));
+                  end
+                : void);
+    out;
+  end
+  .pMap((i0)->begin
+    print(_T_,'Starting search from ',i0.divMod(gridWidth).reverseList);
+    local count:=findPathsStartingFrom(adjacency.map((a)->a[a<>i0]),
+                                       i0,
+                                       [0..gridWidth*gridHeight-1].filter((n)->n<>i0))
+    .elementFrequency.toList;
+    count:=groupToList(count.getInner(1),count.getInner(0),0,::+,gridWidth*gridHeight);
+    print(_T_,'Found ',count.agg(+),' paths from ',i0.divMod(gridWidth).reverseList);
+    i0==0
+    ? print(_T_,'Graph has ',count[1]+count[gridWidth],' hamiltonian cycles') : void;
+    symmetries.each(sym,sym[i0]=>count[sym.sortPerm]);
+   end)
+  .flatMap
+  .toList
+  .unique
+  .getInner(1);
+end;
+
+TBD:=cross([2..19],[2..19]).filter((i,j)->i<=j).sort((x)->x.agg(*));
+
+datastore known:=[].toMap;
+
+zeroToBlank(0)->'';
+zeroToBlank(i)->i;
+
+printTable->begin
+  local S:="\t│\t"&join([2..19],"\t")&"\n"&
+  [2..19].each(i,f"{i}\t│\t"& [2..19].each(j,
+    begin
+      local dat:=known[[i,j]] orElse known[[j,i]];
+      dat.isVoid
+      ? "?"
+      : zeroToBlank(dat.agg(+).agg(+));
+    end).join("\t")).join("\n");
+  S:=S.formatTabs;
+  S:=' '|'Hamiltonian Paths (all)'|S.head|S.head.replace("│",'┼').replace(['0'..'9',' '],'─')|S.tail;
+  printf('%s',S);
+end;
+
+printTableCycles->begin
+  local S:="\t│\t"&join([2..19],"\t")&"\n"&
+  [2..19].each(i,f"{i}\t│\t"& [2..19].each(j,
+    begin
+                   local dat:=known[[i,j]]; local width:=i;
+      dat.isVoid ? begin dat:=known[[j,i]];       width:=j; end : void;
+      dat.isVoid
+      ? "?"
+      : zeroToBlank(dat[0,1]+dat[0,width]);
+    end).join("\t")).join("\n");
+  S:=S.formatTabs;
+  S:=' '|'Hamiltonian cycles'|S.head|S.head.replace("│",'┼').replace(['0'..'9',' '],'─')|S.tail;
+  printf('%s',S);
+end;
+
+printTableCorner->begin
+  local S:="\t│\t"&join([2..19],"\t")&"\n"&
+  [2..19].each(i,f"{i}\t│\t"& [2..19].each(j,
+    begin
+                   local dat:=known[[i,j]]; local width:=i;
+      dat.isVoid ? begin dat:=known[[j,i]];       width:=j; end : void;
+      dat.isVoid
+      ? "?"
+      : zeroToBlank(dat[0].trailing);
+    end).join("\t")).join("\n");
+  S:=S.formatTabs;
+  S:=' '|'Hamiltonian paths (corner to corner)'|S.head|S.head.replace("│",'┼').replace(['0'..'9',' '],'─')|S.tail;
+  printf('%s',S);
+end;
+
+printTables->printTable orElse printTableCycles orElse printTableCorner;
+
+main->begin
+  printTables;
+  TBD.map((i,j)->
+    known[[i,j]].isVoid
+    ? begin
+        known[[i,j]]:=findPaths_2(i,j);
+        printTables;
+        writeDataStores;
+        callMemoryCleaner;
+      end
+    : void);
+end;
+
+
+
+//      2    3     4     5     6     7     8    9
+//---+--------------------------------------------
+// 2 |  8   16    28    44    64    88   116  148      (4+3*n+n²)*2
+// 3 | 16   40   124   264   672  1376  3156 6380
+// 4 | 28  124   552  2012  7220 24020 77968
+// 5 | 44  264  2012  8648 53992
+// 6 | 64  672  7220 53992
+// 7 | 88 1376 24020
+// 8 |116 3156 77968
+// 9 |148 6380
+

@@ -1,0 +1,46 @@
+Kanjis:="「」いうえおかきけこしすずそたってでとどなにのひびふへべほまみめよらりるわをんァアィイウェエォオガキクグコサザシジスセソタチッツテデトドネパヒビフブプベボマムメモャュユョラリルレロワン丸久二亮仕他付会作併使信健内准切剛功協可団報始寛展山式張徴情成拡".chars;
+randomKanji ->Kanjis[intRandom(Kanjis.size)];
+console_size:=exec('cmd',['/C','mode','con'])[0].filter((L)->L.matches(': *\d+$'))[[1,0]].split(':').getInner(1).trim.softCast;
+main->begin
+  local sleepTime:=0.05;
+  local continue:=true;
+  localAsync({
+    while(continue,begin
+      local answer:=ask('',['q','+','-'],false);
+      answer=='+' ? sleepTime:=max(0,sleepTime-0.01) :
+      answer=='-' ? sleepTime+=0.01 : continue:=false;
+    end)});
+  local CP:=intRandom(console_size[1],console_size[0] div 2);
+  local TXT:=[0..CP.size-1].map(()->[0..7].map(()->randomKanji));
+  local speed:=intRandom(4,console_size[0] div 2);
+  while((CP-10<console_size[1]).agg(or),begin
+    [speed.each(s,s>=0 ? index : void),
+     speed.each(s,s>=2 ? index : void),
+     speed.each(s,s>=1 ? index : void),
+     speed.each(s,s>=3 ? index : void)].each(frame_update,
+     frame_update.each(i,begin
+       local x:=i*2+1;
+       local j:=(CP[i]+=1);
+       TXT[i]:=(local txts:=randomKanji|TXT[i].leading);
+       j>console_size[1]+10 AND continue
+       ? begin
+           CP[i]:=0;
+           speed[i]:=intRandom(4);
+           end
+       : void;
+       [[37,j  ,txts[0]], //color 37 (white)       , line j  , char=txts[0]
+        [92,j-1,txts[1]], //color 92 (bright green), line j-1, char=txts[1]
+        [32,j-3,txts[3]], //color 32 (green)       , line j-3, char=txts[3]
+        [ 0,j-7,' '    ]] //color 0  (reset)       , line j-7, char=' '
+       .map((color,y,txt)->console_size[1]>y>=1
+                           ? [#27'[',y,';',x,'H', //Move cursor
+                              #27'[',color,'m',   //Set color
+                              txt]
+                           : void)
+       .agg(|);
+     end,|).join.printDirect,sleep(sleepTime));
+  end);
+  print(#27'[0m'); //reset color
+  clearPrint;
+end;
+

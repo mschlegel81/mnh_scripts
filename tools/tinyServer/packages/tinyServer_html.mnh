@@ -27,6 +27,7 @@ code {
 }
 table {
   border-collapse: collapse;
+  line-height:100%;
 }
 th, td {
   padding: 3px;
@@ -48,7 +49,10 @@ h2 {
 <body>~&body&'</body>';
 
 tag(content,t)->format('<%s>%s</%s>',t,content,t);
-htmlTable(L:List)->'<table>'&join('<tr class = "hoverCol">'&L.map({join('<td>'&$row&'</td>')})&'</tr>')&'</table>';
+htmlTable(L:List)->'<table>'&join('<tr class = "hoverCol">'&L.map((row)->row.each(cell,'<td>',cell,'</td>').join)&'</tr>')&'</table>';
+
+htmlTable([['H0','H1'],['B0','B1']]);
+
 htmlOuterTable(L:List)->'<table>'&join('<tr>'&L.map({join('<td>'&$row&'</td>')})&'</tr>')&'</table>';
 htmlLink(linkText:String,linkTarget:String)->'<a href="'&linkTarget&'">'&linkText&'</a>';
 redirectTo(path)->wrapTextInHttp('<html><head><meta http-equiv="Refresh" content="0; url='&path&'"/></head><body></body></html>');

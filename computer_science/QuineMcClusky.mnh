@@ -7,13 +7,13 @@ type BooleanExpression(e:Expression)->e.arity=0 AND e().isBoolean OR isBoolean(e
 type CDNF(L:List(2))->L[0].isInt AND L[0]>=0 AND L[1].isIntList AND L[1].size<=2^L[0] AND L[1].each(i,0<=i<=L[0],AND);
 
 booleanInputIteratorForArity(forArity)->{begin
-  local i:=-1;
-  local iStop:=2^forArity;
+  i:=-1;
+  iStop:=2^forArity;
 save;
   (i+=1) = iStop
   ? void
   : head(i.digits(2).reverseList|[1..forArity].map({0}),forArity)>0;
-end}.toIteratableExpression;
+end}.toGenerator;
 
 toVariadicExpression(e:Expression)->e and {$params.isList};
 
@@ -22,7 +22,7 @@ cdnfForGivenArity(b:Expression,givenArity:Int)->
   givenArity==b.arity
   ? b.toCDNF
   : begin
-      local safeB:=b.toVariadicExpression;
+      safeB:=b.toVariadicExpression;
       [2^givenArity-1,givenArity.booleanInputIteratorForArity.each(p,safeB@p ? index : void)].toCDNF;
     end;
 
@@ -45,7 +45,7 @@ toCDNF(e:Expression)->e.toBooleanExpression.toCDNF;
 @Override
 //*Cast a CDNF to a Boolean expression
 toBooleanExpression(cdnf:CDNF)->begin
-  local parameterIndexes:=2^indexOf(reverseList(cdnf[0].digits(2)=1));
+  parameterIndexes:=2^indexOf(reverseList(cdnf[0].digits(2)=1));
   cdnf[1].each(term,
     ((term and parameterIndexes)=parameterIndexes).each(positive,
       (positive ? '' : '!') & '$'&index).join(' AND ')).join(" OR ").toExpression;
@@ -53,24 +53,24 @@ end;
 
 @SuppressUnusedWarning
 implicantToString(e:Expression)->begin
-  local names:=e.parameterNames.each(n,['$'&index,n]).reverseList;
+  names:=e.parameterNames.each(n,['$'&index,n]).reverseList;
   toExpression(['implicantToString($input).replace(',names.getInner(0),',',names.getInner(1),')']);
 end;
 
 implicantToString(i:IntList(2))->i[1].digits(2).reverseList.each(d,d=0 ? void : ((2^index and i[0])=0 ? '!' : '')&'$'&index).join(" AND ");
 
 private getPrincipalImplicants(cdnf:CDNF)->begin
-  local allParametersMask:=cdnf[0];
-  local terms:=cdnf[1].map({[$x,allParametersMask]});
-  local termsByHammingWeight:=terms.group(terms.map({hammingWeight($x.agg(and))}));
-  local primeImplicants:=[].toSet;
-  local merged:=termsByHammingWeight.size>0;
-  while(merged,begin
+  allParametersMask:=cdnf[0];
+  terms:=cdnf[1].map({[$x,allParametersMask]});
+  termsByHammingWeight:=terms.group(terms.map({hammingWeight($x.agg(and))}));
+  primeImplicants:=[].toSet;
+  merged:=termsByHammingWeight.size>0;
+  while merged do begin
     merged:=false;
-    local mergedTerms:=[];
-    local newTerms:=[termsByHammingWeight.getInner(0).min .. termsByHammingWeight.getInner(0).max-1].each(weight,begin
+    mergedTerms:=[];
+    newTerms:=[termsByHammingWeight.getInner(0).min .. termsByHammingWeight.getInner(0).max-1].each(weight,begin
       //find all pairs of terms of adjacent classes
-      local toBeMerged:=
+      toBeMerged:=
       cross(termsByHammingWeight[weight  ] orElse [],
             termsByHammingWeight[weight+1] orElse [])
       .filter({$x[0,1]=$x[1,1] AND                      //equal don't-care-masks
@@ -79,28 +79,28 @@ private getPrincipalImplicants(cdnf:CDNF)->begin
       toBeMerged
       .map({begin
          merged:=true;
-         local dropTerm:=$x[0,0] xor $x[1,0];
+         dropTerm:=$x[0,0] xor $x[1,0];
          [($x[0,0] and $x[1,0]),$x[0,1] xor dropTerm];
        end});
     end,|).unique;
     primeImplicants|=terms.minus(mergedTerms);
     terms:=newTerms;
     termsByHammingWeight:=terms.group(terms.map({hammingWeight($x.agg(and))}));
-  end);
+  end;
   primeImplicants.sort;
 end;
 
 quineMcCluskySimplify(cdnf:CDNF)->begin
   //Step 1: get principal implicants by merging terms which differ by exactly one negation
-  local primeImplicants:=getPrincipalImplicants(cdnf);
-  local terms:=cdnf[1];
-  local implicantsByMaxterm:=terms.each(t,[t,primeImplicants.each(p,(t and p[1] xor p[0])=0 ? index : void)]);
-  local anyCrossed:=true;
-  while(anyCrossed,begin
+  primeImplicants:=getPrincipalImplicants(cdnf);
+  terms:=cdnf[1];
+  implicantsByMaxterm:=terms.each(t,[t,primeImplicants.each(p,(t and p[1] xor p[0])=0 ? index : void)]);
+  anyCrossed:=true;
+  while anyCrossed do begin
     anyCrossed:=false;
     //TODO: Refactor this loop to do it faster than in O(n²)
     //Spaltendominanzprüfung
-    local maxtermsByImplicant:=
+    maxtermsByImplicant:=
     implicantsByMaxterm.each(a,begin
       implicantsByMaxterm.each(b,
         b[0]!=a[0] AND b[1].isSubsetOf(a[1]) AND (!(b[1]==a[1]) OR (b[0]<a[0])),
@@ -117,7 +117,7 @@ quineMcCluskySimplify(cdnf:CDNF)->begin
       ? begin anyCrossed:=true; void; end
       : a[1].each(m,[a[0],m]);
     end,|).{$x.getInner(0).group($x.getInner(1))};
-  end);
+  end;
   primeImplicants[implicantsByMaxterm.getInner(1).flatten.unique];
 
 end;
@@ -133,7 +133,7 @@ quineMcCluskySimplifyToString(cdnf:CDNF)->
   quineMcCluskySimplify(cdnf).implicantListToString;
 
 private replaceNamesInString(s:String,b:BooleanExpression)->begin
-  local names:=b.parameterNames.each(n,n=='' ? void : ['$'&index,n]).reverseList.transpose;
+  names:=b.parameterNames.each(n,n=='' ? void : ['$'&index,n]).reverseList.transpose;
   names==[]
   ? s
   : s.replace(names[0],names[1]);
@@ -146,12 +146,12 @@ quineMcCluskySimplifyToString(b:Expression)->
   b.toBooleanExpression.quineMcCluskySimplifyToString;
 
 factorizeCdnf(cdnf:CDNF)->hammingWeight(cdnf[0])<=2 ? [cdnf] : begin
-  local fullMask:=cdnf[0];
-  local bestPartition:=
+  fullMask:=cdnf[0];
+  bestPartition:=
   ([1..(cdnf[0] div 2)] and cdnf[0]).unique.pEach(p,begin
-    local q:=(p xor fullMask) ;
-    cross(local part1:=(cdnf[1] and p).unique,
-          local part2:=(cdnf[1] and q).unique).map({$x.agg(+)}).sort==cdnf[1]
+    q:=(p xor fullMask) ;
+    cross(part1:=(cdnf[1] and p).unique,
+          part2:=(cdnf[1] and q).unique).map({$x.agg(+)}).sort==cdnf[1]
     AND part1.size>=1 AND !(part1==[0,p]) AND !(part1==[0]) //each part must contain at least one maxterm and not evaluate to true or false
     AND part2.size>=1 AND !(part2==[0,q]) AND !(part2==[0])
     ? [min(p.hammingWeight,q.hammingWeight),[p,part1],[q,part2]]
@@ -164,12 +164,12 @@ factorizeCdnf(cdnf:CDNF)->hammingWeight(cdnf[0])<=2 ? [cdnf] : begin
 end;
 
 extendedSimplify(cdnf:CDNF)->begin
-  local parts:=cdnf.factorizeCdnf
+  parts:=cdnf.factorizeCdnf
   .map({begin
-    local subexpression:=$partialCdnf.quineMcCluskySimplify;
-    subexpression.size=2 AND hammingWeight(local relevanceMask:=subexpression[0,1])=2
+    subexpression:=$partialCdnf.quineMcCluskySimplify;
+    subexpression.size=2 AND hammingWeight(relevanceMask:=subexpression[0,1])=2
     ? begin
-        local xorTerm := indexOf(digits(relevanceMask,2).reverseList=1).map({[2^$k,relevanceMask]});
+        xorTerm := indexOf(digits(relevanceMask,2).reverseList=1).map({[2^$k,relevanceMask]});
         subexpression.sort==xorTerm.sort
         ? return [false,join('$'&indexOf(digits(relevanceMask,2).reverseList=1),' xor ')]
         : void;
@@ -180,7 +180,7 @@ extendedSimplify(cdnf:CDNF)->begin
     : [subexpression.size=1,subexpression.implicantListToString];
   end})
   .filter({!($x==[true,'true'])});
-  local resultText:=
+  resultText:=
   parts.size=0
   ? 'true'
   : parts.size=1
@@ -194,36 +194,36 @@ extendedSimplify(e:BooleanExpression)->e.toCDNF.extendedSimplify.replaceNamesInS
 extendedSimplify(e:Expression)->e.toBooleanExpression.extendedSimplify;
 
 main('all',Arity)->begin
-  local a:=Arity.toInt;
+  a:=Arity.toInt;
   assert(a>0);
-  local relevanceMask:=2^a-1;
+  relevanceMask:=2^a-1;
   print('Considering ',2^2^a,' expressions in ',a,' variables');
-  local all:=
+  all:=
   [0..2^a-1].subSets
   .pMap({begin
-    local result:=[relevanceMask,$x.sort].toCDNF.quineMcCluskySimplifyToString.toString;
-    local ext:=   [relevanceMask,$x.sort].toCDNF.extendedSimplify;
+    result:=[relevanceMask,$x.sort].toCDNF.quineMcCluskySimplifyToString.toString;
+    ext:=   [relevanceMask,$x.sort].toCDNF.extendedSimplify;
     a=2 OR ext.length<result.length
     ? print('Quine-McClusky: ',result,"\n",
             'Extended      : ',ext)
     : void;
     result;
    end});
-  local byAtoms:=all.group(all.map({trueCount($x.chars='$')}));
+  byAtoms:=all.group(all.map({trueCount($x.chars='$')}));
   byAtoms.sort(0).map({printf('There are %s expressions in %s atoms',$x[1].size,$x[0])});
 
   print('The longest expressions are: ');
   printf('  %s',byAtoms[byAtoms.getInner(0).max]);
 
-  local atomAndPrimeTermCount:=byAtoms.each(entry,
+  atomAndPrimeTermCount:=byAtoms.each(entry,
   entry[1].each(s,[entry[0],begin
-    local ors:=trueCount(s.tokenSplit='OR');
+    ors:=trueCount(s.tokenSplit='OR');
     ors=0
     ? entry[0]=0 ? 0 : 1
     : ors+1;
     end]),|).elementFrequency;
-  local primeTerms:=atomAndPrimeTermCount.getInner(0).getInner(1).sort;
-  local atoms     :=atomAndPrimeTermCount.getInner(0).getInner(0).sort;
+  primeTerms:=atomAndPrimeTermCount.getInner(0).getInner(1).sort;
+  atoms     :=atomAndPrimeTermCount.getInner(0).getInner(0).sort;
 
   print(
   ("prime\tterms:"|primeTerms).join("\t")&"\n"&

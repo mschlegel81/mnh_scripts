@@ -1,8 +1,6 @@
 USE processUtil,tinyServer_config;
 private IPC_ID:=myPath.extractFileNameOnly;
 private HEARTBEAT_INTERVAL:=1;
-private boxPrint->print('+'&repeat('-',92)&' - - -');
-private boxPrint(s:String)->printf('| %s',s);
 private niceInterval(timeInDays<0.00069444444444444447)->format('%0.3f',timeInDays*86400);
 private niceInterval(timeInDays)->formatTime('hh:nn:ss.zzz',timeInDays);
 private DATE_TIME_FORMAT:='yyyy-mm-dd hh:nn:ss.zzz';
@@ -60,39 +58,41 @@ begin
   taskHistory
   .getInner(0)
   .each(taskIndex,begin
-     local pathToLog:=getLogName(taskIndex);
-     local current:=taskHistory[taskIndex];
-     local isSpecialTask:=current[SCRIPT] in SPECIAL_TASKS.getInner(0);
-     local running:=scriptTime<=current[HEARTBEATTIMEOUT];
+     pathToLog:=getLogName(taskIndex);
+     current:=taskHistory[taskIndex];
+     isSpecialTask:=current[SCRIPT] in SPECIAL_TASKS.getInner(0);
+     running:=scriptTime<=current[HEARTBEATTIMEOUT];
      local fileStats:=fileInfo(pathToLog).getAll(['time','size']);
-     (fileStats==current[FILESTATS]) AND running==current[RUNNING]
+     fileStats==current[FILESTATS] AND running==current[RUNNING]
      ? void
      : begin
-         local lastLines:=fileExists(pathToLog) ? fileLineIterator(pathToLog).trailing(5) : [];
-         local finishTime:=parseTime(DATE_TIME_FORMAT, lastLines.filter({$line.matches('^\| Run finished at '&DATE_TIME_FORMAT_PATTERN)}).copy(18,DATE_TIME_FORMAT.length))[0];
+         lastLines:=fileExists(pathToLog) ? fileLineIterator(pathToLog).trailing(5) : [];
+         finishTime:=parseTime(DATE_TIME_FORMAT, lastLines.filter({$line.matches('^\| Run finished at '&DATE_TIME_FORMAT_PATTERN)}).copy(18,DATE_TIME_FORMAT.length))[0];
          finishTime.isVoid
          ? fileExists(pathToLog)
            ? finishTime:=fileStats[0]
            : finishTime:=current[STARTTIME]
          : void;
-         local runIsFinished:=isSpecialTask OR (lastLines.trailing==FINAL_LINE);
+         runIsFinished:=isSpecialTask OR (lastLines.trailing==FINAL_LINE);
          current[RUNNING   ]:=running AND !runIsFinished;
          current[FILESTATS ]:=fileStats;
          current[FINISHED  ]:=runIsFinished;
+         log('-');
          current[FINISHTIME]:=isSpecialTask ? current[STARTTIME] : finishTime;
+         log('-');
          runIsFinished
          ? current[HEARTBEATTIMEOUT]:=0
          : void;
          taskHistory[taskIndex]:=current;
        end;
    end);
-  local report:=taskHistory.map({[$x[1,RUNNING   ] orElse false,      //primary sort key
-                                  $x[1,FINISHTIME] orElse systime,    //secondary sort key
-                                  $x[1].mergeMaps(['index'=>$x[0]].toMap,::orElse)]}).sort.getInner(2).reverseList;
-  while(report.size>MAX_HISTORY_SIZE AND !report.trailing[RUNNING],begin
+  report:=taskHistory.map({[$x[1,RUNNING   ] orElse false,      //primary sort key
+                            $x[1,FINISHTIME] orElse systime,    //secondary sort key
+                            $x[1].mergeMaps(['index'=>$x[0]].toMap,::orElse)]}).sort.getInner(2).reverseList;
+  while report.size>MAX_HISTORY_SIZE AND !report.trailing[RUNNING] do begin
     taskHistory[report.trailing['index']]:=void;
     report:=report.leading;
-  end);
+  end;
   report;
 end;
 
@@ -100,7 +100,7 @@ isLoggingRunnerIpcServerRunning->IPC_ID.isIpcServerRunning;
 ensureServer->isLoggingRunnerIpcServerRunning ? void :
   begin
     startIpcServer(IPC_ID,{postScriptRunning($X)});
-    while(!isLoggingRunnerIpcServerRunning,sleep(0.001));
+    repeat sleep(0.01) until isLoggingRunnerIpcServerRunning;
   end;
 
 private postScriptRunning(id:Int)->taskHistory[id].isVoid ? false : begin
@@ -118,9 +118,9 @@ private splitCommandLineParameters(s:String)->
     : $x});
 
 startExecution(scriptName,parameters:String)->begin
-  local logIndex:=taskHistory.getInner(0).max+1;
-  local logName:=getLogName(logIndex);
-  local programAndScript:=
+  logIndex:=taskHistory.getInner(0).max+1;
+  logName:=getLogName(logIndex);
+  programAndScript:=
     scriptName.extractFileExt.lower=='.bat'
     ? ['cmd','/C',scriptName]
     : scriptName.extractFileExt.lower=='.mnh'
@@ -132,20 +132,30 @@ startExecution(scriptName,parameters:String)->begin
   ensureServer;
   true;
 end;
+
 @SuppressUnusedParameterWarning
 startExecution(...)->false;
 
+boxPrint(lines:List)->begin
+  strings:=lines.map(::toString);
+  len:=strings.map(::length).max;
+  print(f"┌%{repeatString('─',len+2)}s┐\n",
+        format("│ %{$0}-"&len&"s │",strings).join("\n"),
+        f"\n└%{repeatString('─',len+2)}s┘\n");
+end;
+
 main(taskIndexAsString,program,...)->begin
-  local taskIndex:=taskIndexAsString.toInt;
+  taskIndex:=taskIndexAsString.toInt;
   localAsync({begin
-    local killRequestReceived:=false;
+    killRequestReceived:=false;
     //We need the outer try for a graceful stop
-    try({while(!killRequestReceived,sleep(HEARTBEAT_INTERVAL) orElse
-                    //We need the inner try for robustness if server dies
-                    try({sendIpcRequest(IPC_ID,taskIndex)})==KILL_SIGNAL
-                    ? killRequestReceived:=true
-                    : void
-              )}
+    try({while not killRequestReceived do begin
+           sleep(HEARTBEAT_INTERVAL);
+           //We need the inner try for robustness if server dies
+           try({sendIpcRequest(IPC_ID,taskIndex)})==KILL_SIGNAL
+           ? killRequestReceived:=true
+           : void;
+         end}
        );
     killRequestReceived
     ? begin
@@ -154,16 +164,13 @@ main(taskIndexAsString,program,...)->begin
       end
     : void;
     end});
-  boxPrint(join(program|...,' '));
-  boxPrint('Run started at '&formatTime(DATE_TIME_FORMAT,local startTime:=systime));
-  boxPrint;
-  local executionResult:=teeExec(program,...,::print);
-  local endTime:=systime;
-  boxPrint;
-  boxPrint('Run finished at '&formatTime(DATE_TIME_FORMAT,endTime));
-  boxPrint('With exit code '&executionResult[1]);
-  boxPrint('After '&niceInterval(endTime-startTime));
-  boxPrint;
+  boxPrint([join(program|...,' '),
+            'Run started at '&formatTime(DATE_TIME_FORMAT,startTime:=systime)]);
+  executionResult:=teeExec(program,...,::print);
+  endTime:=systime;
+  boxPrint(['Run finished at '&formatTime(DATE_TIME_FORMAT,endTime),
+            'With exit code '&executionResult[1],
+            'After '&niceInterval(endTime-startTime)]);
   print(FINAL_LINE);
 end;
 

@@ -28,7 +28,7 @@ end;
 
 filteredConfigsForBackup()->CONFIGS_INCLUDING_SELF;
 filteredConfigsForBackup(...)->begin
-  local f:=union@((...).map((r)->CONFIGS_INCLUDING_SELF[CONFIGS_INCLUDING_SELF.getInner('root').matches(r) or CONFIGS_INCLUDING_SELF.getInner('backupNameBase').matches(r)]));
+  f:=union@((...).map((r)->CONFIGS_INCLUDING_SELF[CONFIGS_INCLUDING_SELF.getInner('root').matches(r) or CONFIGS_INCLUDING_SELF.getInner('backupNameBase').matches(r)]));
   f.size==0
   ? createSyntheticConfig(...)
   : f.sort;
@@ -36,7 +36,7 @@ end;
 
 filteredConfigsForRestore()->CONFIGS_INCLUDING_SELF_EXCLUDING_CONFIG;
 filteredConfigsForRestore(...)->begin
-  local f:=union@((...).map((r)->CONFIGS_INCLUDING_SELF_EXCLUDING_CONFIG[CONFIGS_INCLUDING_SELF_EXCLUDING_CONFIG.getInner('root').matches(r) or CONFIGS_INCLUDING_SELF_EXCLUDING_CONFIG.getInner('backupNameBase').matches(r)]));
+  f:=union@((...).map((r)->CONFIGS_INCLUDING_SELF_EXCLUDING_CONFIG[CONFIGS_INCLUDING_SELF_EXCLUDING_CONFIG.getInner('root').matches(r) or CONFIGS_INCLUDING_SELF_EXCLUDING_CONFIG.getInner('backupNameBase').matches(r)]));
   f.size==0
   ? createSyntheticConfig(...)
   : f.sort;
@@ -52,17 +52,17 @@ fileIsRelevantForSync    (filename)->filename.extractFileExt=='.mnh' OR filename
 fileIsRelevantForFullSync(filename)->filename.extractFileExt in [DATA_EXTENSION,INDEX_EXTENSION,'.mnh'];
 
 syncPush(isRelevant:Expression(1),allowDelete:Boolean)->begin
-  local mounted:=driveInfo;
+  mounted:=driveInfo;
   copyFile(myPath,BACKUP_ROOT_DIR&'/'&myPath.extractFileName);
-  local ftpSyncFuture:=future({
+  ftpSyncFuture:=future({
     FTP_SYNC_CONFIGS.each(cfg,begin
     syncToFTP(BACKUP_ROOT_DIR,cfg['host'],cfg['user'],cfg['pass'],cfg['path']&'/'&BACKUP_ROOT_NAME,allowDelete,isRelevant);
     true;
   end)});
   SYNC_CONFIGS.pEach(cfg,begin
-    local serial      :=cfg['drive_serial'] orElse fail;
-    local description :=cfg['drive_description'] orElse fail;
-    local targetFolder:=cfg['target_folder'] orElse fail;
+    serial      :=cfg['drive_serial'] orElse fail;
+    description :=cfg['drive_description'] orElse fail;
+    targetFolder:=cfg['target_folder'] orElse fail;
     targetFolder:=mounted.map((info)->info[1,'serial']==serial ? info[0]&':'&targetFolder&'\' : void).agg(orElse);
     BACKUP_ROOT_DIR == targetFolder ? void :
     targetFolder.isVoid ? printWithTime(description,' is not mounted') : begin
@@ -74,11 +74,11 @@ syncPush(isRelevant:Expression(1),allowDelete:Boolean)->begin
 end;
 
 syncPull(isRelevant:Expression(1))->begin
-  local mounted:=driveInfo;
+  mounted:=driveInfo;
   SYNC_CONFIGS.each(cfg,begin
-    local serial      :=cfg['drive_serial'] orElse fail;
-    local description :=cfg['drive_description'] orElse fail;
-    local sourceFolder:=cfg['target_folder'] orElse fail;
+    serial      :=cfg['drive_serial'] orElse fail;
+    description :=cfg['drive_description'] orElse fail;
+    sourceFolder:=cfg['target_folder'] orElse fail;
     sourceFolder:=mounted.map((info)->info[1,'serial']==serial ? info[0]&':'&sourceFolder&'\' : void).agg(orElse);
     BACKUP_ROOT_DIR == sourceFolder ? void :
     sourceFolder.isVoid ? printWithTime(description,' is not mounted') : begin
@@ -109,26 +109,26 @@ main('merge',...)-> map(filteredConfigsForRestore@...,(config)->restoreBackup(co
 
 //*Show diff between file in backup and current state
 main('diff',filename)->begin
-  local diffListing:=CONFIGS_INCLUDING_SELF.each(config,fileDiff(config,expandedFileName(filename), 3),|);
+  diffListing:=CONFIGS_INCLUDING_SELF.each(config,fileDiff(config,expandedFileName(filename), 3),|);
   diffListing.isVoid ? printWithTime('File could not be found in backups') : printf('%s',diffListing);
 end;
 
 //*Show history of file
 main('history',filename)->begin
-  local diffListing:=CONFIGS_INCLUDING_SELF.each(config,fileHistory(config,expandedFileName(filename), 3),|);
+  diffListing:=CONFIGS_INCLUDING_SELF.each(config,fileHistory(config,expandedFileName(filename), 3),|);
   diffListing.isVoid ? printWithTime('File could not be found in backups') : printf('%s',diffListing);
 end;
 
 //*Revert single file to the latest backup
 main('revert',filename)->begin
-  local diffListing:=CONFIGS_INCLUDING_SELF.each(config,fileRevert(config,expandedFileName(filename), true, ''),orElse);
+  diffListing:=CONFIGS_INCLUDING_SELF.each(config,fileRevert(config,expandedFileName(filename), true, ''),orElse);
   diffListing.isVoid ? printWithTime('File could not be found in backups') : printf('%s',diffListing);
 end;
 
 //*Revert to a selected backup
 main('revert','*',revision)->begin
-  local baseName:=extractBackupPrefix(revision);
-  local config:=CONFIGS_INCLUDING_SELF.filter((c)->c['backupNameBase']==baseName);
+  baseName:=extractBackupPrefix(revision);
+  config:=CONFIGS_INCLUDING_SELF.filter((c)->c['backupNameBase']==baseName);
   config.size==0
   ? config:=filteredConfigsForRestore([baseName]).filter((c)->c['backupNameBase']==baseName)
   : void;
@@ -139,7 +139,7 @@ end;
 //*Revert single file to a selected backup
 //
 main('revert',filename,revision)->begin
-  local diffListing:=CONFIGS_INCLUDING_SELF.each(config,fileRevert(config,expandedFileName(filename), false, revision),orElse);
+  diffListing:=CONFIGS_INCLUDING_SELF.each(config,fileRevert(config,expandedFileName(filename), false, revision),orElse);
   diffListing.isVoid ? printWithTime('File could not be found in backups') : printf('%s',diffListing);
 end;
 
@@ -170,7 +170,7 @@ main('sync','r')->syncPull(::fileIsRelevantForSync);
 //*Pull all remote repositories and push all to distribute copies
 //*
 main('distribute')->begin
-  local checked:=deleteBrokenFiles([]);
+  checked:=deleteBrokenFiles([]);
   syncPull(::fileIsRelevantForFullSync);
   deleteBrokenFiles(checked);
   syncPush(::fileIsRelevantForFullSync,true);

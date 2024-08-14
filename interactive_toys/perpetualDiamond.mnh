@@ -24,33 +24,19 @@ draw_B(t,p0,p1,p2,p3)->begin
   [[-1,0],[0,-1]]            .addPlot(EDGE_STYLE.format(t,p3));
 end;
 
-//PHASES:=['up'    =>[ pi/2, pi/2,-pi/2,-pi/2],
-//         'down'  =>[-pi/2,-pi/2, pi/2, pi/2],
-//         'grow'  =>[ pi/2, pi/2, pi/2, pi/2],
-//         'shrink'=>[-pi/2,-pi/2,-pi/2,-pi/2],
-//         'right' =>[-pi/2, pi/2, pi/2,-pi/2],
-//         'left'  =>[ pi/2,-pi/2,-pi/2, pi/2],
-//         'shear' =>[-pi/2, pi/2,-pi/2, pi/2]];
-//
-//animate(motion in (PHASES.getInner(0)),draw:Expression(5))->
-//  begin
-//    local p:=PHASES[motion];
-//    ([0..19]/20*2*pi).each(t,draw(t,p[0],p[1],p[2],p[3]); addAnimationFrame);
-//  end;
-
 main->begin
-  local drawByA:=true;
-  local phaseT    :=[0,0,pi,pi];
-  local phaseDT   :=[0,0,0,0];
-  local t:=0;
-  local dt:=pi/10;
-  local restartRendering:={begin note('Resetting...'); clearAnimation(true); t:=0; end};
+  drawByA:=true;
+  phaseT    :=[0,0,pi,pi];
+  phaseDT   :=[0,0,0,0];
+  t:=0;
+  dt:=pi/10;
+  restartRendering:={begin note('Resetting...'); clearAnimation(true); t:=0; end};
   restartRendering();
   localAsync({
-    while(true,begin
+    while true do begin
       (drawByA ? ::draw_A : ::draw_B)@((t+=dt)|(pi/2*cos(phaseT+=phaseDT)));
       display;
-    end);
+    end;
   });
   showDialog('Perpetual Diamond',[newGrid(3,
   [newCheckbox.withCaption('Fixed outside').bind(nameOf drawByA).withAction((any)->restartRendering()),

@@ -10,7 +10,7 @@ main->allFolders(WORK_ROOT)
 .map(::systemSpecificFilename)
 .each(folder,begin
   changeDirectory(folder);
-  print(repeat('-',100));
+  print(repeatString('-',100));
   print("Status of: ",folder);
   git('status');
   print('GC: ',folder);

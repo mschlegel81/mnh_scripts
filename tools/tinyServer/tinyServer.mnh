@@ -49,20 +49,20 @@ logServeStats->
     print('| Time ',formatTime(systime));
     print('| Uptime ',formatTime('hh:nn:ss',scriptTime/(24*60*60)));
     print('+---------------------------------- - - -');
-    local list:=
+    list:=
     serveStatistics
       .map({$x[0]|$x[1]})
       .sort(2)
       .trailing(10);
-    local totScale:=100/list.getInner(2).max;
-    local avgScale:=100/(list.getInner(2)/list.getInner(1)).max;
-    local timeLines:=[];
+    totScale:=100/list.getInner(2).max;
+    avgScale:=100/(list.getInner(2)/list.getInner(1)).max;
+    timeLines:=[];
 
     list:=
     list.each(entry,
        begin
-         timeLines|=[[entry[2]         ,'s (tot)',"#".repeat(round(entry[2]         *totScale))],
-                     [entry[2]/entry[1],'s (avg)',"#".repeat(round(entry[2]/entry[1]*avgScale))]];
+         timeLines|=[[entry[2]         ,'s (tot)',"#".repeatString(round(entry[2]         *totScale))],
+                     [entry[2]/entry[1],'s (avg)',"#".repeatString(round(entry[2]/entry[1]*avgScale))]];
          format("\nRequest %s\n      x %s",entry[0],entry[1]);
        end);
     timeLines:=timeLines.map({$x.join("\t")}).join("\n").formatTabs;
@@ -74,19 +74,19 @@ logServeStats->
   end;
 
 serveStatSection->begin
-  local list:=
+  list:=
   serveStatistics
     .map({$x[0]|$x[1]})
     .sort(2)
     .reverseList;
-  local totScale:=100/list.getInner(2).max;
-  local avgScale:=100/(list.getInner(2)/list.getInner(1)).max;
+  totScale:=100/list.getInner(2).max;
+  avgScale:=100/(list.getInner(2)/list.getInner(1)).max;
 
   tag(
   tag('Statistics','h2')&
   list.each(entry,
-    [tag(entry[0],'b'),'tot.',round(entry[2]         *1000)&'ms',"#".repeat(round(entry[2]         *totScale))],
-    ['x'&entry[1]     ,'avg.',round(entry[2]/entry[1]*1000)&'ms',"#".repeat(round(entry[2]/entry[1]*avgScale))]).htmlTable,'div');
+    [tag(entry[0],'b'),'tot.',round(entry[2]         *1000)&'ms',"#".repeatString(round(entry[2]         *totScale))],
+    ['x'&entry[1]     ,'avg.',round(entry[2]/entry[1]*1000)&'ms',"#".repeatString(round(entry[2]/entry[1]*avgScale))]).htmlTable,'div');
 end;
 
 private scriptStatusOnStartup:=inspectAll.getInner(0).sort.map({[$x,$x.fileStats]});
@@ -94,9 +94,9 @@ private currentScriptStatus  ->scriptStatusOnStartup.map({[$x[0],$x[0].fileStats
 
 @SuppressUnusedParameterWarning
 adminPage(parameters:Map)->begin
-  local environmentDiv:=
+  environmentDiv:=
   tag(tag('Environment', 'h2')&getEnv.map({$x[0]=>$x[1].toString}).sort.htmlTable,'div');
-  local setupDiv:=
+  setupDiv:=
   tag(tag('Configuration', 'h2')&htmlTable(
    [['SERVE_AT_IP'               ,SERVE_AT_IP],
     ['SERVE_AT_SOCKET'           ,SERVE_AT_SOCKET],
@@ -105,13 +105,13 @@ adminPage(parameters:Map)->begin
     ['START_WHEN_WORKLOAD_BELOW' ,START_WHEN_WORKLOAD_BELOW ],
     ['SAMPLES_FOR_WORKLOAD_CHECK',SAMPLES_FOR_WORKLOAD_CHECK]]
   ) ,'div');
-  local pageMap:=
+  pageMap:=
   tag(tag('Page map', 'h2')&htmlTable(
    PAGE_MAP.getInner(0).sort.map({htmlLink($x,$x)}).chunkMap(4).toList
   ) ,'div');
-  local mnhInfoDiv:=
+  mnhInfoDiv:=
   tag(tag('MNH info', 'h2')&htmlTable(mnhInfo.sort) ,'div');
-  local scriptStatusDiv:=
+  scriptStatusDiv:=
   tag(tag('Script status', 'h2')&htmlTable(currentScriptStatus) ,'div');
   htmlPage('Server Administration',
    getHeadLinks
@@ -159,7 +159,7 @@ PAGE_MAP:=[
 //File related:------------------------------
   '/displayfile'=>
     {begin
-       local filename:=$p['filename'];
+       filename:=$p['filename'];
        (isString(filename) AND fileExists(filename)
         ? serveFile(filename)
         : void) orElse redirectTo(START_PAGE);
@@ -179,16 +179,16 @@ PAGE_MAP:=[
   ].toMap;
 
 serve(M)->begin
-  local path:=M['request','path'];
-  local parameters:=path.extractParameters;
-        path      :=path.extractPath.lower;
-  local serveTime:=-scriptTime;
+  path:=M['request','path'];
+  parameters:=path.extractParameters;
+  path      :=path.extractPath.lower;
+  serveTime:=-scriptTime;
 
-  local serveRoutine:=PAGE_MAP[path];
+  serveRoutine:=PAGE_MAP[path];
   serveRoutine.isVoid
   ? log('Unhandled path: ',path) orElse return redirectTo(START_PAGE)
   : void;
-  local response:= //log info and redirect to start page
+  response:= //log info and redirect to start page
   try(serveRoutine,[parameters],
   {begin
      log('Unhandled path: ',path);
@@ -206,7 +206,7 @@ ONE_HOUR:=1/24;
 main->begin
   assertUniqueInstance;
   freeConsole;
-  local sinceLastTaskStart:=0;
+  sinceLastTaskStart:=0;
   startHttpServer(SERVE_AT_IP&':'&SERVE_AT_SOCKET,::serve,-1);
   loggingRunner.ensureServer;
 
@@ -222,7 +222,7 @@ main->begin
 
   log('server is up at ',SERVE_AT_IP&':'&SERVE_AT_SOCKET);
 
-  while(!restartScheduled,begin
+  while not restartScheduled do begin
     logCpuUsage();
     (sinceLastTaskStart+=1)>=SAMPLES_FOR_WORKLOAD_CHECK AND isCpuAlmostIdle AND systime>=doNotStartTasksBefore
       ? begin
@@ -232,7 +232,7 @@ main->begin
         end
       : void;
     sleep(MAIN_EVENT_CLOCK_IN_SECONDS);
-  end);
+  end;
   logServeStats;
   writeAllDataStores;
 end;
@@ -240,12 +240,12 @@ end;
 @after
 restart->begin
   log('Performing restart');
-  local ipcIsUpAgain:=false;
-  local numberOfTries:=0;
-  while(!ipcIsUpAgain,begin
+  ipcIsUpAgain:=false;
+  numberOfTries:=0;
+  repeat
     execAsync(executor,[myPath]);
     sleep(5);
     ipcIsUpAgain:=isLoggingRunnerIpcServerRunning;
     assert((numberOfTries+=1)<60); //try for about 1 minute, then fail
-  end);
+  until ipcIsUpAgain;
 end;

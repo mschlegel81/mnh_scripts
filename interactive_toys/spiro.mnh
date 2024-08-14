@@ -19,7 +19,7 @@ async({begin
   addPlot(trace);
   addPlot(trace);
   addPlot(trace);
-  while(alive,begin
+  while alive do begin
     displaySpan:=displaySpan*0.95+0.0505*(inner
                                           ? max(1,max(radius-1,0)+radius*(tracePoint))
                                           : 1+radius*(1+tracePoint));
@@ -50,7 +50,7 @@ async({begin
     postDisplay;
     sleep(0.02);
     t+=(inner ? 2 : 1)*0.0314;
-  end);
+  end;
 end});
 
 tolerantStrToNum(s:String,minValue:Numeric,maxValue:Numeric)->begin

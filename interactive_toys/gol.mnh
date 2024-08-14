@@ -48,31 +48,31 @@ mutable quitRequested:=false;
 
 async({begin
   local answer:='';
-  while(!(answer in ['q','Q']),begin
+  while answer not in ['q','Q'] do begin
     answer:=ask('',['q','m'],false);
     answer in ['m','M']
     ? callMemoryCleaner : void;
-  end);
+  end;
   quitRequested:=true;
 end});
 
 begin
-  local stepMillis:=0;
-  local writeMillis:=0;
-  local frameCounter:=0;
+  stepMillis:=0;
+  writeMillis:=0;
+  frameCounter:=0;
 
-  local W:=ord(random(CON_SIZE.agg(*))>[0.. CON_SIZE.agg(*)-1]/CON_SIZE.agg(*));
+  W:=ord(random(CON_SIZE.agg(*))>[0.. CON_SIZE.agg(*)-1]/CON_SIZE.agg(*));
   print(W.worldToText);
-  while(!quitRequested,begin
-    local sleepTarget:=0.05+scriptTime;
+  repeat begin
+    sleepTarget:=0.05+scriptTime;
 
-    local t0:=scriptTime; W:=W.step;            stepMillis :=(stepMillis *0.9)+0.1*(scriptTime-t0);
-    local statusLine:=f'ms/step: %{stepMillis*1000}7.3f+%{writeMillis*1000}7.3f    Mem: %{mnhInfo["used_mem"]/1024²}3.2fMiB    Pop: %{W.agg(+)*100.0/CON_SIZE[0]/CON_SIZE[1]}3.2f%%';
-          t0:=scriptTime; print(W.worldToText); writeMillis:=(writeMillis*0.9)+0.1*(scriptTime-t0);
+    t0:=scriptTime; W:=W.step;            stepMillis :=(stepMillis *0.9)+0.1*(scriptTime-t0);
+    statusLine:=f'ms/step: %{stepMillis*1000}7.3f+%{writeMillis*1000}7.3f    Mem: %{mnhInfo["used_mem"]/1024²}3.2fMiB    Pop: %{W.agg(+)*100.0/CON_SIZE[0]/CON_SIZE[1]}3.2f%%';
+    t0:=scriptTime; print(W.worldToText); writeMillis:=(writeMillis*0.9)+0.1*(scriptTime-t0);
     printDirect(statusLine);
     (frameCounter+=1) mod 100=0
     ? callMemoryCleaner
     : void;
     sleepUntil(sleepTarget);
-  end);
+  end until quitRequested;
 end;

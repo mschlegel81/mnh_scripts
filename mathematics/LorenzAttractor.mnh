@@ -8,14 +8,14 @@ USE rungeKutta,plot3d;
 heightOfTriangle(A:NumericList(3),
                  B:NumericList(3),
                  C:NumericList(3))->begin
-  local X:=C-A;
-  local Y:=B-A;
+  X:=C-A;
+  Y:=B-A;
   euklideanNorm(X*((X*Y).agg(+)/(sqr(X).agg(+)))-Y);
 end;
 
 filterList(L:List)->begin
-  local result:=[local x:=L[0]];
-  local buffer:=[];
+  result:=[x:=L[0]];
+  buffer:=[];
   L.tail.each(y,
     buffer.each(b,heightOfTriangle(x,b,y)<0.03,AND)
     ? buffer|=[y]
@@ -32,23 +32,22 @@ filterList(L:List)->begin
 end;
 
 showSingleAttractor->begin
-  local step:=integrator(CASH_KARP,::D,1E-2,1E-3);
-  local L:=[1,0,30].iterate(step,20000).tail(200);//.filterList;
-  local c:=L.approxBoundingSphereCenter;
-  setOptions(['axisStyleX'=>0,
-              'axisStyleY'=>0,
-              'autoscaleX'=>false,
-              'autoscaleY'=>false,
-              'strictInput'=>false,
-              'x0'=>-1,'x1'=>1,'y0'=>-1,'y1'=>1]);
+  step:=integrator(CASH_KARP,::D,1E-2,1E-3);
+  L:=[1,0,30].iterate(step,20000).tail(200);//.filterList;
+  c:=L.boundingSphere[0];
   clearAnimation;
-  print(repeat('-'.repeat(24)&'|',4));
-  ([0..99]/100*2*pi).toIteratableExpression.pMap({
+  print(repeatString('-'.repeatString(24)&'|',4));
+  ([0..99]/100*2*pi).toIterableExpression.pMap({
     projectOnly(L.rotateX(pi/2).rotateY($angle),
               [c].rotateX(pi/2).rotateY($angle).head,0.5)})
   .each(row,begin
     printDirect('.');
-    row.plot('RGB0,0,0,0.5');
+    setOptions(['axisStyleX'=>0,
+                'axisStyleY'=>0,
+                'autoscaleX'=>false,
+                'autoscaleY'=>false,
+                'x0'=>-1,'x1'=>1,'y0'=>-1,'y1'=>1]);
+    row.plot('RGB0,0,0,0.5 0.7 b');
     addAnimationFrame;
   end);
   print;
@@ -56,33 +55,30 @@ end;
 
 showAnimation->
 begin
-  local step:=integrator(CASH_KARP,::D,1E-2,1E-3);
+  step:=integrator(CASH_KARP,::D,1E-2,1E-3);
   clearAnimation(true);
   resetOptions;
-  setOptions(['axisStyleX'=>0,
-              'axisStyleY'=>0,
-              'autoscaleX'=>false,
-              'autoscaleY'=>false,
-              'strictInput'=>true]);
-  local y0:=local x0:= Inf;
-  local y1:=          -Inf;
+  y0:=x0:= Inf;
+  y1:=    -Inf;
 
-  local state0:=[1,0,30+0   ];
-  local state1:=[1,0,30+1E-3];
-  local hist0:=[]; local fHist0:=[];
-  local hist1:=[]; local fHist1:=[];
+  state0:=[1,0,30+0   ];
+  state1:=[1,0,30+1E-3];
+  hist0:=[]; fHist0:=[];
+  hist1:=[]; fHist1:=[];
   postDisplay;
-  while(true,begin
+  while true do begin
     hist0|=[state0]; state0:=state0.step;
     hist1|=[state1]; state1:=state1.step;
-    local t0:=time;
+    t0:=scriptTime;
     hist0.size>1000
     ? begin
         fHist0:=filterList(fHist0|hist0); hist0:=[hist0.trailing];
         fHist1:=filterList(fHist1|hist1); hist1:=[hist1.trailing];
       end
     : void;
-    setOptions(['x0'=>x0:=min(x0,-euklideanNorm(state0[[0,1]])),
+    setOptions(['axisStyleX'=>0,
+                'axisStyleY'=>0,
+                'x0'=>x0:=min(x0,-euklideanNorm(state0[[0,1]])),
                 'x1'=>-x0,
                 'y0'=>y0:=min(y0,state0[2]),
                 'y1'=>y1:=max(y1,state0[2])]);
@@ -102,13 +98,13 @@ begin
     addPlot([state0[[0,2]]],'red .');
     addPlot([state1[[0,2]]],'blue .');
     addAnimationFrame;
-    printf('%5d %3.5fs',size(hist0),time-t0);
-  end);
+    printf('%5d %3.5fs',size(hist0),scriptTime-t0);
+  end;
 end;
 
 showDots->begin
-  local step:={begin local d:=D($x); $x+d/d.euklideanNorm*0.5; end};
-  local L:=//[random,random,random].iterate(step,5000).tail(500);//.filterList;
+  step:={begin d:=D($x); $x+d/d.euklideanNorm*0.5; end};
+  L:=//[random,random,random].iterate(step,5000).tail(500);//.filterList;
   [0..31].pEach(run,[-10+random,-15+random,24+random].iterate(step,5000).tail(4000),|);
   print(L.size,' dots initial');
                    L:=group(L,round(2*L)).map({$x[1].agg(+)/$x[1].size}); print(L.size,' dots after grouping A');
@@ -116,20 +112,19 @@ showDots->begin
   L|=L.pMap(step); L:=group(L,round(2*L)).map({$x[1].agg(+)/$x[1].size}); print(L.size,' dots after grouping C');
   L|=L.pMap(step); L:=group(L,round(2*L)).map({$x[1].agg(+)/$x[1].size}); print(L.size,' dots after grouping D');
   L|=L.pMap(step); L:=group(L,round(2*L)).map({$x[1].agg(+)/$x[1].size}); print(L.size,' dots after grouping E');
-  local c:=L.approxBoundingSphereCenter;
-  setOptions(['axisStyleX'=>0,
-              'axisStyleY'=>0,
-              'autoscaleX'=>false,
-              'autoscaleY'=>false,
-              'strictInput'=>false,
-              'x0'=>-1,'x1'=>1,'y0'=>-1,'y1'=>1]);
+  c:=L.boundingSphere[0];
   clearAnimation;
-  print(repeat('-'.repeat(24)&'|',4));
-  ([0..99]/100*2*pi).toIteratableExpression.pMap({
+  print(repeatString('-'.repeatString(24)&'|',4));
+  ([0..99]/100*2*pi).toIterableExpression.pMap({
     projectOnly(L.rotateX(pi/2).rotateY($angle),
               [c].rotateX(pi/2).rotateY($angle).head,0.5)})
   .each(row,begin
     printDirect('.');
+    setOptions(['axisStyleX'=>0,
+                'axisStyleY'=>0,
+                'autoscaleX'=>false,
+                'autoscaleY'=>false,
+                'x0'=>-1,'x1'=>1,'y0'=>-1,'y1'=>1]);
     row.plot('0.5 . RGB0,0,0,0.5');
     addAnimationFrame;
   end);
@@ -137,6 +132,6 @@ showDots->begin
 end;
 
 
-showSingleAttractor;
+main->showSingleAttractor;
 
 

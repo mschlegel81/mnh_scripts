@@ -1,5 +1,5 @@
 isPrimeFactorizationPalindrome(i>0)->begin
-  local hasOdd:=false;
+  hasOdd:=false;
   i.factorize.elementFrequency.getInner(1).each(f,
     (f and 1)=1
     ? hasOdd ? return false : hasOdd:=true
@@ -9,21 +9,21 @@ end;
 isPrimeFactorizationPalindrome(i<=0)->false;
 
 isPalindrome(i:Int,base:Int)->begin
-  (local d:=i.digits(base))==d.reverseList;
+  (d:=i.digits(base))==d.reverseList;
 end;
 
 isPalindrome(i:Int,bases:IntList)->bases.each(base,i.isPalindrome(base),OR);
 
 palindromeBase(k>=1,underlyingBase:Int)->begin
-  [0..size(local e:=underlyingBase^[0 .. k-1]) div 2].each(i,[e[i],e[size(e)-1-i]].unique.agg(+)).unique.reverseList;
+  [0..size(e:=underlyingBase^[0 .. k-1]) div 2].each(i,[e[i],e[size(e)-1-i]].unique.agg(+)).unique.reverseList;
 end;
 
 palindromeGenerator(underlyingBase:Int)->{begin
-  local i:=-1;
-  local baseIndex:=1;
-  local BASE:=[1];
+  i:=-1;
+  baseIndex:=1;
+  BASE:=[1];
 save;
-  local d:=digits(i+=1,underlyingBase);
+  d:=digits(i+=1,underlyingBase);
   d.size>BASE.size
   ? begin
       BASE:=palindromeBase(baseIndex+=1,underlyingBase);
@@ -31,7 +31,7 @@ save;
     end
   : void;
   (d*BASE).agg(+);
-end}.toIteratableExpression;
+end}.toGenerator;
 
 @SuppressUnusedWarning=all
 @OEIS=A057135

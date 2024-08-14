@@ -6,33 +6,33 @@ MY_IPC_ID:='23f2o3od23ni_doImigToDo';
 mutable receivedKillSignal:=false;
 
 todoIterator(maxTodos:Numeric)->{begin
-  local todos:=WORK_IN.allFiles('*.todo').systemSpecificFilename.sort;
-  local handedOut:=0;
+  todos:=WORK_IN.allFiles('*.todo').systemSpecificFilename.sort;
+  handedOut:=0;
 save;
   (handedOut+=1)>maxTodos OR receivedKillSignal
   ? void
   : todos.size=0
     ? void
     : begin
-        local result:=todos.head;
-        todos:=todos.tail;
+        result:=todos.head;
+        todos :=todos.tail;
         result;
       end;
-end}.toIteratableExpression;
+end}.toIterableExpression;
 
 createPrintMethod(id)->{$0.isStringList ? print(join('(Task '&id&') '&$0,"\n")) : print('(Task ',id,') ',$0)};
 
 nextPrintMethod->begin
-  local taskCounter:=rangeGenerator(1);
+  taskCounter:=rangeGenerator(1);
 save;
   createPrintMethod(taskCounter());
 end;
 
 private processToDo(todo:String,delayOuput:Boolean)->receivedKillSignal ? void : begin
-  local printMethod:=nextPrintMethod;
-  local log:=['+-'&todo.clean(['-'],'-')&'-+',
-              '| '&todo                 &' |',
-              '+-'&todo.clean(['-'],'-')&'-+'];
+  printMethod:=nextPrintMethod;
+  log:=['+-'&todo.clean(['-'],'-')&'-+',
+        '| '&todo                 &' |',
+        '+-'&todo.clean(['-'],'-')&'-+'];
   delayOuput
   ? printMethod(todo&' started')
   : printMethod(log);
@@ -58,8 +58,8 @@ main(...)->begin
   assert(!isIpcServerRunning(MY_IPC_ID),'Script is already running');
   startIpcServer(MY_IPC_ID,(request)->begin request=='KILL' ? print('RECEIVED KILL SIGNAL!') orElse receivedKillSignal:=true : 0; end);
 
-  local workInParallel:=false;
-  local limit:=1;
+  workInParallel:=false;
+  limit:=1;
   (...).each(parameter,
     parameter='parallel'     ? begin workInParallel:=true; limit:=(limit=1 ? mnhInfo['configured_cpus'] : limit); end :
     parameter='all'          ? limit:=Inf :

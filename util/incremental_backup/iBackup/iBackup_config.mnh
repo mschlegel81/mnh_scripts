@@ -1,0 +1,92 @@
+USE backup_util;
+
+@SuppressUnusedParameterWarning
+matchAll(filename:String)->true;
+dropPascalCompilates(x)->!(x.matches('\.(exe|log|o|ppu|a)$|\.git')) AND !(x.matches('/backup/'));
+DEV_CONFIG:=
+  ['root'          => '.',
+   'backupNameBase'=>'dev',
+   'basePattern'   =>'*.*',
+   'recurse'       =>false,
+   'matcher'       =>{!($x.matches('(\.(ib|log|7z))|(\.datastore0)|(smart7z\.datastore.)$|iBackup|\.kdbx$'))}].toMap.toBackupConfig;
+MNH_CONFIG:=
+  ['root'          =>'mnh5',
+   'backupNameBase'=>'mnh5',
+   'basePattern'   =>'*.*',
+   'recurse'       =>true,
+   'matcher'       =>{!($x.matches('\.(exe|log|png)$|\.git|(demos\.datastore)|(testExpectation\.datastore1)|/consoles/lib|/ide/compilates|/backup/'))}].toMap.toBackupConfig;
+FINISHED_PROJECTS_CFG:=
+  ['root'=>'finished_projects',
+   'backupNameBase'=>'finished_projects',
+   'basePattern'   =>'*.*',
+   'recurse'       =>true,
+   'matcher'       =>(n)->!n.matches('(particles\.settings)|(sudoku3\.cfg)')].toMap.toBackupConfig;
+DIGITALTRAINER_CFG:=
+  ['root'=>'digitaltrainer',
+   'backupNameBase'=>'digitaltrainer',
+   'basePattern'   =>'*.*',
+   'recurse'       =>true,
+   'matcher'       =>{!($x.matches('\.(exe|log|o|ppu|a)$|\.git|lib/|backup/'))}].toMap.toBackupConfig;
+GIT_CONFIG:=
+  ['root'=>'git',
+   'backupNameBase'=>'git',
+   'basePattern'   =>'*.*',
+   'recurse'       =>true,
+   'matcher'       =>::matchAll].toMap.toBackupConfig;
+SCRIPTS_CONFIG:=
+  ['root'          =>'mnh_scripts',
+   'backupNameBase'=>'mnh_scripts',
+   'basePattern'   =>'*.*',
+   'recurse'       =>true,
+   'matcher'       =>{!($x.matches('(\.git)|(/oeis/.*datastore)|(/physics/doubleStar.*\.dat)'))}].toMap.toBackupConfig;
+ART_SRC_CONFIG:=
+  ['root'          =>'art.source',
+   'backupNameBase'=>'art_source',
+   'basePattern'   =>'*.*',
+   'recurse'       =>true,
+   'matcher'       =>::dropPascalCompilates].toMap.toBackupConfig;
+ART_BIN_CONFIG:=
+  ['root'          =>'art.bin',
+   'backupNameBase'=>'art_bin',
+   'basePattern'   =>'*.*',
+   'recurse'       =>true,
+   'matcher'       =>{!($x.matches('Thumbs\.db|picInfo\.*datastore|\.fileHist'))}].toMap.toBackupConfig;
+TP_CONFIG:=
+  ['root'          =>'3rd_party',
+   'backupNameBase'=>'3rd_party',
+   'basePattern'   =>'*.*',
+   'recurse'       =>true,
+   'matcher'       =>::dropPascalCompilates].toMap.toBackupConfig;
+KEYLOGGER_CONFIG:=
+  ['root'          =>'keylogger',
+   'backupNameBase'=>'keylogger',
+   'basePattern'   =>'*.*',
+   'recurse'       =>true,
+   'matcher'       =>::dropPascalCompilates].toMap.toBackupConfig;
+KDBX_CONFIG:=
+  ['root'          =>'.',
+   'backupNameBase'=>'kdbx',
+   'basePattern'   =>'*.kdbx',
+   'recurse'       =>true,
+   'matcher'       =>(x)->true].toMap.toBackupConfig;
+
+ALL_CONFIGS:=[MNH_CONFIG,DEV_CONFIG,ART_SRC_CONFIG,ART_BIN_CONFIG,SCRIPTS_CONFIG,FINISHED_PROJECTS_CFG,DIGITALTRAINER_CFG,TP_CONFIG,GIT_CONFIG,KEYLOGGER_CONFIG,KDBX_CONFIG];
+
+SYNC_CONFIGS:=[['drive_serial'=>3404974937,
+                'drive_description'=>'Samsung_T5',
+                'target_folder'=>'\backup\dev'].toMap,
+               ['drive_serial'=>2827518892,
+                'drive_description'=>'Thumb drive',
+                'target_folder'=>'\dev'].toMap,
+               ['drive_serial'=>19088743,
+                'drive_description'=>'MicroSD',
+                'target_folder'=>''].toMap,
+               ['drive_serial'=>2320311319,
+                'drive_description'=>'shared folder',
+                'target_folder'=>'\dev'].toMap];
+FTP_SYNC_CONFIGS:=[['host'=>'192.168.1.1',
+                    'user'=>'user',
+                    'pass'=>'pwd',
+                    'path'=>'/volume'].toMap];
+
+afterSync->void;

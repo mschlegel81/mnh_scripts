@@ -5,22 +5,19 @@ USE rungeKutta,customFormUtil;
 
 getThrowCurve(initialAngle:Numeric,initialSpeed>0,frictionFactor:Numeric)->
 begin
-  local state:=[[0,0],initialSpeed*[cos(initialAngle),sin(initialAngle)]];
-//  local Ds:=frictionFactor=0
-//    ? (s)->[s[1],[0,-9.81]                                        ]
-//    : (q)->[q[1],[0,-9.81]-frictionFactor*euklideanNorm(q[1])*q[1]];
-  local step:=integrator(CASH_KARP,
+  state:=[[0,0],initialSpeed*[cos(initialAngle),sin(initialAngle)]];
+  step:=integrator(CASH_KARP,
   frictionFactor=0
     ? (s)->[s[1],[0,-9.81]                                        ]
     : (q)->[q[1],[0,-9.81]-frictionFactor*euklideanNorm(q[1])*q[1]]
   ,0.01,1E-3);
-  local positionHistory:=[state[0]];
-  while((positionHistory.size<2 OR state[0,1]>0) AND (positionHistory.size<1000),begin
+  positionHistory:=[state[0]];
+  while (positionHistory.size<2 OR state[0,1]>0) AND (positionHistory.size<1000) do begin
     state:=step(state);
     positionHistory|=[state[0]];
-  end);
-  local last:=positionHistory.trailing; positionHistory:=positionHistory.leading;
-  local prev:=positionHistory.trailing;
+  end;
+  last:=positionHistory.trailing; positionHistory:=positionHistory.leading;
+  prev:=positionHistory.trailing;
   // prev[1]+(last[1]-prev[1])*tau = 0
   // tau = -prev[1]/(last[1]-prev[1])
   // x = prev[0]+(last[0]-prev[0])*tau
@@ -96,6 +93,5 @@ main->begin
     newOutputConsole,
     newPlotDock
    ]);
-
 end;
 

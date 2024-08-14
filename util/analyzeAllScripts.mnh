@@ -1,12 +1,12 @@
 private isError  (message:StringList)->message.head.matches('^el3');
-private isWarning(message:StringList)->message.head.matches('^el2');
+private isWarning(message:StringList)->message.head.matches('^el(1|2)');
 
 main->begin
-  local allScriptFiles:=allFiles(mnhInfo['configDir'],'*.mnh').union(allFiles('C:\dev\','*.mnh'));
-  local usedScripts       :=[].toSet;
-  local warnings:=[];
-  local errors  :=[];
-  local usedBuiltin:=[].toSet;
+  allScriptFiles:=allFiles(mnhInfo['configDir'],'*.mnh').union(allFiles('C:\dev\','*.mnh'));
+  usedScripts       :=[].toSet;
+  warnings:=[];
+  errors  :=[];
+  usedBuiltin:=[].toSet;
   allScriptFiles
   .map(::inspect)
   .each(s,begin

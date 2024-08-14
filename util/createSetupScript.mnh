@@ -1,0 +1,94 @@
+//TEMPLATE:=//!~
+//SOURCES:={$0}.base92decode.deserialize;
+//
+//main->begin
+//  for filename in SOURCES.getInner(0) do assert(not fileExists(filename),'File ',filename,' already exists.');
+//  SOURCES.map((name,contents)->name.writeFile(contents));
+//end;~;
+
+datastore SOURCES:=void;
+
+createSetupScript(primaryScript:String,targetName:String,secondaryPackagesFolder:String,automaticallyIncludeDatastores:Boolean,dataAsDatastore:Boolean)->begin
+  secondaries:=primaryScript.inspect['uses'].getInner(1);
+  secondaryCount:=secondaries.size;
+  repeat
+    secondaryCount:=secondaries.size;
+    secondaries:=secondaries.union(secondaries.map((s)->s.inspect['uses'].getInner(1)).flatten);
+  until secondaryCount=secondaries.size;
+
+  source_target_pairs:=secondaries.map((f)->[f,secondaryPackagesFolder&'/'&f.extractFileName])||[primaryScript,primaryScript.extractFileName];
+
+  secondaries:=secondaries.extractFileNameOnly;
+
+  if automaticallyIncludeDatastores
+  then source_target_pairs|=files(source_target_pairs.getInner(0).changeFileExt('.datastore*'))
+    .map((f)->[f,(f.extractFileNameOnly in secondaries
+                  ? secondaryPackagesFolder&'/'
+                  : '')&f.extractFileName]);
+
+//  source_target_pairs|=additionalFiles.map((f)->[f,secondaryPackagesFolder&'/'&f.extractFileName]);
+  SOURCES:=source_target_pairs.map((input,tgt)->[tgt,input.fileContents]);
+  print('Creating setup script ',primaryScript,' with contents:');
+  printf("  %s\t->\t%s",source_target_pairs.getInner(0),source_target_pairs.getInner(1));
+
+  targetFileContents:=
+  (dataAsDatastore
+   ? begin
+       writeDataStores;
+       myDatastores:=files(myPath.changeFileExt('*.datastore*'));
+       assert(myDatastores.size==1);
+       copyFile(myDatastores[0],targetName.changeFileExt('.datastore0'));
+       'datastore SOURCES;';
+     end
+   : 'SOURCES:='&SOURCES.serialize(true,true).base92encode.escape&'.base92decode.deserialize;')&//!~
+main->begin
+  for filename in SOURCES.getInner(0) do assert(not fileExists(filename),'File ',filename,' already exists.');
+  SOURCES.map((name,contents)->name.writeFile(contents));
+end~;
+  targetName.writeFile(targetFileContents);
+  if dataAsDatastore then begin
+    SOURCES:=void;
+    writeDataStores;
+  end;
+end;
+
+menu(_mainScript,_setupScriptName,_secondaryPackagesFolder)->begin
+  mainScript:=_mainScript;
+  setupScriptName:=_setupScriptName;
+  secondaryPackagesFolder:=_secondaryPackagesFolder;
+  includeDatastores:=false;
+  dataAsDatastore:=false;
+  answer:=void;
+  repeat
+    clearPrint;
+    print('[M]ain script              : ',mainScript);
+    print('[T]arget script name       : ',setupScriptName);
+    print('[S]econdary packages folder: ',secondaryPackagesFolder);
+    print('[I]nclude datastores       : ',includeDatastores ? 'yes' : 'no');
+    print('[D]ata representation      : ',dataAsDatastore ? 'datastore' : 'inline variable');
+    print;
+    print('[Q]uit');
+    print('[E]xecute');
+    answer:=ask('',['m','t','s','i','d','q','e'],false);
+
+    if answer='i' then includeDatastores:=not includeDatastores;
+    if answer='d' then dataAsDatastore:=not dataAsDatastore;
+    if answer='m' then mainScript:=ask('Please enter new main script name');
+    if answer='t' then setupScriptName:=ask('Please enter new setup script name');
+    if answer='s' then secondaryPackagesFolder:=ask('Please enter new packages folder name');
+  until answer in ['q','e'];
+  if answer=='e' then createSetupScript(mainScript,setupScriptName,secondaryPackagesFolder,includeDatastores,dataAsDatastore);
+end;
+
+//*Create a setup script
+main(mainScript,setupScriptName,secondaryPackagesFolder)->
+  menu(mainScript,setupScriptName,secondaryPackagesFolder);
+
+//*Create a setup script with default secondaryPackagesFolder 'packages'
+main(mainScript,setupScriptName)->
+  menu(mainScript,setupScriptName,'packages');
+
+//*Create a setup script with default secondaryPackagesFolder 'packages' and default setup script name
+main(mainScript)->
+  menu(mainScript,mainScript.changeFileExt('_setup.mnh'),'packages');
+

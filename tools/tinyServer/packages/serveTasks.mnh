@@ -22,7 +22,7 @@ private shortScriptName(script)->
 scriptDefInTable(script)   ->tag(shortScriptName(script),'code');
 scriptDefInTable(script,'')->tag(shortScriptName(script),'code');
 scriptDefInTable(script,param)->begin
-  local parameters:=(param orElse '').trim;
+  parameters:=(param orElse '').trim;
   parameters.length>30 ? parameters:=parameters.copy(0,27)&'...' : void;
   tag(shortScriptName(script),'code')&(parameters=='' ? '' : '<br>'& tag('   '&parameters,'code'));
 end;
@@ -43,13 +43,13 @@ getQueuedSection(withLink:Boolean)->
   htmlTable(getQueuedTable(false)),'div');
 
 getTasksSection->begin
-  local report:=getTaskReport;
+  report:=getTaskReport;
   tag(
   tag('Tasks '&htmlLink('(+)','enqueue'),'h2')&
   htmlTable(getQueuedTable(true)| [['#','Started','Script','Log','','Status'].map({$x.tag('b')})]|
     report.each(r,
       begin
-        local statusBox:=
+        statusBox:=
           r[SCRIPT] in SPECIAL_TASKS.getInner(0)
           ? STATUS_BOX_FINISHED
           : r[RUNNING]
@@ -61,7 +61,7 @@ getTasksSection->begin
             : r[FINISHED]
               ? STATUS_BOX_FINISHED
               : STATUS_BOX_CANCELLED;
-        local stateMessage:=
+        stateMessage:=
           r[SCRIPT] in SPECIAL_TASKS.getInner(0)
           ? ''
           : r[RUNNING]
@@ -86,7 +86,7 @@ getTasksSection->begin
 end;
 
 killTask(parameters:Map)->begin
-  local indexToKill:=parameters['index'];
+  indexToKill:=parameters['index'];
   indexToKill.isInt
   ? setKillRequest(indexToKill)
   : void;
@@ -94,8 +94,8 @@ killTask(parameters:Map)->begin
 end;
 
 dequeueTask(parameters:Map)->begin
-  local taskHash:=parameters['taskHash'];
-  local taskIndex:=queued.each(q,q.hash==taskHash ?index : void,head);
+  taskHash:=parameters['taskHash'];
+  taskIndex:=queued.each(q,q.hash==taskHash ?index : void,head);
   isInt(taskIndex) AND (0<=taskIndex<queued.size)
   ? begin
       log('Dropping todo ',queued[taskIndex,1],' ',queued[taskIndex,2]);
@@ -112,9 +112,9 @@ addTask(parameters:Map)->begin
 end;
 
 enqueuePage(parameters:Map)->begin
-  local prevMap:=previous;
-  local selectedScript:=parameters['scriptName'];
-  local scriptParameters:=parameters['cmdLineParameters'];
+  prevMap:=previous;
+  selectedScript:=parameters['scriptName'];
+  scriptParameters:=parameters['cmdLineParameters'];
 
   !(selectedScript  .isVoid) AND
   !(scriptParameters.isVoid)
@@ -145,7 +145,7 @@ enqueuePage(parameters:Map)->begin
                       jsTextInputField('cmdLineParameters','',parameters,100);
                     end
                   : begin
-                      local par:=prevMap[script,0] orElse '';
+                      par:=prevMap[script,0] orElse '';
                       htmlLink(trim(par)='' ? '&lt;no parameters&gt;' : tag(par,'code'),
                                encodeRequest('','addTask',['scriptName'=>script.fullScriptName,'cmdLineParameters'=>par].toMap));
                     end]
@@ -194,9 +194,9 @@ doRestartServer->begin
 end;
 
 startNextTask->queued.size<=0 ? false : begin
-  local task:=queued.head;
-  local scriptName  :=task[1];
-  local scriptParams:=task[2];
+  task:=queued.head;
+  scriptName  :=task[1];
+  scriptParams:=task[2];
   queued:=queued.tail;
   writeDataStores;
   scriptName in SPECIAL_TASKS.getInner(0)
@@ -210,8 +210,8 @@ startNextTask->queued.size<=0 ? false : begin
 end;
 
 forceStart(parameters:Map)->begin
-  local taskHash:=parameters['taskHash'];
-  local taskIndex:=queued.each(q,q.hash==taskHash ?index : void,head);
+  taskHash:=parameters['taskHash'];
+  taskIndex:=queued.each(q,q.hash==taskHash ?index : void,head);
   isInt(taskIndex) AND (0<=taskIndex<queued.size)
   ? begin
       log('Force start...');
@@ -225,8 +225,8 @@ forceStart(parameters:Map)->begin
 end;
 
 moveToFront(parameters:Map)->begin
-  local taskHash:=parameters['taskHash'];
-  local taskIndex:=queued.each(q,q.hash==taskHash ?index : void,head);
+  taskHash:=parameters['taskHash'];
+  taskIndex:=queued.each(q,q.hash==taskHash ?index : void,head);
   isInt(taskIndex) AND (0<taskIndex<queued.size)
   ? begin
       log('Moving task to front: ',queued[taskIndex]);

@@ -1,13 +1,13 @@
 ducktype Probability(p:Numeric)->0<=p<=1;
 
 convexHull(points:List)->begin
-  local rest:=points.sort;
-  local P:=rest.head(1);
+  rest:=points.sort;
+  P:=rest.head(1);
 
   while(rest.size>0,begin
-    local dp:=P.size==1 ? [0,1] : -P.trailing(2).agg(-); dp/=dp.euklideanNorm;
-    local q:=P.trailing;
-    local i:=rest.map((p)->begin local delta:=p-q; (delta/delta.euklideanNorm*dp).agg(+); end).argMax;
+    dp:=P.size==1 ? [0,1] : -P.trailing(2).agg(-); dp/=dp.euklideanNorm;
+    q:=P.trailing;
+    i:=rest.map((p)->begin delta:=p-q; (delta/delta.euklideanNorm*dp).agg(+); end).argMax;
     P||=rest[i];
     i==0
     ? return P
@@ -41,16 +41,16 @@ SCORE:=[[true , true]=>[-1,-1]+3/2,
 //end;
 
 score(alg0:Expression,alg1:Expression,rounds>=1)->begin
-  local res0:=void;
-  local res1:=void;
+  res0:=void;
+  res1:=void;
   [0..rounds-1].each(r,SCORE[
     [res0:=alg0(res1),
      res1:=alg1(res0)]],+)/rounds;
 end;
 
 score(model0:NumericList(2),model1:NumericList(2),rounds>=1)->begin
-  local res0:=void;
-  local res1:=void;
+  res0:=void;
+  res1:=void;
   [0..rounds-1].each(r,SCORE[
     [res0:=random<=model0[0] ? res1 orElse true : random<=model0[1],
      res1:=random<=model1[0] ? res0 orElse true : random<=model1[1]]],+)/rounds;
@@ -58,14 +58,14 @@ end;
 
 
 roundRobin(models:List,rounds>=1,doPrintout:Boolean)->begin
-  local pairs:=cross([0..models.size-1],[0..models.size-1]).filter({$x[0]<=$x[1]});
-  local progressDot:=doPrintout
-                     ? print(repeat("------------------------|",4)) orElse round([1..100]*pairs.size/100)-1
-                     : [];
+  pairs:=cross([0..models.size-1],[0..models.size-1]).filter({$x[0]<=$x[1]});
+  progressDot:=doPrintout
+               ? print(repeatString("------------------------|",4)) orElse round([1..100]*pairs.size/100)-1
+               : [];
   pairs
     .pEach(pair,begin
        index in progressDot ? printDirect('.') : void;
-       local s :=score@(models[pair]|rounds);
+       s :=score@(models[pair]|rounds);
        [[pair[0],s[0]],
         [pair[1],s[1]]];
      end,|)
@@ -77,7 +77,7 @@ roundRobin(models:List,rounds>=1,doPrintout:Boolean)->begin
       : $L};
 end;
 
-DEFAULT_POOL:=([0..20].cross([0..20])/20).filter({$x[0]<1 or $x[1]=1});
+DEFAULT_POOL:=([0..50].cross([0..50])/50).filter({$x[0]<1 or $x[1]=1});
 
 roundRobin(rounds>=1,doPrintout:Boolean)->DEFAULT_POOL.roundRobin(rounds,doPrintout);
 
@@ -85,7 +85,7 @@ randomPlay(pool:List)->begin
   [0..pool.size-1]
     .each(i,intRandom(pool.size,3).each(j,[i,j]),|)
     .pEach(pair, begin
-      local s :=score@(pool[pair]|100);
+      s :=score@(pool[pair]|100);
       [[pair[0],s[0]],
        [pair[1],s[1]]];
      end,|)
@@ -101,10 +101,10 @@ evolutionGame(poolSize>=10                                 ,generations,poolDisp
 evolutionGame([random(poolSize),random(poolSize)].transpose,generations,poolDisplay);
 
 evolutionGame(initialPool:List,generations,poolDisplay:Expression(1))->begin
-  local pool:=initialPool;
-  local K:=pool.size-1;
+  pool:=initialPool;
+  K:=pool.size-1;
   print('Starting evolution game');
-  local toCross:=sqrt(K/3).ceil;
+  toCross:=sqrt(K/3).ceil;
   print('  The best ',toCross+1,' individuals will procreate each round, ');
   toCross:=[K..K-toCross].cross([K..K-toCross]).filter({$x[0]<$x[1]});
   print('  replacing the ',toCross.size,' worst individuals');
@@ -123,24 +123,13 @@ end;
 
 plotSingleRun->begin
   resetOptions;
-  local initialPool:=[random(50),random(50)].transpose;
+  initialPool:=[random(50),random(50)].transpose;
   [0..20].each(run,begin
     plot();
-    local counter:=-1;
-    evolutionGame(initialPool,local steps:=100,{begin
-      local hull:=convexHull($x);
+    counter:=-1;
+    evolutionGame(initialPool,steps:=100,{begin
+      hull:=convexHull($x);
       addPlot(hull,'polygon f HUE'&(counter+=1)/steps*2/3);
-//      print($x);
-//      halt;
-
-//      local boxes:=[$x.getInner(0).sort[round([0.2,0.4,0.6,0.8]*($x.size-1))],
-//                    $x.getInner(1).sort[round([0.2,0.4,0.6,0.8]*($x.size-1))]].transpose;
-//      addPlot(boxes[[0,3]],'box 1 HUE'&(counter+=1)/steps*2/3);
-//      addPlot(boxes[[1,2]],'box f 0 HUE'&counter/steps*2/3);
-
-      //local a:=average($x);
-      //local s:=variance($x).sqrt/2;
-      //addPlot([a+s,a-s],'ellipse f 0 HUE'&(counter+=1)/steps*2/3);
     end});
     addAnimationFrame;
     postDisplay;
@@ -149,13 +138,13 @@ end;
 
 plotOutcomes->begin
   resetOptions;
-  local steps:=100;
+  steps:=100;
   plot();
   [0..steps-1].pEach(counter,begin
     print('Run #',counter);
-    local pool:=evolutionGame(20,100,{$x});
-    local a:=average(pool);
-    local s:=variance(pool).sqrt/2;
+    pool:=evolutionGame(20,100,{$x});
+    a:=average(pool);
+    s:=variance(pool).sqrt/2;
     addPlot([a+s,a-s],'ellipse f 0 HUE'&counter/steps*2/3);
     //pool.addPlot('. 0.7 HUE'&counter/steps*2/3);
     postDisplay;
@@ -165,14 +154,11 @@ end;
 main->plotSingleRun;
 
 begin
-  local P:=roundRobin(50,true);
+  P:=roundRobin(5,true);
 
-  local h:=0.5*P.getInner(0).transpose.map(::unique).map({max($x.tail-$x.leading)}).max;
-  local highScore:=P.getInner(1).max;
-  local lowScore:=P.getInner(1).min;
+  h:=0.5*P.getInner(0).transpose.map(::unique).map({max($x.tail-$x.leading)}).max;
+  highScore:=P.getInner(1).max;
+  lowScore:=P.getInner(1).min;
 
   P.each(entry,addPlot([entry[0]-h,entry[0]+h],'box fs 0 HUE'&(2/3*(entry[1]-lowScore)/(highScore-lowScore))));
-
-
-
 end;

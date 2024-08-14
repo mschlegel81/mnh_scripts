@@ -2,14 +2,14 @@
 private listOf(value,count=0)->[];
 private listOf(value,count>=1)->[1..count].each(i,value);
 private Kolakoski_1_2(len)->begin
-  local K:=[1,2];
+  K:=[1,2];
   while(K.size<len,
     K:=K.each(runLength,
               listOf((index and 1)+1,runLength),|));
   K.head(len);
 end;
 @SuppressUnusedWarning=all
-A000002->Kolakoski_1_2(10000).toIteratableExpression;
+A000002->Kolakoski_1_2(10000).toGenerator;
 A000005->rangeGenerator(1).map({$n<=1 ? 1 : factorize($n).subSets.map({$x.agg(*)}).size+1});
 A000006->primeGenerator.sqrt.floor;
 A000007->ord(rangeGenerator(0)=0);
@@ -29,7 +29,7 @@ A000108->rangeGenerator(0).map(::Catalan);
 
 //for A025426:-------------------------------------------------
 private by2Squares(n>0)->begin
-  local S:=[1..n.sqrt.floor]^2;
+  S:=[1..n.sqrt.floor]^2;
   (n-S).intersect(S).filter({n-$s<=$s}).map({round(sqrt(n-$s))&'^2+'&round(sqrt($s))&'^2'});
 end;
 private by2Squares(n=0):=[];
@@ -40,7 +40,7 @@ A000203->rangeGenerator(1).map(::DivisorFunction);
 
 //for A003459:-------------------------------------------------
 private isPermutablePrime(p:Int)->(p.digits).permutations.each(d,d.composeDigits.factorize.size=1,AND);
-A003459->primes(991).toIteratableExpression.filter(::isPermutablePrime);
+A003459->primes(991).toGenerator.filter(::isPermutablePrime);
 //-------------------------------------------------------------
 @SuppressUnusedWarning
 USE palindromes,
@@ -65,7 +65,7 @@ A025426->rangeGenerator(0).map({size(by2Squares($i))});
 
 //for A061358:-------------------------------------------------
 private by2Primes(n:Int)->begin
-  local S:=primes(n);
+  S:=primes(n);
   (n-S).intersect(S).filter({n-$s<=$s}).size;
 end;
 A061358->rangeGenerator(0).map({by2Primes($i)});
@@ -74,11 +74,11 @@ A052294->rangeGenerator(1).filter(::isPernicious);
 USE smithNumbers;
 A006753->rangeGenerator(1).filter(::isSmithNumber);
 USE thueMorseSequence;
-A010060->toIteratableExpression(thueMorseSequence(10000).ord);
+A010060->toGenerator(thueMorseSequence(10000).ord);
 USE truncatablePrimes;
-A024785->toIteratableExpression(leftTruncatablePrimes (1000000));
-A024770->toIteratableExpression(rightTruncatablePrimes(1000000));
-A020994->toIteratableExpression(leftTruncatablePrimes (1000000).intersect(rightTruncatablePrimes(1000000)).sort);
+A024785->toGenerator(leftTruncatablePrimes (1000000));
+A024770->toGenerator(rightTruncatablePrimes(1000000));
+A020994->toGenerator(leftTruncatablePrimes (1000000).intersect(rightTruncatablePrimes(1000000)).sort);
 A007947->rangeGenerator(1).map({$n.factorize.unique.agg(*)});
 
 USE vampire;
@@ -102,7 +102,7 @@ A023690->rangeGenerator(0).filter({$x.hammingWeight=8});
 A023691->rangeGenerator(0).filter({$x.hammingWeight=9});
 
 USE perfectPowers;
-A001597->perfectPowers(10^6).toIteratableExpression;
+A001597->perfectPowers(10^6).toGenerator;
 
 USE harshad;
 A005349->rangeGenerator(1).filter(::isHarshadNumber);
@@ -111,14 +111,14 @@ USE kaprekar;
 A006886->rangeGenerator(1).filter(::isKaprekar);
 
 scanFiboMod(stepsBack in [2..5],modulus>=1)->begin
-  local openStates:=cross([0..modulus-1],
-                          [0..modulus-1],
-           stepsBack>=3 ? [0..modulus-1] : void,
-           stepsBack>=4 ? [0..modulus-1] : void,
-           stepsBack>=5 ? [0..modulus-1] : void).toSet;
-  local groupCount:=0;
+  openStates:=cross([0..modulus-1],
+                    [0..modulus-1],
+     stepsBack>=3 ? [0..modulus-1] : void,
+     stepsBack>=4 ? [0..modulus-1] : void,
+     stepsBack>=5 ? [0..modulus-1] : void).toSet;
+  groupCount:=0;
   while(openStates.size>0,begin
-    openStates>>(local s:=openStates.head);
+    openStates>>(s:=openStates.head);
     while((s:=s.tail|(s.agg(+) mod modulus)) in openStates,openStates>>s);
     groupCount+=1;
   end);
@@ -174,9 +174,9 @@ sumOfProperDividers(n>1)->n.factorize.elementFrequency.each(x,(x[0]^(x[1]+1)-1)/
 sumOfProperDividers(n<=1)->0;
 
 private aliquotSequenceGenerator(startValue)->{begin
-  local i:=startValue;
+  i:=startValue;
 save;
-  local r:=i;
+  r:=i;
   i:=sumOfProperDividers(i);
   r;
 end}.toGenerator;
@@ -261,21 +261,21 @@ A203777->aliquotSequenceGenerator(220);
 A269542->aliquotSequenceGenerator(702);
 
 collatzGenerator(startValue:Int)->{begin
-  local i:=startValue;
+  i:=startValue;
 save;
-  local r:=i;
+  r:=i;
   i:=(i and 1)=1
      ? 3*i+1
      : i div 2;
   r;
-end}.toIteratableExpression;
+end}.toGenerator;
 
 @class=Aliquot
 //*These are actually non-Aliquot numbers aka "untouchable Numbers"
 A005114->{begin
-  local touched:=[1].toSet;
-  local scanned:=3;
-  local prev:=1;
+  touched:=[1].toSet;
+  scanned:=3;
+  prev:=1;
 save;
   prev+=1;
   while(true,begin
@@ -284,7 +284,7 @@ save;
     ? prev+=1
     : return prev;
   end);
-end}.toIteratableExpression;
+end}.toGenerator;
 
 @class=Collatz
 A008873->collatzGenerator(97);
@@ -317,22 +317,22 @@ A033481->collatzGenerator(21);
 
 //*Van Eck's sequence
 A181391->{begin
-  local seq:=[];
+  seq:=[];
 save;
-  local ocurredAt:=indexOf(seq.trailing=seq).leading;
-  local nextTerm:=ocurredAt==[]
+  ocurredAt:=indexOf(seq.trailing=seq).leading;
+  nextTerm:=ocurredAt==[]
                   ? 0
                   : (seq.size-1-max(ocurredAt));
   seq|=nextTerm;
   nextTerm;
-end}.toIteratableExpression;
+end}.toGenerator;
 
 @SuppressUnusedWarning
 USE happyNumbers,inspectionUtil;
 memoized implemented->
   allRules.each(rule,begin
-    local attributes:=rule.ruleAttributes;
-    local id:=attributes['OEIS'] orElse rule[0].split('.').trailing; //use ruleId as fallback to annotation
+    attributes:=rule.ruleAttributes;
+    id:=attributes['OEIS'] orElse rule[0].split('.').trailing; //use ruleId as fallback to annotation
     id.isString AND id.matches('^A\d{6}$')
     ? [id.copy(1,6).softCast,
        [rule.getFunction,
@@ -342,7 +342,7 @@ memoized implemented->
 
 private findPolyParam(sequence:IntList)->sequence.size<2 ? void : begin
   //Construct a polynomial of the first half of the sequence
-  local poly:=gregoryNewton(sequence.head(min(sequence.size div 2,10)));
+  poly:=gregoryNewton(sequence.head(min(sequence.size div 2,10)));
   poly.toBuiltin.isIntList AND
   //Check, if the whole sequence can be reconstructed:
   map([0..sequence.size-1],poly.toExpression())==sequence
@@ -353,9 +353,9 @@ private findPolyParam(sequence:IntList)->sequence.size<2 ? void : begin
 end;
 
 generalizedFibonacci(state:IntList)->{begin
-  local L:=state;
+  L:=state;
 save;
-  local result:=L[0];
+  result:=L[0];
   L:=L.tail|L.agg(+);
   result<0 ? void : result;
 end};
@@ -369,7 +369,7 @@ end;
 
 private findPowerParam(sequence:IntList)->sequence.size<10 ? void : begin
   //zero based index
-  local base:=(ln(sequence)/ln([0..sequence.size-1])).filter({!isNan($x) AND !isInfinite($x)});
+  base:=(ln(sequence)/ln([0..sequence.size-1])).filter({!isNan($x) AND !isInfinite($x)});
   base:=(base.agg(+)/base.size);
   sequence==      try({round([0..sequence.size-1]^base)},[""])
   ? return [format(sequence==try({[0..sequence.size-1]^round(base)},[""])

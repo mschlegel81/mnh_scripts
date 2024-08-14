@@ -68,15 +68,15 @@ clearServedFiles->begin
 end;
 serveFile(filename:String)->
 fileExists(filename) ? begin
-  local cachedResult:=fileServed[filename];
-  local currentFileInfo:=fileInfo(filename);
+  cachedResult:=fileServed[filename];
+  currentFileInfo:=fileInfo(filename);
   cachedResult.isVoid OR !(cachedResult[0]==currentFileInfo)
   ? begin
-      local response:=filename.extractFileExt.lower=='.ico'
-                      ? wrapTextInHttp(fileContents(filename),200,['Cache-Control'=>'max-age=3600','Content-type'=>'image/x-icon'].toMap)
-                      : formatHtmlPage(filename.fileLines,filename.extractFileName)
-                        .replace('<font  size=3 face="Courier New">','<font  size=3 face="Hack, Courier New, Monospace">')
-                        .wrapTextInHttp;
+      response:=filename.extractFileExt.lower=='.ico'
+                ? wrapTextInHttp(fileContents(filename),200,['Cache-Control'=>'max-age=3600','Content-type'=>'image/x-icon'].toMap)
+                : formatHtmlPage(filename.fileLines,filename.extractFileName)
+                  .replace('<font  size=3 face="Courier New">','<font  size=3 face="Hack, Courier New, Monospace">')
+                  .wrapTextInHttp;
       fileServed[filename]:=[currentFileInfo,response];
       response;
     end

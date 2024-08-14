@@ -10,6 +10,7 @@ findPathsStartingFrom(Adjacency:List,last:Int,toBeVisited:IntList)->begin
   : [];
 end;
 
+
 findPaths_2(gridWidth,gridHeight)->begin
   print(_T_,'Next: ',gridWidth,'x',gridHeight);
   local adjacency:=cross([0..gridWidth-1],[0..gridHeight-1])
@@ -19,6 +20,7 @@ findPaths_2(gridWidth,gridHeight)->begin
                  y>0            ? (x+y*gridWidth)=>(x+(y-1)*gridWidth) : void])
     .agg(|);
   adjacency:=groupToList(adjacency.getInner(0),adjacency.getInner(1),[],::|).map(::sort);
+  log(adjacency);
 
   local symmetries:=[cross([0..gridHeight-1],[0..gridWidth-1])]
   .each(s,s,s.map((c)->[gridHeight-1-c[0],c[1]]))
@@ -27,7 +29,6 @@ findPaths_2(gridWidth,gridHeight)->begin
   ? symmetries:=symmetries.each(s,s,s.map((c)->c.reverseList))
   : void;
   symmetries:=symmetries.map((s)->s.getInner(0)*gridWidth+s.getInner(1)).unique;
-
 
   begin
     local rest:=[0..gridWidth*gridHeight-1];
@@ -40,12 +41,13 @@ findPaths_2(gridWidth,gridHeight)->begin
                 : void);
     out;
   end
+  .{log($0) orElse $0}
   .pMap((i0)->begin
     print(_T_,'Starting search from ',i0.divMod(gridWidth).reverseList);
     local count:=findPathsStartingFrom(adjacency.map((a)->a[a<>i0]),
                                        i0,
-                                       [0..gridWidth*gridHeight-1].filter((n)->n<>i0))
-    .elementFrequency.toList;
+                                       [0..gridWidth*gridHeight-1].filter((n)->n<>i0)).elementFrequency.toList;
+    note(count.sort);
     count:=groupToList(count.getInner(1),count.getInner(0),0,::+,gridWidth*gridHeight);
     print(_T_,'Found ',count.agg(+),' paths from ',i0.divMod(gridWidth).reverseList);
     i0==0
@@ -57,6 +59,9 @@ findPaths_2(gridWidth,gridHeight)->begin
   .unique
   .getInner(1);
 end;
+
+findPaths_2(4,4);
+halt;
 
 TBD:=cross([2..19],[2..19]).filter((i,j)->i<=j).sort((x)->x.agg(*));
 

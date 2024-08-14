@@ -4,7 +4,7 @@ datastore foundImplementations:=[].toMap;
 datastore details  :=[].toMap;
 
 postUpdateDatastores->begin
-  local posted:={true};
+  posted:={true};
 save;
   posted().isVoid
   ? void
@@ -29,18 +29,18 @@ private unzipWithOperation(filename:String,operation:Expression(1))->
   : sevenZipExe.teeExec(['e','-so','-bd',filename],operation);
 
 private getData(URL:String,extractor:Expression(1))->begin
-  local filename:=URL.split('/').trailing;
-  (local fileExistedBefore:=fileExists(filename))
+  filename:=URL.split('/').trailing;
+  (fileExistedBefore:=fileExists(filename))
   ? void
   : begin
       log('Fetching data from ',URL);
-      local data:=httpGet(URL);
+      data:=httpGet(URL);
       data['code']!=200 ? fail('Response from ',URL,' is ',data['code']) :
       log(filename,' downloaded');
       filename.writeFile(data['body']);
     end;
-  local list:=[];
-  local temp:=unzipWithOperation(filename,{list||=extractor($line)});
+  list:=[];
+  temp:=unzipWithOperation(filename,{list||=extractor($line)});
   temp[1]==0 ? log(filename,' decompressed')
              : fail('Decompression returned with exit code ',temp[1]);
   fileExistedBefore ? void : deleteFile(filename);
@@ -52,16 +52,16 @@ end;
 //*Obtain the files at https://oeis.org/names.gz and https://oeis.org/stripped.gz
 //*Unzip the files before using them as input
 memoized downloadData->begin
-  local response:=[];
-  local respond:={log@($params) orElse response|=join($params)};
+  response:=[];
+  respond:={log@($params) orElse response|=join($params)};
   respond('Updating data - old: ',typeOf(names));
-  local idAndRest  :={[$s.copy(1,6).softCast,$s.copy(8,$s.length)                                    ]};
-  local idAndSeries:={[$s.copy(1,6).softCast,$s.copy(8,$s.length).split(',').softCast.filter(::isInt)]};
-  local namesMap :=future(::getData,['https://oeis.org/names.gz'   ,(line)->line.matches('^A\d{6} ') ? idAndRest  (line) : void]);
-  local seriesMap:=         getData ('https://oeis.org/stripped.gz',(line)->line.matches('^A\d{6} ') ? idAndSeries(line) : void);
+  idAndRest  :={[$s.copy(1,6).softCast,$s.copy(8,$s.length)                                    ]};
+  idAndSeries:={[$s.copy(1,6).softCast,$s.copy(8,$s.length).split(',').softCast.filter(::isInt)]};
+  namesMap :=future(::getData,['https://oeis.org/names.gz'   ,(line)->line.matches('^A\d{6} ') ? idAndRest  (line) : void]);
+  seriesMap:=         getData ('https://oeis.org/stripped.gz',(line)->line.matches('^A\d{6} ') ? idAndSeries(line) : void);
   namesMap:=namesMap(); //resolve future
   respond('Files parsed - ',seriesMap.size,'/',namesMap.size,' entries');
-  local maxSeries:=max(namesMap.getInner(0).max,seriesMap.getInner(0).max);
+  maxSeries:=max(namesMap.getInner(0).max,seriesMap.getInner(0).max);
   respond('Updating names list of ',maxSeries,' relevant entries');
   names    :=rangeGenerator(0,maxSeries).pMap({namesMap [$i] orElse ''}).toList;
   respond('Updating sequences list of ',maxSeries,' relevant entries');

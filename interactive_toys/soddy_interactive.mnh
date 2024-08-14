@@ -1,13 +1,13 @@
 USE customFormUtil,soddy;
 main->begin
-  local c:=[[0,0],[1,1],[0,1]];
-  local selIdx:=-1;
-  local replot:={begin
-    local T:=c.toCircleTriplet;
+  c:=[[0,0],[1,1],[0,1]];
+  selIdx:=-1;
+  replot:={begin
+    T:=c.toCircleTriplet;
     plot();
     T.each(circle,addPlot([circle[0]-circle[1],circle[0]+circle[1]],index=selIdx ? 'e f red' : 'e red'));
     c.addPlot('red +');
-    local S:=T.findSoddyCircles;
+    S:=T.findSoddyCircles;
     S.each(circle,circle[0]-circle[1],circle[0]+circle[1]).addPlot('blue e');
     S.getInner(0).addPlot('blue +');
     postDisplay;

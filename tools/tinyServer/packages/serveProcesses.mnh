@@ -1,22 +1,22 @@
 USE tinyServer_html;
 
 stopProcess(pid:Int)->begin
-  local execResult:=exec('taskkill',['/f','/PID',toString(pid)])
+  execResult:=exec('taskkill',['/f','/PID',toString(pid)])
   execResult[1]==0
   ? log('Process kill (PID=',pid,') was successful')
   : log('Process kill (PID=',pid,") failed: \n",execResult[0].join("\n"));
 end;
 
 getProcessMap->begin
-  local proc0:=getTaskInfo.map((info)->info['PID']=>info).toMap;
-  local cpuLoad:=getCPULoadPercentage;
-  local proc1:=getTaskInfo.map((info)->info['PID']=>info).toMap;
+  proc0:=getTaskInfo.map((info)->info['PID']=>info).toMap;
+  cpuLoad:=getCPULoadPercentage;
+  proc1:=getTaskInfo.map((info)->info['PID']=>info).toMap;
 
-  local totalUserModeTimeDelta:=0;
-  local PM:=
+  totalUserModeTimeDelta:=0;
+  PM:=
   intersect(proc0.getInner(0),proc1.getInner(0))
     .map((PID)->PID=>begin
-       local userModeTimeDelta:=proc1[PID,'userModeTime']-proc0[PID,'userModeTime'];
+       userModeTimeDelta:=proc1[PID,'userModeTime']-proc0[PID,'userModeTime'];
        totalUserModeTimeDelta+=userModeTimeDelta;
       ['cpu'=>userModeTimeDelta,
        'children'=>[]].toMap.mergeMaps(proc1[PID],::orElse);
@@ -24,7 +24,7 @@ getProcessMap->begin
     .map((key,value)->key=>['cpu'=>value['cpu']*cpuLoad/totalUserModeTimeDelta].toMap.mergeMaps(value,::orElse))
     .toMap;
   PM.getInner(1).each(p,begin
-    local parent:=p['parentPID'];
+    parent:=p['parentPID'];
     PM[parent].isVoid
     ? void
     : PM[parent,'children']|=p['PID'];
@@ -33,12 +33,12 @@ getProcessMap->begin
 end;
 
 private isProcessChildOfAnyOther(processMap:Map, PID:Int)->begin
-  local pPID:=processMap[PID,'parentPID'];
+  pPID:=processMap[PID,'parentPID'];
   pPID != PID AND !isVoid(processMap[pPID]);
 end;
 
 killProcess(parameters:Map)->begin
-  local PID:=parameters['index'];
+  PID:=parameters['index'];
   PID.isInt
   ? stopProcess(PID)
   : void;
@@ -52,23 +52,23 @@ niceBoxGlyphs(s:String)->
 
 @SuppressUnusedParameterWarning
 processesPage(parameters:Map)->begin
-  local PM:=getProcessMap;
+  PM:=getProcessMap;
 
-  local ordered:=PM.getInner(0).sort;
-  local roots:=ordered.filter({!isProcessChildOfAnyOther(PM,$PID)});
-  local printed:=[].toSet;
-  local result:=[];
-  local recurse:=(indent,last,PID)->begin
+  ordered:=PM.getInner(0).sort;
+  roots:=ordered.filter({!isProcessChildOfAnyOther(PM,$PID)});
+  printed:=[].toSet;
+  result:=[];
+  recurse:=(indent,last,PID)->begin
     result|=[[indent&(last ? '\--' : '+--')&(PM[PID,'caption'] orElse '<?>'),
               PID,
               PM[PID,'workingSetSize'] < 1024² ? '' : format('%3.0fMiB',PM[PID,'workingSetSize']/1024²),
               PM[PID,'cpu']            < 0.1   ? '' : format('%3.1f%%' ,PM[PID,'cpu']),
               PM[PID,'commandLine'] orElse '']];
     printed|=PID;
-    local newIndent:=last
-          ? indent + '   '
-          : indent + '|  ';
-    local children:=(PM[PID,'children'] orElse []).sort.filter((child)->child not in printed);
+    newIndent:=last
+               ? indent + '   '
+               : indent + '|  ';
+    children:=(PM[PID,'children'] orElse []).sort.filter((child)->child not in printed);
     children.each(child,recurse(newIndent,index+1=children.size,child));
   end;
 

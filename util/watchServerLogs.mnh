@@ -5,13 +5,13 @@ LOG_FILE_PATTERN:='Y:\server\logs\log*.txt';
 currentLogs->files(LOG_FILE_PATTERN).fileInfo.map((info)->info['path']=>info['time']).toMap;
 
 latestLogFile->begin
-  local latestSeenTimes:=currentLogs
+  latestSeenTimes:=currentLogs
     .map((entry)->entry[0] => ((systime-entry[1])<DISPLAY_THRESHOLD
                                 ? 0
                                 : entry[1])).toMap;
 save;
-  local current:=currentLogs;
-  local latest:=current.filter((info)->!(info[1]==latestSeenTimes[info[0]])).sort(1).head;
+  current:=currentLogs;
+  latest:=current.filter((info)->!(info[1]==latestSeenTimes[info[0]])).sort(1).head;
   latest:=latest.size==0
           ? current.sort(1).trailing
           : latest;
@@ -19,8 +19,8 @@ save;
   latest[0];
 end;
 
-skipEntriesFromIterator(i:IteratableExpression,count=0)->i;
-skipEntriesFromIterator(i:IteratableExpression,count>0)->begin
+skipEntriesFromIterator(i:IterableExpression,count=0)->i;
+skipEntriesFromIterator(i:IterableExpression,count>0)->begin
   [1..count].map(()->i());
   i;
 end;
@@ -30,27 +30,27 @@ main->begin
   async({begin ask('Press Q to quit',['q']); halt; end});
   sleep(1);
   print;
-  local currentLogFile:=0;
-  local linesReadFromLog:=[currentLogFile=>0].toMap;
-  local getFileIterator:={begin
-    local fileChanged:=!((local llf:=latestLogFile)==currentLogFile);
+  currentLogFile:=0;
+  linesReadFromLog:=[currentLogFile=>0].toMap;
+  getFileIterator:={begin
+    fileChanged:=!((llf:=latestLogFile)==currentLogFile);
     currentLogFile:=llf;
     assert(!isVoid(currentLogFile),'There is no log');
     fileChanged
     ? printf("==========================================\nNow displaying: %s\n==========================================",currentLogFile)
     : void;
-    try(::nextIterator,[currentLogFile,linesReadFromLog],(x)->begin warn(x); sleep(10); ['Unable to fetch log at '&formatTime(systime)].toIteratableExpression; end);
+    try(::nextIterator,[currentLogFile,linesReadFromLog],(x)->begin warn(x); sleep(10); ['Unable to fetch log at '&formatTime(systime)].toIterableExpression; end);
   end};
-  local nextLineFromLog:=getFileIterator();
+  nextLineFromLog:=getFileIterator();
   sleep(1);
   print;
-  while(true,begin
-    local line:=nextLineFromLog();
+  while true do begin
+    line:=nextLineFromLog();
     line.isVoid
     ? nextLineFromLog:=getFileIterator()
     : begin
         linesReadFromLog[currentLogFile]+=1;
         print(line);
       end;
-  end);
+  end;
 end;

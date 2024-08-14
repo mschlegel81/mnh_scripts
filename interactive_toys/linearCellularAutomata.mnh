@@ -3,7 +3,7 @@ USE customFormUtil;
 
 Rule(n:Int)->begin
   local m:=digits(n,2).reverseList;
-  while(m.size<8,m|=0);
+  while m.size<8 do m|=0;
   m.head(8);
 end;
 
@@ -42,7 +42,7 @@ main->begin
 
   clearAnimation(true);
   localAsync({
-  while(true,begin
+  while true do begin
     setOptions(["x0"=>-1,"x1"=>1,"y0"=>-1,"y1"=>1,"fontsize"=>10,"preserveAspect"=>true,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
     plot;
     plotRasterImage(1-rows.flatten,rows[0].size);
@@ -60,7 +60,7 @@ main->begin
       state:=state.tail.leading;
       rows:=rows.map((r)->r.tail.leading);
     end : void;
-  end)});
+  end});
 
   showDialog('Linear cellular automata',
     [newEdit.withCaption('Rule: ').bind(::ruleIdx).withActionOnChange(()->

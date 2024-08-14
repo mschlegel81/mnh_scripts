@@ -21,9 +21,10 @@ makeConfig(backupNameBase:String)->['backupNameBase'=>backupNameBase,
                                     'matcher'=>(x)->true].toMap.toBackupConfig;
 
 datastore cached_fingerprints:=[].toMap;
+
 obtainFingerprint(filename:String)->begin
-  local fromCache:=cached_fingerprints[filename];
-  local trueTime :=fileInfo(filename)['time'];
+  fromCache:=cached_fingerprints[filename];
+  trueTime :=fileInfo(filename)['time'];
 
   fromCache.isVoid OR fromCache.trailing<>trueTime
   ? cached_fingerprints[filename]:=filename.fileStats.trailing(2)|trueTime
@@ -31,22 +32,22 @@ obtainFingerprint(filename:String)->begin
 end;
 
 localFolderContents(config:BackupConfig)->begin
-  local trueRoot:=expandedFileName(config['root']);
+  trueRoot:=expandedFileName(config['root']);
   allFiles(trueRoot,
            config['basePattern'],
-           config['recurse']).filter(config['matcher'])
-  .map((filePath)->relativeFileName(trueRoot,filePath)=>[
-    obtainFingerprint(filePath),
-    ()->fileContents(filePath)]).toMap;
+           config['recurse'])
+  .filter(config['matcher'])
+  .map((filePath)->relativeFileName(trueRoot,filePath)=>[obtainFingerprint(filePath),()->fileContents(filePath)])
+  .toMap;
 end;
 
 writeContents(baseName:String,contents:ContentMap)->begin
   //Sorting the files by extension usually results in slightly improved compression
-  local asList:=contents.sort.sort((entry)->entry[0].extractFileExt).toList;
+  asList:=contents.sort.sort((entry)->entry[0].extractFileExt).toList;
   //Something may has changed. Checkout the actual contents...
-  asList:=asList.pMap((key,value)->begin
-    local actualContent:=value[1]();
-    local actualHash:=[actualContent.byteLength,actualContent.sha256];
+  asList:=asList.map((key,value)->begin
+    actualContent:=value[1]();
+    actualHash:=[actualContent.byteLength,actualContent.sha256];
     value[0]==DELETED_FINGERPRINT OR actualHash==value[0].head(2)
     ? [key,[value[0],actualContent]]
     : begin
@@ -56,36 +57,38 @@ writeContents(baseName:String,contents:ContentMap)->begin
         void;
       end;
   end);
-  local fileData       :=asList.map((key,value)->     value[1]);
-  local metadataSection:=asList.map((key,value)->[key,value[0]]);
+  fileData       :=asList.map((key,value)->     value[1]);
+  metadataSection:=asList.map((key,value)->[key,value[0]]);
 
-  local fileData_S:=fileData       .serialize(true,false);
-  local metaData_S:=metadataSection.serialize(true,false);
+  fileData_S:=fileData       .serialize(true,false);
+  metaData_S:=metadataSection.serialize(true,false);
 
-  local ok:=writeFile(baseName.changeFileExt(INDEX_EXTENSION),metaData_S) AND
-            writeFile(baseName.changeFileExt(DATA_EXTENSION ),fileData_S);
-  local info:=ok ? fileInfo(baseName&'*').getInner('size').agg(+).formatSize : '';
+  ok:=writeFile(baseName.changeFileExt(INDEX_EXTENSION),metaData_S) AND
+      writeFile(baseName.changeFileExt(DATA_EXTENSION ),fileData_S);
+  info:=ok
+        ? fileInfo(baseName&'*').getInner('size').agg(+).formatSize
+        : '';
   printWithSuccess(['  Writing '&baseName&' containing '&contents.size&' files of '&formatSize(contents.getInner(1).getInner(0).getInner(0).agg(+)),info],ok);
 end;
 
 private contentListWrapper(filePath:String)->(index:Int)->begin
-  local contentList:=filePath.fileContents.deserialize;
+  contentList:=filePath.fileContents.deserialize;
 save;
   contentList[index];
 end;
 private apply(e:Expression,key:Int)->()->e(key);
 
 backupFileToContentMap(backupFilePath:String)->begin
-  local metadataSection:=deserialize(backupFilePath.changeFileExt(INDEX_EXTENSION).fileContents);
-  local wrapper        :=contentListWrapper(backupFilePath.changeFileExt(DATA_EXTENSION));
+  metadataSection:=deserialize(backupFilePath.changeFileExt(INDEX_EXTENSION).fileContents);
+  wrapper        :=contentListWrapper(backupFilePath.changeFileExt(DATA_EXTENSION));
   metadataSection.each(entry,
     entry[0]=>[entry[1],apply(wrapper,index)]).toMap;
 end;
 
 chunkContents(contents:ContentMap)->begin
-  local outputChunks:=[];
-  local currentChunk:=[];
-  local chunkSize:=0;
+  outputChunks:=[];
+  currentChunk:=[];
+  chunkSize:=0;
   contents.sort.sort((entry)->entry[0].extractFileExt).each(entry,begin
     (chunkSize + entry[1,0,0] > MAX_CHUNK_SIZE) AND (currentChunk.size>0)
     ? begin
@@ -110,14 +113,14 @@ filterMatchedFiles(content:ContentMap,config:BackupConfig)->content.filter((key,
 //* - the fingerprint heads (size and hash) differ
 //*Additionally entries which are in Current and not in Target will be added as DELETED_ENTRY = {DELETED_ENTRY}
 contentsDelta(Current:ContentMap,Target:ContentMap)->begin
-  local newOrChanged:=Target.pFilter((key,value)->Current[key].isVoid OR !(Current[key,0].head(2)==value[0].head(2))).toMap;
-  local deleted:=Current.dropDeletes.getInner(0).minus(Target.getInner(0)).map((key)->key=>DELETED_ENTRY).toMap;
+  newOrChanged:=Target.pFilter((key,value)->Current[key].isVoid OR !(Current[key,0].head(2)==value[0].head(2))).toMap;
+  deleted:=Current.dropDeletes.getInner(0).minus(Target.getInner(0)).map((key)->key=>DELETED_ENTRY).toMap;
   mergeMaps(newOrChanged,deleted,::orElse);
 end;
 
 currentMonth->formatTime('mm',systime);
 backupNameToMonth(backupName:String)->begin
-  local lastDatePart:=backupName.replace(BACKUP_ROOT_DIR,'').matchComposite('\d{8}').trailing[0];
+  lastDatePart:=backupName.replace(BACKUP_ROOT_DIR,'').matchComposite('\d{8}').trailing[0];
   assert(!lastDatePart.isVoid);
   formatTime('mm',parseTime('yyyymmdd',lastDatePart));
 end;
@@ -127,16 +130,16 @@ findBackups(config:BackupConfig)->findBackups(config,false);
 
 @SuppressUnusedParameterWarning=Used in format statement
 findBackups(config:BackupConfig, includeBackupsBeforeLastFullBackup:Boolean)->begin
-  local fileList:=[INDEX_EXTENSION,DATA_EXTENSION].each(ext,
-                   regex.replace(files(f'{BACKUP_ROOT_DIR}/{config["backupNameBase"]}*{ext}'),'\'&ext&'$',''));
-  local orphans:=
+  fileList:=[INDEX_EXTENSION,DATA_EXTENSION].each(ext,
+             regex.replace(files(f'{BACKUP_ROOT_DIR}/{config["backupNameBase"]}*{ext}'),'\'&ext&'$',''));
+  orphans:=
   sort(fileList[0].minus(fileList[1]).toList&INDEX_EXTENSION |
        fileList[1].minus(fileList[0]).toList&DATA_EXTENSION);
   orphans.size=0 ? void : printf("  \e[91;5m  Orphaned file %s\e[0m",orphans);
   fileList:=intersect(fileList[0],fileList[1]).sort;
   fileList.size==0
   ? return [[],true] :
-  local indexOfLastFullBackup:=
+  indexOfLastFullBackup:=
     includeBackupsBeforeLastFullBackup
     ? 0
     : indexOf(fileList.matches(FULL_BACKUP_STEM_SUFFIX&'$')).max;
@@ -146,15 +149,15 @@ findBackups(config:BackupConfig, includeBackupsBeforeLastFullBackup:Boolean)->be
 end;
 
 listAll(config:BackupConfig)->begin
-  local root:=config['root'];
+  root:=config['root'];
   printWithTime('Listing contents for folder ',root.expandedFileName,' (',config['backupNameBase'],')');
   @SuppressUnusedWarning
-  local BLUE:="\e[94m";
+  BLUE:="\e[94m";
   @SuppressUnusedWarning
-  local RESET:="\e[00m";
+  RESET:="\e[00m";
   @SuppressUnusedWarning
-  local RED:="\e[91m";
-  local matcher:=config['matcher'];
+  RED:="\e[91m";
+  matcher:=config['matcher'];
   printf('%s',
   findBackups(config,true)[0]
     .map(::backupFileToContentMap)
@@ -170,14 +173,14 @@ listAll(config:BackupConfig)->begin
 end;
 
 
-backupFilenameGenerator(config:BackupConfig,full:Boolean)->toIteratableExpression({begin
+backupFilenameGenerator(config:BackupConfig,full:Boolean)->toIterableExpression({begin
   @SuppressUnusedWarning
-  local prefix:=BACKUP_ROOT_DIR&'/'&config['backupNameBase']&'_'&formatTime('yyyymmdd',systime)&'_';
-  local counter:=formatTime('hhnn',systime).toInt;
+  prefix:=BACKUP_ROOT_DIR&'/'&config['backupNameBase']&'_'&formatTime('yyyymmdd',systime)&'_';
+  counter:=formatTime('hhnn',systime).toInt;
   @SuppressUnusedWarning
-  local suffix:=full ? FULL_BACKUP_STEM_SUFFIX : '';
-  local fname:='';
-  while(fileExists(fname:=f'{prefix}%{counter}4.4d{suffix}.{INDEX_EXTENSION}'),counter+=1);
+  suffix:=full ? FULL_BACKUP_STEM_SUFFIX : '';
+  fname:='';
+  while fileExists(fname:=f'{prefix}%{counter}4.4d{suffix}.{INDEX_EXTENSION}') do counter+=1;
 save;
   fname:=f'{prefix}%{counter}4.4d{suffix}';
   suffix:='';
@@ -195,13 +198,13 @@ end;
 
 createBackup(config:BackupConfig)->begin
   printWithTime('Creating backup for ',config['root'],' (',config['backupNameBase'],')');
-  local backups:=findBackups(config);
-  local requireFullBackup:=backups[1];
-  local backupState:=backups[0]
+  backups:=findBackups(config);
+  requireFullBackup:=backups[1];
+  backupState:=backups[0]
     .map(::backupFileToContentMap)
     .agg((older,newer)->mergeMaps(newer,older,::orElse)) orElse [].toMap;
-  local localState:=localFolderContents(config);
-  local delta:=contentsDelta(backupState,localState).filterMatchedFiles(config);
+  localState:=localFolderContents(config);
+  delta:=contentsDelta(backupState,localState).filterMatchedFiles(config);
   delta.size=0
   ? (printWithTime('  Backup for ',config['root'],' (',config['backupNameBase'],') is up to date'))
   : requireFullBackup
@@ -215,8 +218,8 @@ createBackup(config:BackupConfig)->begin
 end;
 
 writeFileWithAge(filename:String,contentGetter:Expression(0),fingerprint:FingerPrint)->begin
-  local content:=contentGetter();
-  local info:=formatSize(content.byteLength);
+  content:=contentGetter();
+  info:=formatSize(content.byteLength);
   fingerprint[[0,1]]==[content.byteLength,content.sha256]
   ? printWithSuccess(['Writing '&filename,info],
                      writeFile(filename,contentGetter()) AND
@@ -226,11 +229,11 @@ end;
 
 restoreBackup(config:BackupConfig, allowDelete:Boolean)->begin
   printWithTime(allowDelete ? 'Restoring' : 'Merging',' backup for ',config['root'],' (',config['backupNameBase'],')');
-  local backupState:=findBackups(config)[0]
+  backupState:=findBackups(config)[0]
     .map(::backupFileToContentMap)
     .agg((older,newer)->mergeMaps(newer,older,::orElse)) orElse [].toMap;
-  local localState:=localFolderContents(config);
-  local delta:=contentsDelta(localState,backupState)
+  localState:=localFolderContents(config);
+  delta:=contentsDelta(localState,backupState)
               .{allowDelete ? $D : $D.dropDeletes}
               .toContentMap
               .filterMatchedFiles(config);
@@ -240,7 +243,7 @@ restoreBackup(config:BackupConfig, allowDelete:Boolean)->begin
   ? printWithTime('Backup for ',config['root'],' (',config['backupNameBase'],')',' contains no updates')
   : begin
       delta.map((key,value)->begin
-        local filename:=expandedFileName(config['root']&'/'&key);
+        filename:=expandedFileName(config['root']&'/'&key);
         value[0]==DELETED_FINGERPRINT
         ? verboseDelete(filename)
         : writeFileWithAge(filename,value[1],value[0]);
@@ -250,15 +253,15 @@ restoreBackup(config:BackupConfig, allowDelete:Boolean)->begin
 end;
 
 niceDiff(aState:StringList,bState:StringList,aCaption:String,bCaption:String,additionalLines>=0)->begin
-  local edit:=diff(aState,bState,true)['edit']
+  edit:=diff(aState,bState,true)['edit']
     .pEach(e,e[0]='+' ? [e[0],e[1]+1,e[2]+1,bState[e[2]]]
                       : [e[0],e[1]+1,e[2]+1,aState[e[1]]]);
-  local runs:=
+  runs:=
     begin
-      local indexes:=edit.pEach(e,e[0]<>' ' ? [index-additionalLines..index+additionalLines] : void,|) //add additional lines to each run and concatenate all
+      indexes:=edit.pEach(e,e[0]<>' ' ? [index-additionalLines..index+additionalLines] : void,|) //add additional lines to each run and concatenate all
                          .unique //remove duplicate lines and sort
                          .each(i,i>=edit.size or i<0 ? void : i);
-      local splits:=(indexes.tail<>indexes.leading+1);
+      splits:=(indexes.tail<>indexes.leading+1);
       [indexes[true|splits],indexes[splits|true]].transpose;
     end;
   ["\e[91m--- "&aCaption&"\e[0m","\e[92m+++ "&bCaption&"\e[0m"]|
@@ -269,26 +272,26 @@ niceDiff(aState:StringList,bState:StringList,aCaption:String,bCaption:String,add
 end;
 
 fileDiff(config:BackupConfig, localFileName:String, additionalLines>=0)->begin
-  local nameInBackup:=relativeFileName(expandedFileName(config['root']),localFileName);
-  local stateFromBackup:=(
+  nameInBackup:=relativeFileName(expandedFileName(config['root']),localFileName);
+  stateFromBackup:=(
   findBackups(config)[0]
     .map(::backupFileToContentMap)
     .agg((older,newer)->mergeMaps(newer,older,::orElse)) orElse [].toMap)[nameInBackup];
   stateFromBackup.isVoid OR stateFromBackup[0]==DELETED_FINGERPRINT ? return void : begin
     stateFromBackup:=regex.split(stateFromBackup[1](),"\r?\n");
-    local localState:=localFileName.fileLines;
+    localState:=localFileName.fileLines;
     niceDiff(stateFromBackup, localState, 'backup', localFileName,additionalLines);
   end;
 end;
 
 fullRevert(config:BackupConfig, backup_id:String)->begin
-  local allBackups:=findBackups(config,true)[0];
+  allBackups:=findBackups(config,true)[0];
   assert(backup_id in allBackups.extractFileNameOnly,'Could not find revision ',backup_id);
-  local backupState:=allBackups.filter((b)->b.extractFileNameOnly<=backup_id)
+  backupState:=allBackups.filter((b)->b.extractFileNameOnly<=backup_id)
                                .map(::backupFileToContentMap)
                                .agg((older,newer)->mergeMaps(newer,older,::orElse)) orElse [].toMap;
-  local localState:=localFolderContents(config);
-  local delta:=contentsDelta(localState,backupState)
+  localState:=localFolderContents(config);
+  delta:=contentsDelta(localState,backupState)
               .dropDeletes
               .toContentMap
               .filterMatchedFiles(config);
@@ -298,7 +301,7 @@ fullRevert(config:BackupConfig, backup_id:String)->begin
   ? printWithTime('Folder ',config['root'],' (',config['backupNameBase'],')',' is up to date with backup ',backup_id)
   : begin
       delta.map((key,value)->begin
-        local filename:=expandedFileName(config['root']&'/'&key);
+        filename:=expandedFileName(config['root']&'/'&key);
         value[0]==DELETED_FINGERPRINT
         ? verboseDelete(filename)
         : writeFileWithAge(filename,value[1],value[0]);
@@ -309,15 +312,15 @@ end;
 
 fileRevert(config:BackupConfig, localFileName:String, pickLatest:Boolean, backup_id:String)->begin
   !pickLatest AND !hasPrefix(backup_id,config['backupNameBase']) ? return void :
-  local nameInBackup:=relativeFileName(expandedFileName(config['root']),localFileName);
-  local states:=
+  nameInBackup:=relativeFileName(expandedFileName(config['root']),localFileName);
+  states:=
   findBackups(config,true)[0].map((backupName)->begin
     [backupName.extractFileNameOnly,
      backupName.backupFileToContentMap[nameInBackup]];
   end)
   .filter((b)->b.size=2).map((id,val)->[id,val[0],val[1]]);
 
-  local dataSource:=pickLatest ? states.trailing : states.filter((name,time,lines)->name==backup_id)[0];
+  dataSource:=pickLatest ? states.trailing : states.filter((name,time,lines)->name==backup_id)[0];
   log(dataSource);
   dataSource.isVoid
   ? return "\e[91mBackup "&backup_id&" could not be found\e[0m"
@@ -328,8 +331,8 @@ fileRevert(config:BackupConfig, localFileName:String, pickLatest:Boolean, backup
 end;
 
 fileHistory(config:BackupConfig, localFileName:String, additionalLines>=0)->begin
-  local nameInBackup:=relativeFileName(expandedFileName(config['root']),localFileName);
-  local states:=
+  nameInBackup:=relativeFileName(expandedFileName(config['root']),localFileName);
+  states:=
   findBackups(config,true)[0].map((backupName)->begin
     ['backup:'&backupName.extractFileNameOnly,
      backupName.backupFileToContentMap[nameInBackup]];
@@ -343,8 +346,8 @@ fileHistory(config:BackupConfig, localFileName:String, additionalLines>=0)->begi
 
   states||=[localFileName,fileLines(localFileName)];
 
-  local consoleWidth:=exec('cmd',['/C','mode','con'])[0].filter((L)->L.matches(': *\d+$'))[1].split(':')[1].trim.softCast;
-  local hLine:=repeat('─',consoleWidth-1);
+  consoleWidth:=exec('cmd',['/C','mode','con'])[0].filter((L)->L.matches(': *\d+$'))[1].split(':')[1].trim.softCast;
+  hLine:=repeatString('─',consoleWidth-1);
 
   [states.leading,states.tail].transpose
   .map((older,newer)->niceDiff(older[1],newer[1],older[0],newer[0],3)|hLine)
@@ -352,8 +355,8 @@ fileHistory(config:BackupConfig, localFileName:String, additionalLines>=0)->begi
 end;
 
 emergencyRestore(configs:List)->begin
-  local knownBaseNames:=configs.getInner('backupNameBase');
-  local synthesizedConfigs:=
+  knownBaseNames:=configs.getInner('backupNameBase');
+  synthesizedConfigs:=
     allFiles(myPath.extractFileDirectory,'*'&INDEX_EXTENSION,false)
     .extractFileNameOnly
     .map(::extractBackupPrefix)
@@ -366,66 +369,66 @@ end;
 BAR_CELL:=[' ',"▏","▎","▍","▌","▋","▊","▉","█"];
 
 bar(fillFraction:Numeric,maxWidth:Int)->begin
-  local k:=round(max(0,min(1,fillFraction))*8*maxWidth);
-  format('%-'&maxWidth&'.'&maxWidth&'s',repeat(BAR_CELL[7],k div 8)&BAR_CELL[k mod 8]);
+  k:=round(max(0,min(1,fillFraction))*8*maxWidth);
+  format('%-'&maxWidth&'.'&maxWidth&'s',repeatString(BAR_CELL[7],k div 8)&BAR_CELL[k mod 8]);
 end;
 
 printBackupSummary(knownConfigurations:List,onlyKnown:Boolean,diffOnly:Boolean)->begin
-  local color:=(s:String,sig:Numeric)->(sig>0 ? #27'[92m' : sig<0 ? #27'[91m' : #27'[00m')&"\v"&s&"\v"#27'[0m';
+  color:=(s:String,sig:Numeric)->(sig>0 ? #27'[92m' : sig<0 ? #27'[91m' : #27'[00m')&"\v"&s&"\v"#27'[0m';
 
-  local consoleWidth:=exec('cmd',['/C','mode','con'])[0].filter((L)->L.matches(': *\d+$'))[1].split(':')[1].trim.softCast;
-  local tab:=
+  consoleWidth:=exec('cmd',['/C','mode','con'])[0].filter((L)->L.matches(': *\d+$'))[1].split(':')[1].trim.softCast;
+  tab:=
     allFiles(myPath.extractFileDirectory,'*'&[INDEX_EXTENSION,DATA_EXTENSION])
     .fileInfo
     .map((f)->f['path'].extractFileNameOnly.extractBackupPrefix=>[f['path'].extractFileNameOnly,f['size'],f['path']])
     .{$L.getInner(1).group($L.getInner(0))}
-    .pMap((baseName,backupFiles)->begin
-       local isKnown:=baseName in knownConfigurations.getInner('backupNameBase');
-       local numberOfBackups:=
-       local sizeOfBackups:=
-       local backup_fileCount:=
-       local backup_fileSize:=
-       local numberOfOldBackups:=
-       local sizeOfOldBackups:=0;
-       local config:=knownConfigurations.filter((cfg)->cfg['backupNameBase']==baseName)[0] orElse void;
+    .map((baseName,backupFiles)->begin
+       isKnown:=baseName in knownConfigurations.getInner('backupNameBase');
+       numberOfBackups:=
+       sizeOfBackups:=
+       backup_fileCount:=
+       backup_fileSize:=
+       numberOfOldBackups:=
+       sizeOfOldBackups:=0;
+       config:=knownConfigurations.filter((cfg)->cfg['backupNameBase']==baseName)[0] orElse void;
        diffOnly ? void : begin
-         local contents:=backupFiles.getInner(2)
+         contents:=backupFiles.getInner(2)
                               .filter((n)->n.matches(INDEX_EXTENSION&'$'))
-                              .pMap((idxFileName)->idxFileName.fileContents.deserialize.map((k,v)->k=>v[0]))
+                              .map((idxFileName)->idxFileName.fileContents.deserialize.map((k,v)->k=>v[0]))
                               .agg(|);
          contents:=contents.getInner(1).group(contents.getInner(0),::orElse).getInner(1);
          backup_fileCount:=contents.size;
          backup_fileSize :=contents.agg(+);
-         local sets:=backupFiles.getInner(1).group(backupFiles.getInner(0),::+).sort;
+         sets:=backupFiles.getInner(1).group(backupFiles.getInner(0),::+).sort;
          numberOfOldBackups:=sets.getInner(0).matches(FULL_BACKUP_STEM_SUFFIX&'$').indexOf.max;
          sizeOfOldBackups  :=sets.head(numberOfOldBackups).getInner(1).agg(+) orElse 0;
          numberOfBackups   :=sets.size;
          sizeOfBackups     :=sets.getInner(1).agg(+) orElse 0;
        end;
 
-       local deltaTable:=isKnown
-                         ? begin
-                             local backupState:=findBackups(config)[0]
-                               .map(::backupFileToContentMap)
-                               .agg((older,newer)->mergeMaps(newer,older,::orElse)).orElse([].toMap)
-                               .dropDeletes
-                               .filterMatchedFiles(config);
-                             local localState:=localFolderContents(config).filterMatchedFiles(config);
-                             union(backupState.getInner(0),localState.getInner(0)).sort.each(key,begin
-                               local fullName:=expandedFileName(config['root']&'/'&key);
-                               fullName:=[fullName,relativeFileName(expandedFileName('.'),fullName)].sort(::length)[0];
-                               local localFingerprint :=localState [key,0] orElse DELETED_FINGERPRINT;
-                               local backupFingerprint:=backupState[key,0] orElse DELETED_FINGERPRINT;
-                               localFingerprint.head(2)==backupFingerprint.head(2)
-                               ? void
-                               : [fullName,
-                                  localState [key].isVoid ? ' '                                  : color(formatSize(localFingerprint [0]),localFingerprint [0]-backupFingerprint[0]),
-                                  localState [key].isVoid ? "\e[91m\v       missing     \v\e[0m" : color(formatTime(localFingerprint [2]),localFingerprint [2]-backupFingerprint[2]),
-                                  backupState[key].isVoid ? ' '                                  : color(formatSize(backupFingerprint[0]),backupFingerprint[0]-localFingerprint [0]),
-                                  backupState[key].isVoid ? "\e[91m\v       missing     \v\e[0m" : color(formatTime(backupFingerprint[2]),backupFingerprint[2]-localFingerprint [2])];
-                             end);
-                           end
-                         : [];
+       deltaTable:=isKnown
+                   ? begin
+                       backupState:=findBackups(config)[0]
+                         .map(::backupFileToContentMap)
+                         .agg((older,newer)->mergeMaps(newer,older,::orElse)).orElse([].toMap)
+                         .dropDeletes
+                         .filterMatchedFiles(config);
+                       localState:=localFolderContents(config).filterMatchedFiles(config);
+                       union(backupState.getInner(0),localState.getInner(0)).sort.each(key,begin
+                         fullName:=expandedFileName(config['root']&'/'&key);
+                         fullName:=[fullName,relativeFileName(expandedFileName('.'),fullName)].sort(::length)[0];
+                         localFingerprint :=localState [key,0] orElse DELETED_FINGERPRINT;
+                         backupFingerprint:=backupState[key,0] orElse DELETED_FINGERPRINT;
+                         localFingerprint.head(2)==backupFingerprint.head(2)
+                         ? void
+                         : [fullName,
+                            localState [key].isVoid ? ' '                                  : color(formatSize(localFingerprint [0]),localFingerprint [0]-backupFingerprint[0]),
+                            localState [key].isVoid ? "\e[91m\v       missing     \v\e[0m" : color(formatTime(localFingerprint [2]),localFingerprint [2]-backupFingerprint[2]),
+                            backupState[key].isVoid ? ' '                                  : color(formatSize(backupFingerprint[0]),backupFingerprint[0]-localFingerprint [0]),
+                            backupState[key].isVoid ? "\e[91m\v       missing     \v\e[0m" : color(formatTime(backupFingerprint[2]),backupFingerprint[2]-localFingerprint [2])];
+                       end);
+                     end
+                   : [];
        [baseName,isKnown,config orElse [],
         numberOfBackups,sizeOfBackups,
         backup_fileCount,backup_fileSize,
@@ -436,12 +439,10 @@ printBackupSummary(knownConfigurations:List,onlyKnown:Boolean,diffOnly:Boolean)-
     onlyKnown ? tab:=tab[tab.getInner(1)] : void;
     diffOnly  ? tab:=tab.filter((row)->!(row[9].orElse([])==[])) : void;
     tab:=tab.sort(0).sort(1); //sort by name, then by "known"
-    local baseNameLength:=max(tab.getInner(0).length.max,
-                              tab.getInner(2).map((cfg)->cfg==[] ? void : cfg['root'].length).max);
-
-
-    local maxSize:=tab.transpose[[4,6,8]].flatten.max;
-    local barWidth:=consoleWidth-65;
+    baseNameLength:=max(tab.getInner(0).length.max,
+                        tab.getInner(2).map((cfg)->cfg==[] ? void : cfg['root'].length).max);
+    maxSize:=tab.transpose[[4,6,8]].flatten.max;
+    barWidth:=consoleWidth-65;
 
     tab.map((baseName,isKnown,config,
              numberOfBackups,sizeOfBackups,
@@ -465,18 +466,18 @@ printBackupSummary(knownConfigurations:List,onlyKnown:Boolean,diffOnly:Boolean)-
       isKnown
       ? begin
           deltaTable.size=0
-          ? (diffOnly ? void : print("\e[F\e[96mNo diff\e[0m","\n",repeat('─',baseNameLength+27),'┼────────┼',repeat('─',consoleWidth-55)))
+          ? (diffOnly ? void : print("\e[F\e[96mNo diff\e[0m","\n",repeatString('─',baseNameLength+27),'┼────────┼',repeatString('─',consoleWidth-55)))
           : begin
-              local indent:=baseNameLength+14;
-              local deltaTable_:=deltaTable.transpose.map((col)->col.join("\n").formatTabs);
-              local column_widths:=deltaTable_.map((col)->regex.replace(col,#27'\[\d+m','').length.max.max(4));
-              local commonFormat:=repeat(' ',indent)&
+              indent:=baseNameLength+14;
+              deltaTable_:=deltaTable.transpose.map((col)->col.join("\n").formatTabs);
+              column_widths:=deltaTable_.map((col)->regex.replace(col,#27'\[\d+m','').length.max.max(4));
+              commonFormat:=repeatString(' ',indent)&
                                   '%-'&column_widths[0]&'s │ '&
                                   '%-'&column_widths[1]&'s │ '&
                                   '%-'&column_widths[2]&'s │ '&
                                   '%-'&column_widths[3]&'s │ '&
                                   '%-'&column_widths[4]&'s';
-                  printf(repeat(' ',indent)&
+                  printf(repeatString(' ',indent)&
                      '%-'&column_widths[0]&'s │ '&
                      '%-'&(column_widths[1]+column_widths[2]+3)&'s │ %s','','Local','Backup');
               printf(commonFormat,'File','Size','Time','Size','Time');
@@ -484,21 +485,21 @@ printBackupSummary(knownConfigurations:List,onlyKnown:Boolean,diffOnly:Boolean)-
                            printf(#27'[2FBase name  : %s'&"\n"&
                                         'Root folder: %s',baseName,config['root']);
                          end : void;
-              print(repeat(' ',indent),
-                    repeat('─',column_widths[0]+1),'┼',
-                    repeat('─',column_widths[1]+2),'┼',
-                    repeat('─',column_widths[2]+2),'┼',
-                    repeat('─',column_widths[3]+2),'┼',
-                    repeat('─',column_widths[4]+3));
+              print(repeatString(' ',indent),
+                    repeatString('─',column_widths[0]+1),'┼',
+                    repeatString('─',column_widths[1]+2),'┼',
+                    repeatString('─',column_widths[2]+2),'┼',
+                    repeatString('─',column_widths[3]+2),'┼',
+                    repeatString('─',column_widths[4]+3));
               commonFormat.printf@deltaTable_;
-              print(repeat('─',column_widths[0]+1+indent),'┴',
-                    repeat('─',column_widths[1]+2),'┴',
-                    repeat('─',column_widths[2]+2),'┴',
-                    repeat('─',column_widths[3]+2),'┴',
-                    repeat('─',consoleWidth-indent-12-column_widths[[0..3]].agg(+)));
+              print(repeatString('─',column_widths[0]+1+indent),'┴',
+                    repeatString('─',column_widths[1]+2),'┴',
+                    repeatString('─',column_widths[2]+2),'┴',
+                    repeatString('─',column_widths[3]+2),'┴',
+                    repeatString('─',consoleWidth-indent-12-column_widths[[0..3]].agg(+)));
             end;
         end
-      : print("\e[F\e[91munknown config\e[0m\n",repeat('─',baseNameLength+27),'┼────────┼',repeat('─',consoleWidth-55));
+      : print("\e[F\e[91munknown config\e[0m\n",repeatString('─',baseNameLength+27),'┼────────┼',repeatString('─',consoleWidth-55));
     end);
     diffOnly and tab.size==0 ? print("\e[96mNo diff\e[0m") : void;
 end;
@@ -510,7 +511,7 @@ deleteBrokenFiles(checkedEntries:List)->
   .sort
   .map((g)->g[1].sort.reverseList)
   .each(pair,pair.size==1 ? print orElse verboseDelete(pair[0]) : begin
-     local KEY:=[pair[0].extractFileNameOnly,pair.fileInfo.map((i)->[i['size'],i['time']])];
+     KEY:=[pair[0].extractFileNameOnly,pair.fileInfo.map((i)->[i['size'],i['time']])];
      KEY in checkedEntries
      ? KEY
      : begin
@@ -532,7 +533,7 @@ deleteOldBackups->begin
                      : [key.extractBackupPrefix,pair[0].changeFileExt('')])
     .{$L.getInner(1).group($L.getInner(0))}
     .map((key,fileList)->begin
-       local l:=fileList.sort
+       l:=fileList.sort
              .each(backup,
               try(::deserialize,[fileContents(backup&INDEX_EXTENSION)]).isVoid OR
               try(::deserialize,[fileContents(backup&DATA_EXTENSION)]).isVoid
@@ -552,6 +553,6 @@ listRevisionContents(matchString:String)->
   .sort
   .each(revisionIndexFile,begin
      print(revisionIndexFile.extractFileNameOnly);
-     local D:=revisionIndexFile.fileContents.deserialize.map((key,value)->key|value).transpose;
+     D:=revisionIndexFile.fileContents.deserialize.map((key,value)->key|value).transpose;
      printf(" \t%s\t%s\t%s\t%x",D[0],D[1].map(::formatSize),D[3].map(::formatTime),D[2]);
    end);

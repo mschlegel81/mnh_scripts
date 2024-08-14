@@ -1,4 +1,4 @@
-SERVE_AT_IP:='localhost';
+SERVE_AT_IP:='localhost'; //'192.168.1.100';
 SERVE_AT_SOCKET           :=80;
 MAX_HISTORY_SIZE          :=1000;
 LOG_FOLDER                :=myPath.extractFileDirectory.extractFileDirectory&'/logs';

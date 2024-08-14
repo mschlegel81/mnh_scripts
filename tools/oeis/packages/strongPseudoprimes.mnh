@@ -1,8 +1,8 @@
 curry MillerRabinTest(a>=2,n:Int)->(n and 1)=0 ? fail : begin
-    local n1:=n-1;
-    local j:=indexOf(digits(n1,2).reverseList=1).head;
-    local d:=n.shiftRight(j);
-    local t:=a.powMod(d,n);
+    n1:=n-1;
+    j:=indexOf(digits(n1,2).reverseList=1).head;
+    d:=n.shiftRight(j);
+    t:=a.powMod(d,n);
     t in [1,n1] ? return true : void;
     [1..j-1].each(k,begin
       t:=t*t mod n;
@@ -13,10 +13,10 @@ curry MillerRabinTest(a>=2,n:Int)->(n and 1)=0 ? fail : begin
   end;
 
 oddCompositeGenerator->{begin
-  local pg:=primeGenerator; pg(); local p:=pg(); local n:=1;
+  pg:=primeGenerator; pg(); p:=pg(); n:=1;
 save;
   n+=2; while(n=p,begin n+=2; p:=pg(); end); n;
-end}.toIteratableExpression;
+end}.toIterableExpression;
 
 private strongPseudoprimeGenerator(base:Int)->oddCompositeGenerator().filter(MillerRabinTest(base));
 

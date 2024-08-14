@@ -104,11 +104,11 @@ prettyRays(rays:List)->begin
     [0..ray.size-2].each(k,begin
       local p0:=ray[k  ];
       local p1:=ray[k+1];
-      while(euklideanNorm(p1-p0)>restLength,begin
+      while euklideanNorm(p1-p0)>restLength do begin
         local pSplit:=p0+(p1-p0)/euklideanNorm(p1-p0)*restLength;
         segmentsByPart[min(MAX_SEG,partIndex+=1)]|=[p0,p0:=pSplit,[Nan,Nan]];
         restLength:=partLength;
-      end);
+      end;
       segmentsByPart[min(MAX_SEG,partIndex)]|=[p0,p1,[Nan,Nan]];
       restLength-=euklideanNorm(p1-p0);
     end);

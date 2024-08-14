@@ -1,11 +1,11 @@
 #!C:\bin\mnh.exe -GUI -quiet
 memoized allCoordinateStrings(len>=1,base in [2..5])->begin
-  local charMap:=[cross([base-1..0],[0..base-1]),
-                  ['A'..'Z'].head(base²)].transpose.toMap;
-  local halfChars:=digits([0..base^len-1],base)
+  charMap:=[cross([base-1..0],[0..base-1]),
+            ['A'..'Z'].head(base²)].transpose.toMap;
+  halfChars:=digits([0..base^len-1],base)
     .map((d)->begin
-      local r:=d;
-      while(r.size<len,r:=0|r);
+      r:=d;
+      while r.size<len do r:=0|r;
       r;
      end);
 
@@ -19,8 +19,8 @@ showHelp(base in [2..5],depth)->begin
   allCoordinateStrings(depth,base)
   .each(char,
     begin
-      local i:=base-1-index div (base)^depth;
-      local j:=       index mod (base)^depth;
+      i:=base-1-index div (base)^depth;
+      j:=       index mod (base)^depth;
       addPlot([[j,i]-0.5,[j,i]+0.5],'box black');
       drawText(j,i,char,20,'C');
     end);
@@ -28,20 +28,20 @@ showHelp(base in [2..5],depth)->begin
 end;
 
 memoized scaleMap(len>1,base)->begin
-  local all:=cross([base^len-1..0],[0..base^len-1]);
+  all:=cross([base^len-1..0],[0..base^len-1]);
   all:=(all.getInner(1) mod base) + base*(all.getInner(0) mod base);
   [0..base²-1].map((k)->indexOf(all=k));
 end;
 
 boxCountingDimension(L:BooleanList,base)->begin
-  local depth:=round(ln(L.size)/ln(base²));
+  depth:=round(ln(L.size)/ln(base²));
   (depth<=1) OR (L.size<>base^(2*depth))
   ? return [Nan,Nan]
   : void;
-  local scale:=scaleMap(depth,base);
-  local B:=!L;
-  local cA:=[trueCount(L),trueCount(scale.each(s,L[s],or))];
-  local cB:=[trueCount(B),trueCount(scale.each(s,B[s],or))];
+  scale:=scaleMap(depth,base);
+  B:=!L;
+  cA:=[trueCount(L),trueCount(scale.each(s,L[s],or))];
+  cB:=[trueCount(B),trueCount(scale.each(s,B[s],or))];
   //note('cA  =',cA,
   //   "\ncB  =",cB,
   //   "\nbase=",base,' depth=',depth,'; (',base^(2*depth),'/',L.size,')');
@@ -54,32 +54,32 @@ ALPHABET_OPTIONS:=['A..D','A..I','A..P','A..Y'];
 
 main->begin
   hideConsole;
-  local displayRegex:=
-  local workRegex:='^[ABC]+$';
-  local stop:=false;
-  local restart:=true;
-  local lastRenderedResolution:=-1;
-  local dimString:=format("Resolution: %s\nDim:%s \nDim(i):%s",0,0,0);
-  local base:=2;
-  local alphabetSelect:=ALPHABET_OPTIONS[base-2];
-  localAsync(()->while(true,begin
-    local Q:=0;
+  displayRegex:=
+  workRegex:='^[ABC]+$';
+  stop:=false;
+  restart:=true;
+  lastRenderedResolution:=-1;
+  dimString:=format("Resolution: %s\nDim:%s \nDim(i):%s",0,0,0);
+  base:=2;
+  alphabetSelect:=ALPHABET_OPTIONS[base-2];
+  localAsync(()->while true do begin
+    Q:=0;
     stop:=!restart; restart:=false;
     sleep(ord(stop));
-    while(!stop AND 2048>=base^(Q+=1)<=plotImageSize.min*1.5,begin
-      local R:=base^Q;
-      local p:=(allCoordinateStrings(Q,base).matches(workRegex));
+    while !stop AND 2048>=base^(Q+=1)<=plotImageSize.min*1.5 do begin
+      R:=base^Q;
+      p:=(allCoordinateStrings(Q,base).matches(workRegex));
       resetOptions;
       setOptions(["axisStyleX"=>0,
                   "axisStyleY"=>0].toMap);
       plot();
       plotRasterImage(ord(!p),R);
       lastRenderedResolution:=R;
-      local dim:=boxCountingDimension(p,base);
+      dim:=boxCountingDimension(p,base);
       dimString:=format("Resolution: %s\nDim:%s \nDim(i):%s",R,dim[0],dim[1]);
       display;
-    end);
-  end));
+    end;
+  end);
 
   showDialog('Regex Imaging',[
     newSplitPanel([
@@ -87,7 +87,7 @@ main->begin
         .withCaption('alphabet')
         .bind(::alphabetSelect)
         .withActionOnChange((s)->begin
-           local i:=indexOf(ALPHABET_OPTIONS=s);
+           i:=indexOf(ALPHABET_OPTIONS=s);
            i==[]
            ? alphabetSelect:=ALPHABET_OPTIONS[base-2]
            : begin
@@ -112,7 +112,7 @@ main->begin
       end),
       newButton.withCaption('export').withEnabledRule(()->lastRenderedResolution>100).withAction(()->begin
         stop:=true;
-        local targetFilename:=ask('Filename for export (png or bmp)');
+        targetFilename:=ask('Filename for export (png or bmp)');
         targetFilename.isVoid
         ? void
         : renderToFile(targetFilename,lastRenderedResolution,lastRenderedResolution);

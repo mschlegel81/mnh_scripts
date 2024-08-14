@@ -2,6 +2,7 @@ USE tinyServer_config;
 //CPU Usage:--------------------------------------------------------------------------
 private mutable cpuUsageHistory:=[];
 private mutable currentCpuDiagram:='';
+private mutable currentCpuPng:=renderToString(500,100);
 private mutable cpuDiagramUnqueried:=0;
 
 private plotCpuDiagram(usage)->begin
@@ -14,17 +15,15 @@ private plotCpuDiagram(usage)->begin
   plot([[0,0],  [1,100]],'GREY0.13 fs box');
   usage.size>1
   ? begin
-      local t1:=usage.trailing.head;
-      local t0:=usage.head.head;
-      local t:=usage.getInner(0);
-      local F:={1-sqrt(1-sqr(max(0,$t-t0)/(t1-t0)))};
-//      log('Plotting CPU usage data');
+      t1:=usage.trailing.head;
+      t0:=usage.head.head;
+      t:=usage.getInner(0);
+      F:={1-sqrt(1-sqr(max(0,$t-t0)/(t1-t0)))};
       addPlot(t.map(F),usage.getInner(1),'GREY0.5 f b');
-//      log('Plotting grid and ticks');
       addPlot([[0,START_WHEN_WORKLOAD_BELOW],[1,START_WHEN_WORKLOAD_BELOW]],'GREY0.5');
       //1-minute ticks
-      local i0:=ceil (t1*(24*6 )-2)*10;
-      local i1:=floor(t1*(24*60));
+      i0:=ceil (t1*(24*6 )-2)*10;
+      i1:=floor(t1*(24*60));
       i1>=i0 ? ([i0..i1]/(24*60)).map(F).each(x,[x,0],[x,100],[Nan,Nan]).addPlot('GREY0.5 0.5')
              : void;
       //10-minute ticks
@@ -39,7 +38,7 @@ private plotCpuDiagram(usage)->begin
     end;
   drawTextAbsolute(0,0.5,'CPU',80,'L','Century Gothic',[0.2,0.2,0.2]);
 //  log('Rendering CPU usage to string');
-  currentCpuDiagram:=format('<img src="data:image/png;base64,%s" />',renderToString(500,100).base64encode);
+  currentCpuDiagram:=format('<img src="data:image/png;base64,%s" />',(currentCpuPng:=renderToString(500,100)).base64encode);
   cpuDiagramUnqueried+=1;
 //  log('Done plot CPU usage');
 end;
@@ -47,6 +46,12 @@ end;
 getCpuDiagram->begin
   cpuDiagramUnqueried:=0;
   currentCpuDiagram;
+end;
+
+@SuppressUnusedParameterWarning
+cpuUsage_png(...)->begin
+  cpuDiagramUnqueried:=0;
+  currentCpuPng;
 end;
 
 isCpuAlmostIdle->(cpuUsageHistory.size>0) AND (cpuUsageHistory.trailing(SAMPLES_FOR_WORKLOAD_CHECK).getInner(1)<START_WHEN_WORKLOAD_BELOW).agg(AND);
@@ -65,9 +70,9 @@ cpuUsageTrim->begin
   (systime-1/(24*60*60)*
    1.05^transpose([[191..0],
                    [190..0,-Inf]])).each(interval,begin
-    local t0:=interval[0];
-    local t1:=interval[1];
-    local inRange:=cpuUsageHistory.filter({t0<$h[0]<=t1});
+    t0:=interval[0];
+    t1:=interval[1];
+    inRange:=cpuUsageHistory.filter({t0<$h[0]<=t1});
     inRange.size>0
     ? inRange.agg(+)/inRange.size
     : void;

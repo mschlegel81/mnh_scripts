@@ -7,7 +7,7 @@ private FAVICON_PATH:=myPath.extractFileDirectory&'/favicon.ico';
 
 @SuppressUnusedParameterWarning
 favicon(parameters)->begin
-  local response:=
+  response:=
     fileExists(FAVICON_PATH)
     ? wrapTextInHttp(fileContents(FAVICON_PATH),200,['Content-type:'=>'image/x-icon','Cache-Control:'=>'max-age=3600'].toMap)
     : httpError;
@@ -16,7 +16,7 @@ save;
 end;
 
 downloadFile(parameters:Map)->begin
-  local filename:=parameters['filename'];
+  filename:=parameters['filename'];
   filename.isString AND fileExists(filename)
   ?  wrapTextInHttp(fileContents(filename),200,
         ['Content-type:'=>MIME_TYPE[extractFileExt(filename)] orElse 'application/force-download',
@@ -25,7 +25,7 @@ downloadFile(parameters:Map)->begin
 end;
 
 serveFileList(parameters:Map)->begin
-  local root:=parameters['root'] orElse myPath.extractFileDirectory.extractFileDirectory;
+  root:=parameters['root'] orElse myPath.extractFileDirectory.extractFileDirectory;
   htmlPage('Files',
   '<FORM name="myForm">' &
   getHeadLinks&'<br>'&

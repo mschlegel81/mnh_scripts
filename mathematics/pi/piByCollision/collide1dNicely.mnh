@@ -3,8 +3,8 @@ TIME_STEP_SIZE:=0.01;
 
 //*Draw the blocks and add an animation frame
 memoized draw(p0:Numeric,p1:Numeric,collisionCount:Int,block1text:String,outputFilename:String)->begin
-  local BLOCK_SIZE_0:=1;
-  local BLOCK_SIZE_1:=2;
+  BLOCK_SIZE_0:=1;
+  BLOCK_SIZE_1:=2;
   setPlotRangeManually(-0.1,10,-0.03,BLOCK_SIZE_1+0.25);
   setPlotPreserveAspect(true);
   setPlotAxisStyle('x',false,false,false);
@@ -28,56 +28,56 @@ save;
 end;
 
 newCollisionSimulation(POWER:Int)->{begin
-  local MASS_RATIO:=100^POWER;
-  local BLOCK_TEXT:=(MASS_RATIO<1000  ? [MASS_RATIO,'mg'] :
-                     MASS_RATIO<1000² ? [MASS_RATIO div 1000 ,'g' ] :
-                     MASS_RATIO<1000³ ? [MASS_RATIO div 1000²,'kg'] :
-                                        [MASS_RATIO div 1000³,'t'])
-                    .join.replace('100000','100.000');
-  local p0:= 1;
-  local v0:= 0;
-  local p1:= 2;
-  local v1:=-1;
-  local collisionCount:=0;
+  MASS_RATIO:=100^POWER;
+  BLOCK_TEXT:=(MASS_RATIO<1000  ? [MASS_RATIO,'mg'] :
+               MASS_RATIO<1000² ? [MASS_RATIO div 1000 ,'g' ] :
+               MASS_RATIO<1000³ ? [MASS_RATIO div 1000²,'kg'] :
+                                  [MASS_RATIO div 1000³,'t'])
+              .join.replace('100000','100.000');
+  p0:= 1;
+  v0:= 0;
+  p1:= 2;
+  v1:=-1;
+  collisionCount:=0;
 
-  local restStep:=0;
-  local t_wall  :=0;
-  local t_blocks:=0;
-  local stepForward:={
+  restStep:=0;
+  t_wall  :=0;
+  t_blocks:=0;
+  stepForward:={
     begin
       p0+=v0*$timestep;
       p1+=v1*$timestep;
       restStep-=$timestep;
     end};
 
-  local stepRest:={
+  stepRest:={
     begin
       p0+=v0*restStep;
       p1+=v1*restStep;
       restStep:=0;
     end};
 
-  local wallBounce:={
+  wallBounce:={
     begin
       stepForward(t_wall);
       v0:=-v0;
       collisionCount+=1;
     end};
 
-  local w0:=2           /(1+MASS_RATIO);
-  local w1:=2*MASS_RATIO/(1+MASS_RATIO);
-  local blockBounce:={
+  w0:=2           /(1+MASS_RATIO);
+  w1:=2*MASS_RATIO/(1+MASS_RATIO);
+  blockBounce:={
     begin
       stepForward(t_blocks);
-      local u:=v0*w0+v1*w1;
+      u:=v0*w0+v1*w1;
       v0:=u-v0;
       v1:=u-v1;
       collisionCount+=1;
     end};
 save;
-  local stillColliding:=(t_wall<Inf OR t_blocks<Inf);
-  local result:=[stillColliding,[min(10,p0),min(9,p1),collisionCount,BLOCK_TEXT,'sim'&POWER&'.png'],false];
-  while(restStep>0,begin
+  stillColliding:=(t_wall<Inf OR t_blocks<Inf);
+  result:=[stillColliding,[min(10,p0),min(9,p1),collisionCount,BLOCK_TEXT,'sim'&POWER&'.png'],false];
+  while restStep>0 do begin
     (t_wall   := v0<0  ? -p0    /    v0  : Inf)<
     (t_blocks := v1<v0 ? (p0-p1)/(v1-v0) : Inf)
     ? t_wall<restStep
@@ -86,19 +86,19 @@ save;
     : t_blocks<restStep
       ? blockBounce()
       : stepRest();
-  end);
+  end;
   restStep:=TIME_STEP_SIZE;
   result;
-end}.toIteratableExpression;
+end}.toGenerator;
 
 
 main->begin
-  local sim  :=[0..7].map(::newCollisionSimulation);
-  local state:=[0..7].each(k,sim[k]());
-  local outputIndex:=0;
-  local maxMoving:=0;
-  local drawCurrentState:={begin
-    local outputName:=format('piCollision_%4.4d.png',outputIndex);
+  sim  :=[0..7].map(::newCollisionSimulation);
+  state:=[0..7].each(k,sim[k]());
+  outputIndex:=0;
+  maxMoving:=0;
+  drawCurrentState:={begin
+    outputName:=format('piCollision_%4.4d.png',outputIndex);
     fileExists(outputName) ? print('Skipping ',outputName) : begin
       [0..7].each(k,state[k,2] ? void : begin
         draw@(state[k,1]);
@@ -118,18 +118,18 @@ main->begin
     outputIndex+=1;
   end};
   drawCurrentState();
-  while(maxMoving<=7,begin
+  while maxMoving<=7 do begin
     [0..maxMoving].each(k,//print(state[k,1].join(" ")),
     state[k]:=sim[k]());
     drawCurrentState();
     state[maxMoving,0] ? void : maxMoving+=1;
     //outputIndex mod 300=0 ? maxMoving+=1 : void;
-  end);
+  end;
   //Wait until the last one is not colliding anymore
-  while(state.getInner(0).agg(OR),begin
+  while state.getInner(0).agg(OR) do begin
     [0..7].each(k,state[k]:=sim[k]());
     drawCurrentState();
-  end);
+  end;
   //extra frames
   [0..50].each(extraFrame,begin
     [0..7].each(k,state[k]:=sim[k]());

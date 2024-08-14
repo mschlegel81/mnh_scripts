@@ -2,26 +2,26 @@ Kanjis:="「」いうえおかきけこしすずそたってでとどなにの�
 randomKanji ->Kanjis[intRandom(Kanjis.size)];
 console_size:=exec('cmd',['/C','mode','con'])[0].filter((L)->L.matches(': *\d+$'))[[1,0]].split(':').getInner(1).trim.softCast;
 main->begin
-  local sleepTime:=0.05;
-  local continue:=true;
+  sleepTime:=0.05;
+  continue:=true;
   localAsync({
-    while(continue,begin
+    while continue do begin
       local answer:=ask('',['q','+','-'],false);
       answer=='+' ? sleepTime:=max(0,sleepTime-0.01) :
       answer=='-' ? sleepTime+=0.01 : continue:=false;
-    end)});
-  local CP:=intRandom(console_size[1],console_size[0] div 2);
-  local TXT:=[0..CP.size-1].map(()->[0..7].map(()->randomKanji));
-  local speed:=intRandom(4,console_size[0] div 2);
-  while((CP-10<console_size[1]).agg(or),begin
+    end});
+  CP:=intRandom(console_size[1],console_size[0] div 2);
+  TXT:=[0..CP.size-1].map(()->[0..7].map(()->randomKanji));
+  speed:=intRandom(4,console_size[0] div 2);
+  while (CP-10<console_size[1]).agg(or) do begin
     [speed.each(s,s>=0 ? index : void),
      speed.each(s,s>=2 ? index : void),
      speed.each(s,s>=1 ? index : void),
      speed.each(s,s>=3 ? index : void)].each(frame_update,
      frame_update.each(i,begin
-       local x:=i*2+1;
-       local j:=(CP[i]+=1);
-       TXT[i]:=(local txts:=randomKanji|TXT[i].leading);
+       x:=i*2+1;
+       j:=(CP[i]+=1);
+       TXT[i]:=(txts:=randomKanji|TXT[i].leading);
        j>console_size[1]+10 AND continue
        ? begin
            CP[i]:=0;
@@ -39,7 +39,7 @@ main->begin
                            : void)
        .agg(|);
      end,|).join.printDirect,sleep(sleepTime));
-  end);
+  end;
   print(#27'[0m'); //reset color
   clearPrint;
 end;

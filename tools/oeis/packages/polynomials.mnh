@@ -21,7 +21,7 @@ xPow(n>1)->{$x}^n;
 private polyAgg(a:List(2),b:List(2))->[a.head,a.trailing+b.trailing];
 private polyAgg(a:List(3),b:List(3))->[a.head,a[1]+b[1],a.trailing];
 private groupToPolynomial(L:List)->begin
-  local Q:=L.group(0,::polyAgg).toMap;
+  Q:=L.group(0,::polyAgg).toMap;
   [0..Q.getInner(0).max].each(k,Q[k,1] orElse 0);
 end.toPolynomial;
 
@@ -30,7 +30,7 @@ unaryExpressionOf(n:Numeric)->(x)->n;
 @SuppressUnusedWarning
 @Override
 toExpression(P:Polynomial)->begin
-  local f:=P.each(factor,factor=0 ? void : factor=1 ? xPow(index) : factor*xPow(index),+);
+  f:=P.each(factor,factor=0 ? void : factor=1 ? xPow(index) : factor*xPow(index),+);
   f.isVoid
   ? unaryExpressionOf(0)
   : f.isNumeric
@@ -40,12 +40,12 @@ end;
 
 nicePolynomialString(poly==([0].toPolynomial), freeVariable:String)->'0';
 nicePolynomialString(poly:Polynomial, freeVariable:String)->begin
-  local powString:=(n)->n=0 ? '' : '*'&(
+  powString:=(n)->n=0 ? '' : '*'&(
                         n=1 ? freeVariable :
                         n=2 ? freeVariable&'²' :
                         n=3 ? freeVariable&'³' :
                               freeVariable&'^'&n);
-  local s:=
+  s:=
   poly.each(factor,
     factor= 0 ? void :
     factor= 1 ? index=0 ?  1 :     powString(index).copy(1) :
@@ -54,7 +54,7 @@ nicePolynomialString(poly:Polynomial, freeVariable:String)->begin
     .join('+')
     .replace('+-','-');
   //Special workaround: -x^4+23*x^5 => -1*x^4+23*x^5
-  local prefix:='-'&freeVariable;
+  prefix:='-'&freeVariable;
   copy(s,0,prefix.length)==prefix
   ? '-1*'&copy(s,1)
   : s;
@@ -78,15 +78,15 @@ OPERATOR_MULT(A:Polynomial,f:Numeric)->(A.toBuiltin*f).toPolynomial;
 OPERATOR_MULT(f:Numeric,A:Polynomial)->(A.toBuiltin*f).toPolynomial;
 OPERATOR_MULT(A:Polynomial,B:Polynomial)->
 A.each(a_i,begin
-  local k:=index;
+  k:=index;
   B.each(b_i,[index+k,a_i*b_i]);
 end,|).groupToPolynomial;
 
 //*Returns [quotient,rest]
 polyDivision(A:Polynomial,B:Polynomial)->begin
-  local quotient:=[0..max(A.size-B.size,0)]*0;
-  local rest:=A; while(rest.size<B.size,rest|=0);
-  local degB:=B.size-1;
+  quotient:=[0..max(A.size-B.size,0)]*0;
+  rest:=A; while(rest.size<B.size,rest|=0);
+  degB:=B.size-1;
   [max(A.size-1 - degB,0)..0].each(i,begin
     quotient[i]:=rest[i+degB]/B[degB];
     [degB..0].each(j,rest[i+j]:=rest[i+j]-B[j]*quotient[i]);
@@ -117,7 +117,7 @@ shift(P:Polynomial,dx:Numeric)->
   // p[n]*(x+dx)^n = p[n] * sum_k=0^n( bc(n,k) * dx^k * x^(n-k) )
   //               = bc(n).each(b,(p[n] * b    * dx^k)* x^(n-k),+);
   P.each(p_n,begin
-    local n:=index;
+    n:=index;
     bc(n).each(b,[n-index,p_n*b*dx^index]);
   end,|).groupToPolynomial;
 
@@ -131,7 +131,7 @@ end;
 discreteTaylor(L:List,dx:Numeric)->
 begin
   assert(L.size.isOddInt,'L must have odd length');
-  local Y:=L.each(p,[index-L.size div 2,p]).toMap;
+  Y:=L.each(p,[index-L.size div 2,p]).toMap;
   [0..L.size-1].each(k,begin
     abstractDifferentiation(k)
     .map({[$x[0],$x[1]*dx^$x[2]]})
@@ -142,40 +142,38 @@ end;
 discreteTaylor(L:List,dx:Numeric,maxDegree:Int)->
 begin
   assert(L.size.isOddInt,'L must have odd length');
-  local maxDeg:=min(maxDegree,L.size-2);
+  maxDeg:=min(maxDegree,L.size-2);
   maxDeg:=maxDeg.isOddInt ? maxDeg : maxDeg+1;
   [(L.size-maxDeg) div 2..-(L.size-maxDeg) div 2].each(k,begin
-    local Y:=k=0
-             ? L
-             : k<0 ? L.trailing(L.size+2*k)
-                   : L.head    (L.size-2*k);
+    Y:=k=0
+       ? L
+       : k<0 ? L.trailing(L.size+2*k)
+             : L.head    (L.size-2*k);
     while(Y.size+1>maxDeg,Y:=Y.tail.leading);
     Y.discreteTaylor(dx).shift(k*dx);
   end).bcWeightAgg.toPolynomial;
 end;
 
 bairstowReduceBy2(P:Polynomial)->begin
-  local n:=P.size-1;
-  local a :=[P[n-1] orElse 0,P[n-2] orElse 0]/P[n];
-  local alreadySeenA:=[a];
+  n:=P.size-1;
+  a :=[P[n-1] orElse 0,P[n-2] orElse 0]/P[n];
+  alreadySeenA:=[a];
   while(true,begin
-    local b :=[P[n],0];
-    local q :=[0,0];
+    b :=[P[n],0];
+    q :=[0,0];
     [n-1..0].each(j,begin
       q:=[b[1]-(a*q).agg(+),q[0]];
       b:=[P[j]-(a*b).agg(+),b[0]];
       void;
     end);
-    local M:=-(a*q).agg(+);
-    local D:= q[0]² - M  * q[1]  ;
-
-    local da  :=[(b[0]*q[1]-b[1]*q[0])/D,
-                 (b[1]*M   -b[0]*q[0])/D];
-
+    M:=-(a*q).agg(+);
+    D:= q[0]² - M  * q[1]  ;
+    da  :=[(b[0]*q[1]-b[1]*q[0])/D,
+           (b[1]*M   -b[0]*q[0])/D];
     a-=da;
     a in alreadySeenA
     ? begin
-        local part:=[a[1],a[0],1].toPolynomial;
+        part:=[a[1],a[0],1].toPolynomial;
         return [P/part,part];
       end
     : alreadySeenA|=[a];
@@ -183,10 +181,10 @@ bairstowReduceBy2(P:Polynomial)->begin
 end;
 
 bairstowFactorize(P:Polynomial)->begin
-  local R:=P;
-  local Q:=[];
+  R:=P;
+  Q:=[];
   while(R.size>2,begin
-    local B:=R.bairstowReduceBy2;
+    B:=R.bairstowReduceBy2;
     print(B);
     Q||=B[1];
     R:=B[0];
@@ -198,7 +196,7 @@ allRealRootsOf(P:Polynomial)->begin
   P.size<=1 ? []:
   P.size=2 ? [-P[0]/P[1]] :
   P.size=3 ? begin
-    local discriminant:=P[1]²-4*P[0]*P[2];
+    discriminant:=P[1]²-4*P[0]*P[2];
     discriminant>=0
     ? ([1,-1]*sqrt(discriminant)-P[1])/(2*P[2])
     : [];
@@ -207,13 +205,13 @@ allRealRootsOf(P:Polynomial)->begin
 end;
 
 gregoryNewton(X:NumericList)->begin
-  local D:=X;
-  local S:=D[0];
+  D:=X;
+  S:=D[0];
   while(D.unique.size>1,begin
     D:=D.tail-D.leading;
     S|=D[0];
   end);
-  local p:=[1].toPolynomial;
+  p:=[1].toPolynomial;
   S.each(s,s*p/factorial(index),begin
     p*=shift([0,1].toPolynomial,-index);
     void;

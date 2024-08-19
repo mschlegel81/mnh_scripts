@@ -9,11 +9,11 @@ mutable tracePoint:=1;
 mutable alive:=true;
 
 async({begin
-  local t:=0;
-  local displaySpan:=0;
-  local trace:=[[Nan,Nan],[Nan,Nan]];
-  local getConfigState:={[inner,radius,tracePoint]};
-  local cfg:=getConfigState();
+  t:=0;
+  displaySpan:=0;
+  trace:=[[Nan,Nan],[Nan,Nan]];
+  getConfigState:={[inner,radius,tracePoint]};
+  cfg:=getConfigState();
   clearAnimation;
   plot([[-1,-1],[1,1]],'ellipse');
   addPlot(trace);
@@ -30,13 +30,13 @@ async({begin
                 ['axisStyleX',0],
                 ['axisStyleY',0]]);
     removePlot(3);
-    local center:=inner
+    center:=inner
                   ? (1-radius)*[cos(t),sin(t)]
                   : (1+radius)*[cos(t),sin(t)];
-    local phi:=(inner
+    phi:=(inner
                 ?  t*(  1/radius-1)
                 : -t*(1+1/radius))+pi/2;
-    local tp:=center+[sin(phi),cos(phi)]*tracePoint*radius;
+    tp:=center+[sin(phi),cos(phi)]*tracePoint*radius;
     cfg==getConfigState()
     ? trace||=tp
     : begin
@@ -54,7 +54,7 @@ async({begin
 end});
 
 tolerantStrToNum(s:String,minValue:Numeric,maxValue:Numeric)->begin
-  local value:=s.softCast;
+  value:=s.softCast;
   value.isNumeric
   ? void
   : value:=try({s.interpret},void);
@@ -67,8 +67,8 @@ USE customFormUtil;
 
 begin
   freeConsole;
-  local radius_:=toString(radius);
-  local trace_ :=toString(tracePoint);
+  radius_:=toString(radius);
+  trace_ :=toString(tracePoint);
   showDialog('Spiro',[
     newCheckbox.withCaption('inner circle')
                .withAction ({inner:=$0}),

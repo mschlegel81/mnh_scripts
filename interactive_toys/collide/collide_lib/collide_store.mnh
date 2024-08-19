@@ -1,5 +1,5 @@
 @SuppressUnusedWarning=all
-USE collide_initialState;
+USE collide_initialState, collide_types; //types is needed for proper deserialisation
 datastore collisions:=[].toMap;
 storedCollisions->collisions.getInner(0).sort;
 
@@ -9,16 +9,16 @@ memoized circleStyle(val:Numeric)->'ellipse fs HUE'&val;
 
 getRanges(geometry:Geometry,positions:List,velocities:List)->begin
   positions.size=0 ? return [[-1,1],[-1,1]] : void;
-  local x0:= Inf;
-  local x1:=-Inf;
-  local y0:= Inf;
-  local y1:=-Inf;
+  x0:= Inf;
+  x1:=-Inf;
+  y0:= Inf;
+  y1:=-Inf;
   positions.each(p,begin
-    local v:=velocities[index];
+    v:=velocities[index];
     x0:=min(x0,p[0]);
     x1:=max(x1,p[0]);
     y0:=min(y0,p[1]);
-    local t_top:=max(0,-v[1]/DOWNWARD_ACCEL);
+    t_top:=max(0,-v[1]/DOWNWARD_ACCEL);
     y1:=max(y1,p[1]+v[1]*t_top+DOWNWARD_ACCEL/2*sqr(t_top));
     void;
   end);
@@ -38,8 +38,8 @@ updateRange(oldRange,newRange)->[[0.95*oldRange[0,0]+0.05*newRange[0,0],
 
 resetPlot->drawSystem(BLANK_GEOMETRY,[],[]);
 drawSystem(geometry:Geometry,ballPositions,ballVelocities)->begin
-  local drawCircle:={addPlot([$xy-1,$xy+1],circleStyle($col))};
-  local ranges:=ballPositions==[] ? void : getRanges(geometry,ballPositions,ballVelocities);
+  drawCircle:={addPlot([$xy-1,$xy+1],circleStyle($col))};
+  ranges:=ballPositions==[] ? void : getRanges(geometry,ballPositions,ballVelocities);
 save;
   ballPositions.size=0
   ? return ranges:=void
@@ -70,12 +70,12 @@ end;
 canReplay(name:String)->!(collisions[name].isVoid);
 
 doReplay(name:String)->begin
-  local data:=collisions[name];
-  data.isVoid ? return false : void;
+  data:=collisions[name];
+  if data.isVoid then return;
   print('Replaying ',name);
-  local geometry  :=getGeometryInfo(data[0]);
-  local prevPos   :=data[1];
-  local velocities:=data[1].map({[0,0]});
+  geometry  :=getGeometryInfo(data[0]);
+  prevPos   :=data[1];
+  velocities:=data[1].map({[0,0]});
   resetPlot; clearAnimation;
   data.tail.leading.each(positions,begin
     velocities:=(positions-prevPos)/TIME_STEP_SIZE;
@@ -92,9 +92,9 @@ canResumeCalculation(name)->!isVoid(collisions[name]) AND stillMoving(collisions
 resumeCalculation(name)->begin
   current:=collisions[name];
   current.isVoid ? return void : void;
-  local result:=[getGeometryInfo(current[0]),
-                 current[current.size-2],
-                 current[current.size-1]];
+  result:=[getGeometryInfo(current[0]),
+           current[current.size-2],
+           current[current.size-1]];
   current:=current.leading;
   result;
 end;
@@ -103,7 +103,7 @@ stillMoving(snapshot)->
    snapshot.size<1500 AND
   (snapshot.size <21 OR
   begin
-    local threshold:=exp(snapshot.size/200.0)*1E-5;
+    threshold:=exp(snapshot.size/200.0)*1E-5;
     snapshot.trailing(20)
            .transpose.each(x,(x[19]-x[ 0]).sqr.agg(+)>threshold OR
                              (x[19]-x[ 5]).sqr.agg(+)>threshold OR

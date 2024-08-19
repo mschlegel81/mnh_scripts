@@ -6,13 +6,13 @@ farey(x:Real)->
   : x>1
     ? floor(x)+farey(x-floor(x))
     : begin
-        local a:=[0,1];
-        local b:=[1,1];
+        a:=[0,1];
+        b:=[1,1];
         min(
           [[sqr(a[0]-a[1]*x),a],
            [sqr(b[0]-b[1]*x),b]]|
           [1..50].each(step,begin
-            local c:=a+b;
+            c:=a+b;
             c[0]<x*c[1] ? a:=c : b:=c;
             [sqr(c[0]-c[1]*x),c];
         end))[1].toRational;
@@ -21,13 +21,13 @@ farey(x:Real)->
 rationalForm(p:Polynomial)->p.pEach(term,term[0].isReal ? [term[0].farey,term[1]] : term).simplify;
 
 makeRungeKutta(testEq:Polynomial,var:String,rkStages:Int,polyPrecision:Int,substitutions:List)->begin
-  local func:=toFunction(testEq,var);
-  local aim :=odeTaylor (testEq,var,polyPrecision);
+  func:=toFunction(testEq,var);
+  aim :=odeTaylor (testEq,var,polyPrecision);
 
   print('Aim      : ',aim.reorder(['x','y','z']).toString);
-  local temp:=genericERK(rkStages,func,substitutions);
-  local rk_finalStage :=temp[1].rationalForm;
-  local rk_stageBefore:=temp[0].rationalForm;
+  temp:=genericERK(rkStages,func,substitutions);
+  rk_finalStage :=temp[1].rationalForm;
+  rk_stageBefore:=temp[0].rationalForm;
 
 
 
@@ -35,23 +35,23 @@ makeRungeKutta(testEq:Polynomial,var:String,rkStages:Int,polyPrecision:Int,subst
   print('Approx 1 : ',rk_stageBefore.reorder(['x','y','z']).toString);
   print('Approx 2 : ',rk_finalStage .reorder(['x','y','z']).toString);
 
-  local source:=
+  source:=
   [[rk_stageBefore,rkStages-1],
    [rk_finalStage ,rkStages  ]]
   .each(WQ,
   begin
-    local rk:=WQ[0];
+    rk:=WQ[0];
     print('Stage ',WQ[1],' order conditions:==========================================================');
-    local err :=aim-rk;
-    local seen:=[];
+    err :=aim-rk;
+    seen:=[];
     intersect(aim           .allPowersOf(['x','y','z']),
               rk.allPowersOf(['x','y','z']))
     .sort.each(pow,begin
-        local delta:=err.isolate(pow).drop(['x','y','z']);
-        local lc:=delta.leadingCoefficient;
+        delta:=err.isolate(pow).drop(['x','y','z']);
+        lc:=delta.leadingCoefficient;
         lc==0 ? void : delta/=lc;
 
-        local deltaS:=delta.toString;
+        deltaS:=delta.toString;
         deltaS='0'
         ? void
         : deltaS in seen ? print(powerToString(pow),":\t",delta.findRoot.join("\n\t"),' -- already seen') : begin
@@ -68,10 +68,10 @@ makeRungeKutta(testEq:Polynomial,var:String,rkStages:Int,polyPrecision:Int,subst
   print();
   printf('%s',source[1].join("+\n")&';');
   print(#226#128#139'end;');
-  local tableau   :=transpose(['a'&[1..rkStages-1]|'b',[0..rkStages-1]]).map((r)->r[0]&[0..r[1]]);
-  local tabEntries:=tableau.agg(|).map((e)->begin
-    local key:=e;
-    local value:=polyOf(e);
+  tableau   :=transpose(['a'&[1..rkStages-1]|'b',[0..rkStages-1]]).map((r)->r[0]&[0..r[1]]);
+  tabEntries:=tableau.agg(|).map((e)->begin
+    key:=e;
+    value:=polyOf(e);
     substitutions.each(s,value:=value.let@s);
     key=>value;
   end).toMap;

@@ -1,13 +1,13 @@
 USE rungeKutta,downhillSimplex;
 
 curry D_test(burnDown, growBack, vel0, vel1, fireGrowth, L:List(2))->begin
-  local u:=L[0]; //food
-  local v:=L[1]; //fire
-  local du  := ((local uFwd:=(u.tail|u.head))-u)* vel0;
-  local dv  := ((local vFwd:=(v.tail|v.head))-v)*-vel1;
+  u:=L[0]; //food
+  v:=L[1]; //fire
+  du  := ((uFwd:=(u.tail|u.head))-u)* vel0;
+  dv  := ((vFwd:=(v.tail|v.head))-v)*-vel1;
 
-  local transportU:=vectorIfThenElse(dv>0,u,uFwd)*dv; transportU:=(transportU.trailing|transportU.leading)-transportU;
-  local transportV:=vectorIfThenElse(du>0,v,vFwd)*du; transportV:=(transportV.trailing|transportV.leading)-transportV;
+  transportU:=vectorIfThenElse(dv>0,u,uFwd)*dv; transportU:=(transportU.trailing|transportU.leading)-transportU;
+  transportV:=vectorIfThenElse(du>0,v,vFwd)*du; transportV:=(transportV.trailing|transportV.leading)-transportV;
 
   [transportU+u*(growBack*(1-u*0.1)-v*burnDown),
    transportV+(u-0.5)*v*(1-v*0.1)*fireGrowth]; //vectorIfThenElse(u<0.5,(u-0.5)*v,vectorIfThenElse(u>1,(u-1)*v*(1-v*0.1)*10,0))];
@@ -17,11 +17,11 @@ dt:=0.1;
 
 reference:=rangeGenerator(1,1000)
   .map(()->begin
-     local G:=[vanDerCorputGenerator(2),
-               vanDerCorputGenerator(3),
-               vanDerCorputGenerator(5),
-               vanDerCorputGenerator(7),
-               vanDerCorputGenerator(11)];
+     G:=[vanDerCorputGenerator(2),
+         vanDerCorputGenerator(3),
+         vanDerCorputGenerator(5),
+         vanDerCorputGenerator(7),
+         vanDerCorputGenerator(11)];
      [1..100].map(()->G.map((g)->g()));
    save;
      [0.1*100^G[0](),
@@ -31,10 +31,10 @@ reference:=rangeGenerator(1,1000)
       0.1*100^G[4]()];
    end)
   .pMap((D_parameters)->begin
-     local step:=integrator(CASH_KARP,D_test@D_parameters,dt,1E-10);
-     local state0:=[[0,1,0,1,0],
+     step:=integrator(CASH_KARP,D_test@D_parameters,dt,1E-10);
+     state0:=[[0,1,0,1,0],
                     [0,1,1,0,0]];
-     local state1:=step(state0);
+     state1:=step(state0);
      [D_parameters,state0,state1];
    end)
   .toList;
@@ -42,43 +42,43 @@ reference:=rangeGenerator(1,1000)
 note('Reference solutions ready');
 
 correlationCoefficient(L:List)->begin
-  local avgX:=L.getInner(0).agg(+)/L.size;
-  local avgY:=L.getInner(1).agg(+)/L.size;
+  avgX:=L.getInner(0).agg(+)/L.size;
+  avgY:=L.getInner(1).agg(+)/L.size;
   L.each(xy,(xy[0]-avgX)*(xy[1]-avgY),+)/sqrt(
     L.getInner(0).each(x,sqr(x-avgX),+)*
     L.getInner(1).each(y,sqr(y-avgY),+));
 end;
 
 find_best_error_stage(a10,b1,b2)->begin
-  local b0:=1-b1-b2;
-  local a21:=1/(6*b2*a10);
-  local a20:=(1/2-b1*a10)/b2-a21;
+  b0:=1-b1-b2;
+  a21:=1/(6*b2*a10);
+  a20:=(1/2-b1*a10)/b2-a21;
   find_best_error_stage(a10,a20,a21,b0,b1,b2);
 end;
 
 find_best_error_stage(a10,a20,a21,b0,b1,b2)->begin
-  local corr_for_d3:=[].toMap;
-  local corr:=(d3)->corr_for_d3[d3] orElse corr_for_d3[d3]:=begin
-    local d2:=-d3/(2*a21*a10);
-    local d1:=(1/2-d2*(a20+a21)-d3)/a10;
-    local d0:=1-d1-d2-d3;
+  corr_for_d3:=[].toMap;
+  corr:=(d3)->corr_for_d3[d3] orElse corr_for_d3[d3]:=begin
+    d2:=-d3/(2*a21*a10);
+    d1:=(1/2-d2*(a20+a21)-d3)/a10;
+    d0:=1-d1-d2-d3;
     reference.pEach(ref,begin
-      local D:=D_test@(ref[0]);
-      local Y:=ref[1];
-      local F0:=D(Y);
-      local F1:=D(Y+dt*a10*F0);
-      local F2:=D(Y+dt*a20*F0+dt*a21*F1);
-      local Y_:=Y+dt*b0*F0+dt*b1*F1+dt*b2*F2;
-      local F3:=D(Y_);
-      local estimatedError:=flatten((Y+dt*d0*F0+dt*d1*F1+dt*d2*F2+dt*d3*F3)-Y_).abs.max;
-      local actualError   :=flatten(Y_-ref[2]).abs.max;
+      D:=D_test@(ref[0]);
+      Y:=ref[1];
+      F0:=D(Y);
+      F1:=D(Y+dt*a10*F0);
+      F2:=D(Y+dt*a20*F0+dt*a21*F1);
+      Y_:=Y+dt*b0*F0+dt*b1*F1+dt*b2*F2;
+      F3:=D(Y_);
+      estimatedError:=flatten((Y+dt*d0*F0+dt*d1*F1+dt*d2*F2+dt*d3*F3)-Y_).abs.max;
+      actualError   :=flatten(Y_-ref[2]).abs.max;
       [actualError,estimatedError];
     end).correlationCoefficient;
   end;
 
-  local d3:=0.75;
-  local step:=0.5;
-  while(step>1E-3,begin
+  d3:=0.75;
+  step:=0.5;
+  while step>1E-3 do begin
     corr(d3+step)>corr(d3)
     ? corr(d3+step)>corr(d3-step)
       ? d3+=step
@@ -87,11 +87,11 @@ find_best_error_stage(a10,a20,a21,b0,b1,b2)->begin
       ? d3-=step
       : void;
     step*=0.5;
-  end);
+  end;
 
-  local d2:=-d3/(2*a21*a10);
-  local d1:=(1/2-d2*(a20+a21)-d3)/a10;
-  local d0:=1-d1-d2-d3;
+  d2:=-d3/(2*a21*a10);
+  d1:=(1/2-d2*(a20+a21)-d3)/a10;
+  d0:=1-d1-d2-d3;
   [[a10],
    [a20,a21],
    [b0,b1,b2],
@@ -99,13 +99,13 @@ find_best_error_stage(a10,a20,a21,b0,b1,b2)->begin
 end;
 
 testRaw(a10,a20,a21,b0,b1,b2)->begin
-  local err:=
+  err:=
   reference.pEach(ref,begin
-    local D:=D_test@(ref[0]);
-    local Y:=ref[1];
-    local F0:=D(Y);
-    local F1:=D(Y+dt*a10*F0);
-    local F2:=D(Y+dt*a20*F0+dt*a21*F1);
+    D:=D_test@(ref[0]);
+    Y:=ref[1];
+    F0:=D(Y);
+    F1:=D(Y+dt*a10*F0);
+    F2:=D(Y+dt*a20*F0+dt*a21*F1);
     Y:=Y+dt*b0*F0+dt*b1*F1+dt*b2*F2;
     flatten(Y-ref[2]).abs.max;
   end).euklideanNorm;
@@ -115,75 +115,76 @@ testRaw(a10,a20,a21,b0,b1,b2)->begin
 end;
 
 testMethod(a10,b1,b2)->begin
-  local b0:=1-b1-b2;
-  local a21:=1/(6*b2*a10);
-  local a20:=(1/2-b1*a10)/b2-a21;
+  b0:=1-b1-b2;
+  a21:=1/(6*b2*a10);
+  a20:=(1/2-b1*a10)/b2-a21;
   testRaw(a10,a20,a21,b0,b1,b2);
 end;
 
 explicitLinear(bt:List(3))->begin
-  local F0:=[0,1];
-  local F1:=0|([1,0]+bt[0,0]*F0);
-  local F2:=0|([1,0,0]+(bt[1,0]*F0|0)+bt[1,1]*F1);
+  F0:=[0,1];
+  F1:=0|([1,0]+bt[0,0]*F0);
+  F2:=0|([1,0,0]+(bt[1,0]*F0|0)+bt[1,1]*F1);
             ([1,0,0,0]+(bt[2,0]*F0|0|0)+(bt[2,1]*F1|0)+bt[2,2]*F2);
 end;
 
 explicitLinear(bt:List(4))->begin
-  local F0:=[0,1];
-  local F1:=0|([1,0]      + bt[0,0]*F0      );
-  local F2:=0|([1,0,0]    +(bt[1,0]*F0|0    )+ bt[1,1]*F1    );
-  local F3:=0|([1,0,0,0]  +(bt[2,0]*F0|0|0  )+(bt[2,1]*F1|0  )+bt[2,2]*F2);
+  F0:=[0,1];
+  F1:=0|([1,0]      + bt[0,0]*F0      );
+  F2:=0|([1,0,0]    +(bt[1,0]*F0|0    )+ bt[1,1]*F1    );
+  F3:=0|([1,0,0,0]  +(bt[2,0]*F0|0|0  )+(bt[2,1]*F1|0  )+bt[2,2]*F2);
                [1,0,0,0,0]+(bt[3,0]*F0|0|0|0)+(bt[3,1]*F1|0|0)+(bt[3,2]*F2|0)+bt[3,3]*F3;
 end;
 
+@SuppressUnusedWarning
 opt_construction->begin
-  local bestUntilNow:=[testMethod(1/2,1/3,4/9),[1/2,1/3,4/9]];
+  bestUntilNow:=[testMethod(1/2,1/3,4/9),[1/2,1/3,4/9]];
   begin
-    local RK:=find_best_error_stage@(bestUntilNow[1]);
+    RK:=find_best_error_stage@(bestUntilNow[1]);
     log('Solution: ',bestUntilNow);
     print(RK[0,0],"\n",RK[1].join("\t"),"\n",RK[2].join("\t"),"\n",RK[3].join("\t"));
     log('Approx 3rd: ',explicitLinear(RK.leading));
     log('Approx 2nd: ',explicitLinear(RK));
   end;
 
-  while(true,begin
-    local newSolution:=downhillSimplex((p)->testMethod@p,random(3)*2-1,0.1,1E-6);
+  while true do begin
+    newSolution:=downhillSimplex((p)->testMethod@p,random(3)*2-1,0.1,1E-6);
     newSolution[0]<bestUntilNow[0]
     ? begin
         bestUntilNow:=newSolution;
-        local RK:=find_best_error_stage@(newSolution[1]);
+        RK:=find_best_error_stage@(newSolution[1]);
         print("\nError: ",newSolution);
         print(RK[0,0],"\n",RK[1].join("\t"),"\n",RK[2].join("\t"),"\n",RK[3].join("\t"));
         note('Approx 3rd: ',explicitLinear(RK.leading));
         note('Approx 2nd: ',explicitLinear(RK));
       end
     : note('Found worse: ',newSolution);
-  end);
+  end;
 end;
 
 brute_force_construction->begin
-  local bestUntilNow:=[testRaw(0,0,0,0,0,0),[0,0,0,0,0,0]];
+  bestUntilNow:=[testRaw(0,0,0,0,0,0),[0,0,0,0,0,0]];
   begin
-    local RK:=find_best_error_stage@(bestUntilNow[1]);
+    RK:=find_best_error_stage@(bestUntilNow[1]);
     log('Solution: ',bestUntilNow);
     print(RK[0,0],"\n",RK[1].join("\t"),"\n",RK[2].join("\t"),"\n",RK[3].join("\t"));
     log('Approx 3rd: ',explicitLinear(RK.leading));
     log('Approx 2nd: ',explicitLinear(RK));
   end;
 
-  while(true,begin
-    local newSolution:=downhillSimplex((p)->testRaw@p,random(6)*2-1,0.1,1E-6);
+  while true do begin
+    newSolution:=downhillSimplex((p)->testRaw@p,random(6)*2-1,0.1,1E-6);
     newSolution[0]<bestUntilNow[0]
     ? begin
         bestUntilNow:=newSolution;
-        local RK:=find_best_error_stage@(newSolution[1]);
+        RK:=find_best_error_stage@(newSolution[1]);
         print("\nError: ",newSolution);
         print(RK[0,0],"\n",RK[1].join("\t"),"\n",RK[2].join("\t"),"\n",RK[3].join("\t"));
         note('Approx 3rd: ',explicitLinear(RK.leading));
         note('Approx 2nd: ',explicitLinear(RK));
       end
     : note('Found worse: ',newSolution);
-  end);
+  end;
 end;
 
 brute_force_construction;

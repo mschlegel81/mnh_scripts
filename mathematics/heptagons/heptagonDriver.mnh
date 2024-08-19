@@ -6,26 +6,26 @@ printMethod(i:Int)->{log(i,' ',$0)};
 
 private calcCurve(i:Int)->begin
   fileExists('heptagon.exe').assert('heptagon.exe does not exist! Compile and place in folder \packages');
-  local calcMethod:='d';
+  calcMethod:='d';
   print('Calculating curve: ',i);
-  local exitCode:='heptagon.exe'.teeExec([calcMethod,i.toString],printMethod(i),true).trailing;
+  exitCode:='heptagon.exe'.teeExec([calcMethod,i.toString],printMethod(i),true).trailing;
   exitCode==0
   ? log ('Call heptagon.exe ',calcMethod,' ',i,' stopped with exit code ',exitCode)
   : warn('Call heptagon.exe ',calcMethod,' ',i,' failed with exit code ',exitCode);
 
-  (exitCode==0) AND fileExists(local filename:=curveName(i))
+  (exitCode==0) AND fileExists(filename:=curveName(i))
   ? begin
-      local lines:=filename.fileLines;
-      local granularity:=lines.trim.softCast.filter(::isInt).head(1)[0] orElse fail('No granualarity info found!');
-      local samples:=lines.split(',')
-                          .trim
-                          .softCast
-                          .filter((phi)->phi.isNumericList(4))
-                          .map(granularity=0 ? ((phi)->phi.map((x)->x<-256 ? x+512 : x>255 ? x-512 : x))
-                                             : ((phi)->phi))
-                          .unique
-                          .each(s,s,-s)
-                          .unique;
+      lines:=filename.fileLines;
+      granularity:=lines.trim.softCast.filter(::isInt).head(1)[0] orElse fail('No granualarity info found!');
+      samples:=lines.split(',')
+                    .trim
+                    .softCast
+                    .filter((phi)->phi.isNumericList(4))
+                    .map(granularity=0 ? ((phi)->phi.map((x)->x<-256 ? x+512 : x>255 ? x-512 : x))
+                                       : ((phi)->phi))
+                    .unique
+                    .each(s,s,-s)
+                    .unique;
       deleteFile(filename);
       [i,granularity,samples];
     end
@@ -37,24 +37,24 @@ POINTS_OF_INTEREST:=[2000,4000,6000,2/3*7000];
 private taskIsPending(curveIndex)->curveIndex not in partitionedCurves.getInner(0);
 
 pendingTasks->begin
-  local tbc:=unique([2000..2010,5990..6000,4002..4010,4660..4670]#|(5*[400..1200])
+  tbc:=unique([2000..2010,5990..6000,4002..4010,4660..4670]#|(5*[400..1200])
    |(10*[200..600]));
   tbc[tbc.map((i)->2^(5-trueCount((i mod [1000,500,100,50,10,5])=0))+(abs(i-POINTS_OF_INTEREST).min/200)-32*ord(i in [2001,5999,4010,3500])).sortPerm];
 end.filter(::taskIsPending);
 
 outOfOrderMap(parameters:Collection,f:Expression(1))->{begin
-  local pending:=map(parameters,(parameter)->future(f,[parameter]));
+  pending:=map(parameters,(parameter)->future(f,[parameter]));
 save;
   pending.size=0
   ? return void
   : void;
-  local firstDone:=void;
-  local sleepTime:=1E-4;
-  while(firstDone.isVoid,firstDone:=pending.each(task,task.peekFuture ? index : void,orElse) orElse sleep(sleepTime:=min(sleepTime*2,10)));
-  local result:=pending[firstDone]();
+  firstDone:=void;
+  sleepTime:=1E-4;
+  while firstDone.isVoid do firstDone:=pending.each(task,task.peekFuture ? index : void,orElse) orElse sleep(sleepTime:=min(sleepTime*2,10));
+  result:=pending[firstDone]();
   pending[firstDone]:=void;
   result;
-end}.toIteratableExpression;
+end}.toIterableExpression;
 
 //*List "missing" curve indexes
 main('pending')->pendingTasks.map(::print);
@@ -74,7 +74,7 @@ end;
 
 //*Calculate the next 10 pending curves
 main->begin
-  local pending:=pendingTasks.head(10);
+  pending:=pendingTasks.head(10);
   pending.size==0
   ? print('There are no more pending tasks')
   : main@pending;

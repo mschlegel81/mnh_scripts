@@ -1,9 +1,0 @@
-main->begin
-  local L:=[];
-  local toAdd:=1;
-  while(true,begin
-    print('Adding ',toAdd.size);
-    L|=toAdd;
-    toAdd:=[0..max(toAdd)*2];
-  end);
-end;

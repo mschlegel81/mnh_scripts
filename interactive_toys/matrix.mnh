@@ -6,7 +6,7 @@ main->begin
   continue:=true;
   localAsync({
     while continue do begin
-      local answer:=ask('',['q','+','-'],false);
+      answer:=ask('',['q','+','-'],false);
       answer=='+' ? sleepTime:=max(0,sleepTime-0.01) :
       answer=='-' ? sleepTime+=0.01 : continue:=false;
     end});

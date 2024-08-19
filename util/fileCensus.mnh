@@ -1,0 +1,36 @@
+FileInfos:=[['.bmp',['Document','Image']],['.csv',['Document','CSV']],['.dpr',['Delphi','Project']],['.pl',['Perl or Prolog','Source']],['.war',['Java','Compilate']],['.docx',['Document','Word']],['.dpu',['Delphi','Debug Info']],['.png',['Document','Image']],['.xsd',['Document','XML/SOAP']],['.dfm',['Delphi','Form Layout']],['.java',['Java','Source']],['.wsdl',['Document','XML / SOAP']],['.sha1',['Document','Checksum']],['.sql',['Source','SQL']],['.txt',['Document','Text']],['.graphml',['Document','Graph']],['.xsl',['Document','XML']],['.exe',['Executable','Binary']],['.pdf',['Document','Pdf']],['.dcr',['Delphi','Resource']],['.html',['Document','HTML']],['.js',['Java Script','Script']],['.bat',['Executable','Script']],['.ico',['Document','Icon']],['.dcu',['Delphi','Compilate']],['.xml',['Document','XML']],['.doc',['Document','Word']],['.bz2',['Archive','BZ2']],['.jar',['Java','Compilate']],['.inc',['Delphi','Source']],['.md5',['Document','Checksum']],['.xls',['Document','Excel']],['.res',['Delphi','Resource']],['.sh',['Executable','Script']],['.jpg',['Image','JPEG']],['.zip',['Archive','Zip']],['.pas',['Delphi','Source']],['.xlsx',['Document','XML']],['.css',['Document','HTML']],['.cfg',['Document','Configuration']],['.dll',['Library','Windows DLL']],['.gif',['Document','Image']],['.ini',['File','Configuration']]].toMap;
+
+getFileInfo(extension :String)->FileInfos[extension.lower] orElse FileInfos['.'&extension.lower];
+getFileInfo(extensions:StringList)->extensions.pMap(::getFileInfo);
+
+ROOT:='C:\dev\Optomatica\kvalprak';
+EXCLUDE_PATTERN:='(/\.git)|(/third_party/)|(/vendor/)|(/drivers/)|(/libraries/)';
+//EXCLUDE_PATTERN:='(/\.git)';//|(/third_party/)';
+
+main->begin
+  fileTable:=allFiles(ROOT);
+  fileTable:=fileTable[!matches(fileTable,EXCLUDE_PATTERN)]
+            .pMap({[extractFileExt($x).lower,relativeFileName(ROOT,$x.extractFileDirectory),$x.extractFileName]|$x.fileStats.leading});
+  showTable([['Extension','Folder','File','Lines','Words','Bytes']]|fileTable,'All Files',true);
+  //reduce table...
+  fileTable:=group(fileTable.map((entry)->entry.tail(2)),
+                   fileTable.map((entry)->entry.head(2)))
+             .each(G,G[0]|G[1].size|G[1].map(::tail).agg(+));
+  showTable([['Extension','Folder','Files','Lines','Words','Bytes']]|fileTable,'By extension and folder',true);
+  //reduce table...
+  fileTable:=group(fileTable.map((entry)->entry.tail),
+                   fileTable.map((entry)->entry.head))
+             .each(G,G[0]|G[1].map(::tail).agg(+));
+  showTable([['Extension','Files','Lines','Words','Bytes']]|fileTable,'By extension',true);
+end;
+
+
+//.{printf("%s\t|\t%s\t|\t%s\t|\t%s",
+//         'Extension'|$L.getInner(0),
+//         'Files'    |$L.getInner(1),
+//         'Lines'    |$L.getInner(2),
+//         'Bytes'    |$L.getInner(3)) orElse
+// showTable(['Extension'|$L.getInner(0),
+//            'Files'    |$L.getInner(1),
+//            'Lines'    |$L.getInner(2),
+//            'Bytes'    |$L.getInner(3)].transpose,true)};

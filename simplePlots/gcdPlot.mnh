@@ -1,4 +1,5 @@
 RES:=(plotImageSize div 3).map((d)->max(d,100));
+@Override
 RES:=[100,100];
 ord(gcd@(cross([1..RES[1]],[1..RES[0]]).transpose)=1).plotRasterImage(RES[0]);
 

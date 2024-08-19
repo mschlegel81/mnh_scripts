@@ -1,4 +1,0 @@
-#!C:\bin\mnh.exe -quiet -convertPrintToLog -logDateFmt hh:mm:ss -logLocationLength 15 +log stdOut(1)
-PARTICLE_COUNT:=1460;
-INCLUDE newerParticles_base;
-

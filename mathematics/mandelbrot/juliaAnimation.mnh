@@ -26,10 +26,10 @@ unevenTrip(t)->f(t);
 
 memoized evenTrip->
 begin
-  local tlt:=begin
-    local l:=0;
-    local p0:=
-    local p1:=unevenTrip(0);
+  tlt:=begin
+    l:=0;
+    p0:=
+    p1:=unevenTrip(0);
     (([0..10000]/10000)*4*pi).each(t,begin
       p0:=p1;
       p1:=unevenTrip(t);
@@ -37,34 +37,34 @@ begin
       t=>l;
     end);
   end;
-  local totalRange:=tlt.trailing[1];
-  local ft:=newLinearInterpolator(tlt.map(::reverseList));
+  totalRange:=tlt.trailing[1];
+  ft:=newLinearInterpolator(tlt.map(::reverseList));
   ft(totalRange*([0..2000]/2000)).map(::unevenTrip);
 end;
 
 renderImage(index)->
 begin
-  local filename:=myPath.changeFileExt(format('_%4.4d.png',index));
-  filename.fileExists ? return void : void;
+  filename:=myPath.changeFileExt(format('_%4.4d.png',index));
+  if filename.fileExists then return void;
 
-  local message:='| Creating '+filename+' |';
-  local line:=   '+'+repeat('-',length(message)-2)+'+';
+  message:='| Creating '+filename+' |';
+  line:=   '+'+repeatString('-',length(message)-2)+'+';
   log(line,"\n",message,"\n",line);
 
 
-  local center:=[-0.5,0];
-  local ratio:=16/9;
-  local xy0:=center-[ratio,1]*1.22580625;
-  local xy1:=center+[ratio,1]*1.22580625;
+  center:=[-0.5,0];
+  ratio:=16/9;
+  xy0:=center-[ratio,1]*1.22580625;
+  xy1:=center+[ratio,1]*1.22580625;
   setOptions(["x0"=>xy0[0],"x1"=>xy1[0],
               "y0"=>xy0[1],"y1"=>xy1[1],"fontsize"=>10,"preserveAspect"=>true,"autoscaleX"=>false,"autoscaleY"=>false,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
-  local J:=evenTrip[index];
+  J:=evenTrip[index];
   assert(J.isNumericList(2));
 
   plot([[J[0],J[1]-100],[J[0],J[1]+100],[Nan,Nan],
         [J[0]-100,J[1]],[J[0]+100,J[1]]],'black 0.5');
   renderPlotToCurrentImage(1920,1080);
-  executeWorkflow(workflow(J),'-','-',::log);
+  executeWorkflow(workflow(J),'-',filename,::log);
 end;
 
 begin

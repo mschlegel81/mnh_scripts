@@ -1,14 +1,14 @@
 hexGridError(alpha:Numeric,scale:Numeric)->begin
-  local X:=[ cos(alpha),sin(alpha)];
-  local Y:=[-sin(alpha),cos(alpha)];
+  X:=[ cos(alpha),sin(alpha)];
+  Y:=[-sin(alpha),cos(alpha)];
 
-  local e0:=scale*X;
-  local e1:=scale*(X*cos(pi/3)+Y*sin(pi/3));
+  e0:=scale*X;
+  e1:=scale*(X*cos(pi/3)+Y*sin(pi/3));
 
-  local P:=cross([-32..32],[-32..32]).map((i,j)->i*e0+j*e1).filter((x,y)->-1.5<=x<=1.5 AND -1.5<=y<=1.5);
+  P:=cross([-32..32],[-32..32]).map((i,j)->i*e0+j*e1).filter((x,y)->-1.5<=x<=1.5 AND -1.5<=y<=1.5);
 
-  local P0:=P.filter((x,y)->-0.5<x<0.5 AND -0.5<y<0.5).transpose;
-  local P1:=P.filter((x,y)->!(-0.5<x<0.5 AND -0.5<y<0.5)).map((xy)->xy-round(xy));
+  P0:=P.filter((x,y)->-0.5<x<0.5 AND -0.5<y<0.5).transpose;
+  P1:=P.filter((x,y)->!(-0.5<x<0.5 AND -0.5<y<0.5)).map((xy)->xy-round(xy));
 
   P1.each(p,(P0-p).transpose.euklideanNorm.min,max);
 end;
@@ -17,7 +17,7 @@ minHexGridError(scale)->([0..29]/30*pi/3).pEach(alpha,hexGridError(alpha,scale),
 
 
 begin
-  local E:=[0.6].map((scale)->scale=>minHexGridError(scale));
+  E:=[0.6].map((scale)->scale=>minHexGridError(scale));
   ["x0"=>1/16,
    "x1"=>0.6,
    "y0"=>0,
@@ -32,7 +32,7 @@ begin
    "axisStyleX"=>7,
    "axisStyleY"=>7].toMap.setOptions;
   vanDerCorputGenerator(2).map((x)->1/16+x*(0.6-1/16)).each(scale,begin
-    local err:=minHexGridError(scale);
+    err:=minHexGridError(scale);
     E|=[[scale,err]];
     E:=E.sort;
     clearPrint;
@@ -43,6 +43,7 @@ begin
   end);
 end;
 
+@SuppressUnusedWarning
 out:=//!~
 [[0.0625,0.046940718912599079],
 [0.06256561279296875,0.051237152379280594],

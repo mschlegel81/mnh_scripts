@@ -1,0 +1,98 @@
+memoized probabilityOf(freqMap:Map,s:String)->begin
+  s.byteLength<=4
+  ? freqMap[s] orElse 0
+  : begin
+      b:=s.bytes;
+      [0..b.size-4].each(k,probabilityOf(freqMap,b[[k..k+3]].join),*);
+    end;
+end;
+
+makeTunstallFrequencies(s:String)->begin
+  B:=s.bytes;
+  count:=B.size;
+  F1:=B.elementFrequency.map({[$x[0],$x[1]/count]}).toMap;
+  count-=1;
+  F2:=[0..B.size-2].each(k,B[[k..k+1]].join).elementFrequency.map({[$x[0],$x[1]/count]}).toMap;
+  count-=1;
+  F3:=[0..B.size-3].each(k,B[[k..k+2]].join).elementFrequency.map({[$x[0],$x[1]/count]}).toMap;
+  count-=1;
+  F4:=[0..B.size-4].each(k,B[[k..k+3]].join).elementFrequency.map({[$x[0],$x[1]/count]}).toMap;
+  F1.mergeMaps(F2,::orElse)
+    .mergeMaps(F3,::orElse)
+    .mergeMaps(F4,::orElse);
+end;
+
+expandTree(symbolToCode:Map)->begin
+  symbolToCode.filter({$x[0].byteLength>1})
+              .map({[$x[0].bytes.head,$x[0].bytes.tail.join => $x[1]]})
+              .group(0)
+              .each(g,[g[0,0],g.getInner(1).toMap.expandTree])
+              .toMap
+              .mergeMaps(symbolToCode.filter({$x[0].byteLength<=1}),::orElse);
+end;
+
+makeTunstallCode(freq:Map,codeBits>8)->begin
+  targetCount:=2^codeBits;
+  code:=chars.map({$c=>freq.probabilityOf($c)});
+  while code.size+255<targetCount do begin
+    mostProbableIndex:=code.getInner(1).argMax;
+    print('The most probable case is: ',code[mostProbableIndex]);
+    newNodes:=(code[mostProbableIndex,0]&chars).map({$c=>freq.probabilityOf($c)});
+    code[mostProbableIndex]:=void;
+    code|=newNodes;
+  end;
+  codeToSymbol:=code.getInner(0).each(c,index=>c).toMap;
+  symbolToCode:=codeToSymbol.pMap(::reverseList).toMap.expandTree;
+  [symbolToCode,codeToSymbol,codeBits];
+end;
+
+tunstallEncode(code:List(3),s:String)->begin
+  codeMap:=code[0];
+  NOP:=code[1].getInner(0).max+1;
+  bitCount:=0;
+  s.bytes
+   .each(symbol,begin
+      codeMap:=codeMap[symbol];
+      codeMap.isInt
+      ? begin
+          nextCode:=codeMap;
+          codeMap:=code[0];
+          bitCount+=code[2];
+          nextCode;
+        end
+      : void;
+    end)
+   .{begin
+       codeMap==code[0]
+       ? $L
+       : begin
+           while !codeMap.isList do codeMap:=codeMap.toList.head;
+           $L|codeMap[1];
+         end;
+     end}
+   .{begin
+       given:=$L;
+       while bitCount mod 8!=0 do begin
+         print('Appending NOP @',bitCount);
+         given|=NOP;
+         bitCount+=code[2];
+       end;
+       given;
+     end}
+   .composeDigits(2^code[2])
+   .digits(256)
+   .{chars[$L].join};
+end;
+
+tunstallDecode(code:List(3),s:String)->begin
+  M:=code[1];
+  s.bytes.ord.composeDigits(256).digits(2^code[2]).each(c,M[c],&);
+end;
+
+data:='C:\dev\mnh5\resources\html_template.txt'.fileContents;
+code:=makeTunstallFrequencies(data).makeTunstallCode(16);
+a:=code.tunstallEncode(data);
+data.byteLength;
+a.byteLength;
+a.byteLength/data.byteLength;
+code.tunstallDecode(a)==data;

@@ -1,6 +1,6 @@
 USE GUI;
 curry tracepoint(radius,t)->begin
-  local phi:=(t*(1/radius-1))+pi/2;
+  phi:=(t*(1/radius-1))+pi/2;
   [sin(phi),cos(phi)]*radius+(1-radius)*[cos(t),sin(t)];
 end;
 
@@ -9,8 +9,8 @@ getTrace(radius,range)->([0..150]/150*range).map(tracepoint(radius));
 //S:=sin([0..50]/50*2*pi);
 //C:=cos([0..50]/50*2*pi);
 drawInner(radius,t,color)->begin
-  local phi:=(  t*(  1/radius-1))+pi/2;
-  local center:=(1-radius)*[cos(t),sin(t)];
+  phi:=(  t*(  1/radius-1))+pi/2;
+  center:=(1-radius)*[cos(t),sin(t)];
   addPlot([center[0],center[0]+sin(phi)*radius],[center[1],center[1]+cos(phi)*radius],'. l '&color);
   addPlot([center-radius,center+radius],'ellipse '&color);
 end;
@@ -25,11 +25,11 @@ main(innerRadius)->begin
               ['axisStyleX',0],
               ['axisStyleY',0]]);
   clearAnimation;
-  local r0:=interpret(innerRadius);
+  r0:=interpret(innerRadius);
   r0.isNumeric AND 0<r0<1 ? void : fail('Invalid radius: ',innerRadius);
-  local f:=1-1/r0;
-  local period:=begin
-    local p0:=tracepoint(r0,0);
+  f:=1-1/r0;
+  period:=begin
+    p0:=tracepoint(r0,0);
     ([1..100]*2*pi).each(t,[t,(tracepoint(r0,t)-p0).sqr.agg(+).sqrt*t]).sort(1).head.head;
 end;
 

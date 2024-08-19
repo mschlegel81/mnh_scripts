@@ -5,14 +5,14 @@ ENT_ht(p,n)->2+(1-(1-p)^ceil (n/2))*ENT_ht(p,ceil (n/2))+
               +(1-(1-p)^floor(n/2))*ENT_ht(p,floor(n/2));
 
 ENT_qt(p,totalCount,groupSize)->begin
-  local rest:=totalCount mod groupSize;
+  rest:=totalCount mod groupSize;
   ceil(totalCount/groupSize)+
   (totalCount div groupSize)*groupSize*(1-(1-p)^groupSize)+
   (rest=0 ? 0 :              rest     *(1-(1-p)^rest     ));
 end;
 
 ENT_mixed(p,totalCount,groupSize)->begin
-  local rest:=totalCount mod groupSize;
+  rest:=totalCount mod groupSize;
   ceil(totalCount/groupSize)+
   (totalCount div groupSize)*ENT_ht(p,groupSize)*(1-(1-p)^groupSize)+
   (rest=0 ? 0 :              ENT_ht(p,rest     )*(1-(1-p)^rest     ));
@@ -23,7 +23,7 @@ TOTAL:=1000;
 ENT_mixed(0.44504,1000000,2);
 ENT_qt   (0.30663,1000000,3);
 //
-halt;
+//halt;
 
 
 setOptions(["x0"=>-1,"x1"=>1,"y0"=>-1,"y1"=>1,"fontsize"=>5,"preserveAspect"=>false,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>7,"axisStyleY"=>7].toMap);
@@ -36,7 +36,7 @@ setOptions(["x0"=>-1,"x1"=>1,"y0"=>-1,"y1"=>1,"fontsize"=>5,"preserveAspect"=>fa
 
 ([0..100]).pEach(p,p|[1..TOTAL].each(groupSize,ENT_qt(p/100,TOTAL,groupSize)=>groupSize,min)).
 {begin
-   local previous:='';
+   previous:='';
    addPlot($L.getInner(0),$L.getInner(1),'red');
    $L.each(entry,begin
      entry[2]==previous ? void : begin
@@ -48,7 +48,7 @@ setOptions(["x0"=>-1,"x1"=>1,"y0"=>-1,"y1"=>1,"fontsize"=>5,"preserveAspect"=>fa
 
 ([0..100]).pEach(p,p|[1..TOTAL].each(groupSize,ENT_mixed(p/100,TOTAL,groupSize)=>groupSize,min)).
 {begin
-   local previous:='';
+   previous:='';
    addPlot($L.getInner(0),$L.getInner(1),'blue');
    $L.each(entry,begin
      entry[2]==previous ? void : begin
@@ -60,7 +60,7 @@ setOptions(["x0"=>-1,"x1"=>1,"y0"=>-1,"y1"=>1,"fontsize"=>5,"preserveAspect"=>fa
 
 //([0..100]/100).each(p,begin
 //  setOptions(["x0"=>1,"x1"=>32,"y0"=>0,"y1"=>1100,"fontsize"=>10,"preserveAspect"=>false,"autoscaleX"=>false,"autoscaleY"=>true,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>7,"axisStyleY"=>7].toMap);
-//  local Q:=ENT_ht(p,1000)+2;
+//   Q:=ENT_ht(p,1000)+2;
 //  X.pMap((g)->g=>ENT_qt   (p,1000,g)).plot('l');
 //  X.pMap((g)->g=>ENT_mixed(p,1000,g)).addPlot('l');
 //  addPlot([[1,Q],[1000,Q],[Nan,Nan],[1000,1000],[1,1000]]);

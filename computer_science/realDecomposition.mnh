@@ -1,0 +1,26 @@
+ducktype Byte(i:Int)->0<=i<=255;
+byteToBits(byte:Byte)->begin
+  result:=byte.digits(2);
+  while result.size<8 do result:=0|result;
+  result;
+end;
+
+decomposeReal(r:Numeric)->begin
+  r.toReal.serialize(false,false).bytes.tail(2).ord.print;
+  bits:=r.toReal.serialize(false,false).bytes.tail(2).ord.reverseList.map(::byteToBits).flatten;
+  local sign:=bits[0]==0 ? 1 : -1;
+  exponentBits:=bits[[1..11]];
+  mantissaBits:=bits.trailing(52);
+  ['sign'    =>sign,
+   'exponent'=>exponent:=exponentBits.composeDigits(2),//-1022,
+   'exponentBits'=>exponentBits.join,
+   'mantissa'=>mantissa:=mantissaBits.composeDigits(2),
+   'mantissaBits'=>mantissaBits.join,
+   'rec'=>sign*2^exponent*mantissa];
+end;
+
+(pi).decomposeReal;
+
+digits(1024,256);
+
+

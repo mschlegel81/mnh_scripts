@@ -16,12 +16,12 @@ REFLECT_EPSILON:=1E-6;
 makeReflector(parameter:ConicParamter,
               depth:ValidReal,
               width:ValidWidth)->begin
-  local Y:=[-1000..1000]/1000*width;
-  local X:=Y.map(conic(parameter)*depth);
-  local points:=[X-X.agg(+)/X.size,
+  Y:=[-1000..1000]/1000*width;
+  X:=Y.map(conic(parameter)*depth);
+  points:=[X-X.agg(+)/X.size,
                  Y-Y.agg(+)/Y.size].transpose;
-  local curveLength:=0;
-  local mask:=0|(euklideanNorm(points.tail-points.leading)).each(d,curveLength+=d);
+  curveLength:=0;
+  mask:=0|(euklideanNorm(points.tail-points.leading)).each(d,curveLength+=d);
   mask/=mask.trailing;
   mask:=([0..REFLECTOR_POINTS]/REFLECTOR_POINTS).each(l,argMin(abs(mask-l)));
 
@@ -42,7 +42,7 @@ rayHitsLine(rayStart:Vec2,rayDirection:Vec2,
             lineStart:Vec2,lineEnd:Vec2)->begin
   //rayStart +rayDirection*t= lineStart+lineLength *u
   //rayDirection*t- lineLength *u= lineStart-rayStart
-  local sol:=cramerSolve(rayDirection,lineStart-lineEnd,lineStart-rayStart);
+  sol:=cramerSolve(rayDirection,lineStart-lineEnd,lineStart-rayStart);
   0<=sol[1]<=1 AND sol[0]>REFLECT_EPSILON
   ? sol
   : void;
@@ -61,20 +61,20 @@ rayHitsBoundingBox(rayStart:Vec2,rayDirection:Vec2)->
   .filter({!$x.isNan AND !$x.isInfinite AND $x>REFLECT_EPSILON}).min;
 
 rayBundle(angle)->begin
-  local direction:=[cos(angle),sin(angle)];
-  local shift    :=direction.reverseList*[-0.5,0.5];
-  local bundle   :=([0.. SAMPLE_RAYS-1]/(SAMPLE_RAYS-1)*2-1).each(i,begin
-    local start:=shift*i;
+  direction:=[cos(angle),sin(angle)];
+  shift    :=direction.reverseList*[-0.5,0.5];
+  bundle   :=([0.. SAMPLE_RAYS-1]/(SAMPLE_RAYS-1)*2-1).each(i,begin
+    start:=shift*i;
     [start-rayHitsBoundingBox(start,-direction) *direction,direction];
   end);
   bundle;
 end;
 
 traceRay(mirror:List,ray:List(2))->begin
-  local mirrorPoints :=mirror[0];
-  local firstHit:=
+  mirrorPoints :=mirror[0];
+  firstHit:=
   [0..mirrorPoints.size-2].each(i,begin
-    local tHit:=rayHitsLine(ray[0],ray[1],mirrorPoints[i],mirrorPoints[i+1]);
+    tHit:=rayHitsLine(ray[0],ray[1],mirrorPoints[i],mirrorPoints[i+1]);
     tHit.isVoid
     ? void
     : [tHit[0],tHit[1],i];
@@ -82,30 +82,30 @@ traceRay(mirror:List,ray:List(2))->begin
   firstHit.isVoid
   ? [ray[0],ray[0]+rayHitsBoundingBox(ray[0],ray[1])*ray[1]]
   : begin
-      local mirrorNormals:=mirror[1];
-      local hitNormal:=mirrorNormals[firstHit[2]+1]*(  firstHit[1])+
+      mirrorNormals:=mirror[1];
+      hitNormal:=mirrorNormals[firstHit[2]+1]*(  firstHit[1])+
                        mirrorNormals[firstHit[2]  ]*(1-firstHit[1]);
       hitNormal/=hitNormal.euklideanNorm;
-      local hitPoint :=ray[0]+firstHit[0]*ray[1];
-      local outDir   :=ray[1]-hitNormal*((ray[1]*hitNormal).agg(+)*2);
+      hitPoint :=ray[0]+firstHit[0]*ray[1];
+      outDir   :=ray[1]-hitNormal*((ray[1]*hitNormal).agg(+)*2);
       outDir/=outDir.euklideanNorm;
       [ray[0]]|traceRay(mirror,[hitPoint,outDir]);
     end;
 end;
 
 prettyRays(rays:List)->begin
-  local MAX_SEG:=20;
-  local partLength:=rays.each(ray,ray.euklideanNorm.agg(+)).sort[round(0.8*rays.size)]/MAX_SEG;
-  local segmentsByPart:=[].toMap;
-  local styles:=[0..MAX_SEG].each(k,'RGB1,0,0,'&((MAX_SEG+1-k)/MAX_SEG));
+  MAX_SEG:=20;
+  partLength:=rays.each(ray,ray.euklideanNorm.agg(+)).sort[round(0.8*rays.size)]/MAX_SEG;
+  segmentsByPart:=[].toMap;
+  styles:=[0..MAX_SEG].each(k,'RGB1,0,0,'&((MAX_SEG+1-k)/MAX_SEG));
   rays.each(ray,begin
-    local restLength:=partLength;
-    local partIndex:=0;
+    restLength:=partLength;
+    partIndex:=0;
     [0..ray.size-2].each(k,begin
-      local p0:=ray[k  ];
-      local p1:=ray[k+1];
+      p0:=ray[k  ];
+      p1:=ray[k+1];
       while euklideanNorm(p1-p0)>restLength do begin
-        local pSplit:=p0+(p1-p0)/euklideanNorm(p1-p0)*restLength;
+        pSplit:=p0+(p1-p0)/euklideanNorm(p1-p0)*restLength;
         segmentsByPart[min(MAX_SEG,partIndex+=1)]|=[p0,p0:=pSplit,[Nan,Nan]];
         restLength:=partLength;
       end;
@@ -127,20 +127,20 @@ main->begin
               'autoscaleX'=>false,
               'autoscaleY'=>false]);
 
-  local formTxt :=local formParameter :=-1;
-  local depthTxt:=local depthParameter:= 1;
-  local widthTxt:=local widthParameter:= 1;
-  local mirror:=makeReflector(-1,1,1);
-  local rayDirection  :=0;
+  formTxt :=formParameter :=-1;
+  depthTxt:=depthParameter:= 1;
+  widthTxt:=widthParameter:= 1;
+  mirror:=makeReflector(-1,1,1);
+  rayDirection  :=0;
 
-  local refreshRays:={begin
+  refreshRays:={begin
     mirror[0].plot('black');
     rayBundle(rayDirection)
     .pEach(x,traceRay(mirror,x)).prettyRays;
     postDisplay;
   end};
 
-  local updateMirror:={begin
+  updateMirror:={begin
     mirror:=makeReflector(formParameter,depthParameter,widthParameter);
     refreshRays();
   end};

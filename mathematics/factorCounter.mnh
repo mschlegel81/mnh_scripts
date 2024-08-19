@@ -24,7 +24,7 @@ scanInRange(n0,n1)->
   (n1<n0+CHUNK_SIZE
    ? factorize([n0..n1]).map(::size).elementFrequency
    : begin
-       local k:=ceil((n1-n0)/CHUNK_SIZE);
+       k:=ceil((n1-n0)/CHUNK_SIZE);
        k:=ceil(n0+(n1-n0+1)*[0..k]/k);
        zip(k.leading,k.tail-1)
          .pMap((i0,i1)->factorize([i0..i1]).map(::size).elementFrequency)
@@ -41,20 +41,20 @@ main->begin
                   ? begin log('Received kill signal'); killRequested:=true; end
                   : begin warn(ipcMessage); false; end);
 
-  local counts:=interestings.trailing;
+  counts:=interestings.trailing;
   interestings.map(::logIfRelevant);
   print('--------------------------------------- - - -  -  -  - ');
-  local lastSave:=scriptTime;
-  local lastCount:=counts[0];
-  while(!killRequested,begin
-    local md:=minDelta(counts);
+  lastSave:=scriptTime;
+  lastCount:=counts[0];
+  while not killRequested do begin
+    md:=minDelta(counts);
     md==0 ? logIfRelevant(counts) : void;
-    local stepsLeftInTime:=ceil((lastSave+90 - scriptTime)*factorizationsPerSecond).max(1);
-    local stepSize:=max(1,md orElse 1).min(stepsLeftInTime);
+    stepsLeftInTime:=ceil((lastSave+90 - scriptTime)*factorizationsPerSecond).max(1);
+    stepSize:=max(1,md orElse 1).min(stepsLeftInTime);
     log(counts,md==0 ? ' ***********': format(' min delta=%s',md orElse '?')&(md==stepSize ? void : f' step size={stepSize}'));
-    local increment:=scanInRange(counts[0]+1,local n:=counts[0]+stepSize);
-    while(counts   .size<increment.size,counts   |=0);
-    while(increment.size<counts   .size,increment|=0);
+    increment:=scanInRange(counts[0]+1,n:=counts[0]+stepSize);
+    while counts   .size<increment.size do counts   |=0;
+    while increment.size<counts   .size do increment|=0;
     counts+=increment;
     counts[0]:=n;
     interestings|=[counts];
@@ -65,7 +65,7 @@ main->begin
         log(f'Data stores updated %{factorizationsPerSecond}0.0f/s');
       end
     : void;
-  end);
+  end;
 end;
 
 
@@ -84,10 +84,10 @@ begin
    "axisStyleY"=>7].toMap.setOptions;
 
 
-  local D:=interestings.transpose(0).head(11);
+  D:=interestings.transpose(0).head(11);
   [1..10].each(k,D[k]/=D[0]);
 
-  local COLORS:=[1=>'black',
+  COLORS:=[1=>'black',
                  2=>'red',
                  3=>'blue',
                  4=>'green',
@@ -108,7 +108,7 @@ begin
     .pMap((i,j)->[i,j,indexOf(D[i]=D[j]>0)])
     .pFilter((i,j,indexes)->indexes.size>0)
     .pMap((i,j,indexes)->begin
-       local P:=transpose([D[0,indexes],D[i,indexes]]);
+       P:=transpose([D[0,indexes],D[i,indexes]]);
        addPlot(P,COLORS[j]&' . 1');
        addPlot(P,COLORS[i]&' . 0.5');
        [cross(interestings[indexes].getInner(0),[i],[j]),interestings[indexes].getInner(i)].transpose.map(::flatten);

@@ -22,28 +22,28 @@ private rz(alpha:Numeric)->
    0,          0,          1].toMatrix;
 
 private reconstructPoints(alpha:Numeric,phi:NumericList(4),x0:NumericList(3),initialMatrix:Matrix)->begin
-  local a:=initialMatrix;
-  local d:=[a[[0,3,6]]];
-  local rotZ:=rz(alpha);
+  a:=initialMatrix;
+  d:=[a[[0,3,6]]];
+  rotZ:=rz(alpha);
   a*=           rotZ; d ||=a[[0,3,6]];
   a*=rx(phi[0])*rotZ; d ||=a[[0,3,6]];
   a*=rx(phi[1])*rotZ; d ||=a[[0,3,6]];
   a*=rx(phi[2])*rotZ; d ||=a[[0,3,6]];
   a*=rx(phi[3])*rotZ; d ||=a[[0,3,6]];
-  local x:=x0;
+  x:=x0;
   x:=[x0]|d.each(edge,x+=edge);
   x;
 end;
 private reconstructPoints(alpha:Numeric,phi:NumericList(4))->reconstructPoints(alpha,phi,[0,0,0],[1,0,0,0,1,0,0,0,1].toMatrix);
 
 private plot3DPoly(points:List)->begin
-  local perspectivity:=1;
-  local perspective:=-0.8*(1/perspectivity+1)/
+  perspectivity:=1;
+  perspective:=-0.8*(1/perspectivity+1)/
                     ({$z}-(1/perspectivity+1));
-  local bgPerspective:=perspective(-1);
+  bgPerspective:=perspective(-1);
 
-  local pointData:=points.map((point)->begin
-    local fz:=perspective(point[2]);
+  pointData:=points.map((point)->begin
+    fz:=perspective(point[2]);
     [point.leading*fz,             //0: point
      point.leading*bgPerspective,  //1: projected on back
      [point[0],-1]*fz,             //2: projected on floor
@@ -56,8 +56,8 @@ private plot3DPoly(points:List)->begin
   setOptions(["x0"=>-1,"x1"=>1,"y0"=>-1,"y1"=>1,"autoscaleX"=>false,"autoscaleY"=>false,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
   plot();
 
-  local broadLine:=(x0,f0,x1,f1)->begin
-    local delta:=x1-x0;
+  broadLine:=(x0,f0,x1,f1)->begin
+    delta:=x1-x0;
     delta/=delta.euklideanNorm;
     delta:=[-delta[1],delta[0]]*0.01;
     [[x0-f0*delta,
@@ -76,7 +76,7 @@ private plot3DPoly(points:List)->begin
    [5,'RGB0.8,1,0.8'],
    [6,'RGB0.8,1,0.8']].each(K,begin
     [0..6].map((i)->begin
-      local j:=(i+1) mod 7;
+      j:=(i+1) mod 7;
       broadLine(pointData[i,K[0]],bgPerspective,
                 pointData[j,K[0]],bgPerspective);
       end)
@@ -86,8 +86,8 @@ private plot3DPoly(points:List)->begin
 
   //cage:
   begin
-    local f0:=perspective(-1)/5;
-    local f1:=perspective( 1)/5;
+    f0:=perspective(-1)/5;
+    f1:=perspective( 1)/5;
 
     unique(cross([-5..5],[-5])|
            cross([-5..5],[ 5])|
@@ -102,8 +102,8 @@ private plot3DPoly(points:List)->begin
   end;
 
   [0..6].map((i)->begin
-    local j:=(i+1) mod 7;
-    local avgZ:=(pointData[i,4]+pointData[j,4])/2;
+    j:=(i+1) mod 7;
+    avgZ:=(pointData[i,4]+pointData[j,4])/2;
     avgZ|broadLine(pointData[i,0],pointData[i,3],
                    pointData[j,0],pointData[j,3]);
     end)
@@ -116,44 +116,44 @@ private plot3DPoly(points:List)->begin
 end;
 
 animateHeptagon(alpha:Numeric,coeff:Map)->begin
-  local realPeriod:=-coeff[KEY_PHASE]*2*pi/7;
+  realPeriod:=-coeff[KEY_PHASE]*2*pi/7;
 
-  local rotationCenter:=[1/2,-0.5/tan(alpha/2),0];
+  rotationCenter:=[1/2,-0.5/tan(alpha/2),0];
 
-  local rotationRadius:=euklideanNorm(rotationCenter);
-  local rotatedX0:=(t)->rotationCenter+rotationRadius*[sin((t-0.5)*alpha),-cos((t-0.5)*alpha),0];
+  rotationRadius:=euklideanNorm(rotationCenter);
+  rotatedX0:=(t)->rotationCenter+rotationRadius*[sin((t-0.5)*alpha),-cos((t-0.5)*alpha),0];
 
-  local centerZ:=reconstructPoints(alpha,
+  centerZ:=reconstructPoints(alpha,
              sampleCurve(coeff[KEY_KOEFF],coeff[KEY_PHASE],[realPeriod/2])[0],
              rotatedX0(1/2),
              rz(alpha/2))[4,2];
 
-  local rotate:=1;
+  rotate:=1;
   log('Phase          = ',coeff[KEY_PHASE],'*2*pi/7');
   log('rotatedX0(0  ) = ',rotatedX0(0));
   log('rotatedX0(0.5) = ',rotatedX0(0.5));
   log('rotatedX0(1  ) = ',rotatedX0(1));
   log('Rotation speed = ',alpha*rotationRadius);
-  local points:=void;
-  local pointCount:=200;
-  local curveTime:=[0..pointCount]*realPeriod/pointCount;
+  points:=void;
+  pointCount:=200;
+  curveTime:=[0..pointCount]*realPeriod/pointCount;
 
-  local makePoints:={begin
-    local P:=
+  makePoints:={begin
+    P:=
     [sampleCurve(coeff[KEY_KOEFF],coeff[KEY_PHASE],curveTime),
      rotate*[0..curveTime.size-1]/curveTime.size
     ]
     .transpose
     .map((phi_T)->reconstructPoints(alpha,phi_T[0],rotatedX0(phi_T[1]),rz(alpha*phi_T[1])));
-    local d:=rotationCenter;
+    d:=rotationCenter;
     d[2]:=centerZ;
     P.map((hept)->hept.map((p)->p-d));
   end};
   points:=makePoints();
 
-  local walkedDistance:=0;
+  walkedDistance:=0;
   walkedDistance:=0|(points.tail-points.leading).map((d)->d.euklideanNorm.agg(+)).each(delta,walkedDistance+=delta);
-  local toWalkPerStep:=0.2;
+  toWalkPerStep:=0.2;
 
   pointCount:=ceil(walkedDistance.trailing/toWalkPerStep).max(2);
   toWalkPerStep:=walkedDistance.trailing/pointCount;
@@ -169,24 +169,24 @@ animateHeptagon(alpha:Numeric,coeff:Map)->begin
 end;
 
 makeWalk(allCoefficients:Map,startSubIdx:Int,startAngle:Numeric)->begin
-  local configs:=[].toMap;
-  local lastConfig :=begin
-    local c:=allCoefficients[4500,startSubIdx];
+  configs:=[].toMap;
+  lastConfig :=begin
+    c:=allCoefficients[4500,startSubIdx];
     sampleCurve(c[KEY_KOEFF],c[KEY_PHASE],[startAngle])[0];
   end;
-  local lastManifestation:=reconstructPoints(4.5*pi/7,lastConfig);
+  lastManifestation:=reconstructPoints(4.5*pi/7,lastConfig);
 
   configs[4500]:=[lastConfig,lastManifestation];
-  local remainingAngles:=allCoefficients.getInner(0).filter((i)->4500<i<4666.666).sort;
-  local distToLast:=(phi)->euklideanNorm(lastConfig-phi);
-  local expandByRemainingAngles:={begin
-    local validPhases:=[1..3];
-    while(remainingAngles.size>0,begin
-      local nextAngle:=remainingAngles.head; remainingAngles:=remainingAngles.tail;
+  remainingAngles:=allCoefficients.getInner(0).filter((i)->4500<i<4666.666).sort;
+  distToLast:=(phi)->euklideanNorm(lastConfig-phi);
+  expandByRemainingAngles:={begin
+    validPhases:=[1..3];
+    while remainingAngles.size>0 do begin
+      nextAngle:=remainingAngles.head; remainingAngles:=remainingAngles.tail;
       log('k=',nextAngle);
 
-      local candidates:=allCoefficients[nextAngle].filter((coeff)->coeff[KEY_PHASE] in validPhases);
-      local nextPhi:=candidates.pEach(candidate,[findPointOnCurveMinimizing(candidate[KEY_KOEFF].head(30),candidate[KEY_PHASE],distToLast),candidate[KEY_PHASE]]).min;
+      candidates:=allCoefficients[nextAngle].filter((coeff)->coeff[KEY_PHASE] in validPhases);
+      nextPhi:=candidates.pEach(candidate,[findPointOnCurveMinimizing(candidate[KEY_KOEFF].head(30),candidate[KEY_PHASE],distToLast),candidate[KEY_PHASE]]).min;
       note(nextPhi);
 
 
@@ -195,7 +195,7 @@ makeWalk(allCoefficients:Map,startSubIdx:Int,startAngle:Numeric)->begin
 
       lastManifestation:=reconstructPoints(nextAngle*pi/7000,nextPhi);
       configs[nextAngle]:=[lastConfig:=nextPhi,lastManifestation];
-    end);
+    end;
   end};
   expandByRemainingAngles();
 
@@ -221,16 +221,13 @@ makeWalk(allCoefficients:Map,startSubIdx:Int,startAngle:Numeric)->begin
 
   //reduce configs to equidistant steps:
   configs:=configs.sort;//.filter({$cfg[0] mod 5 = 0});
-  local points:=configs.map({$cfg[1,1]})
+  points:=configs.map({$cfg[1,1]})
   .map((hepta)->begin
-     local P:=hepta.agg(+)/hepta.size;
+     P:=hepta.agg(+)/hepta.size;
      P:=hepta.map((p)->p-P);
      P/=P.euklideanNorm.max;
    end);
 
-//  local d:=points.agg(|).{$L.agg(+)/$L.size};
-//  points:=points.map((x)->x.map((p)->p-d));
-//  points:=points/(points.agg(|).euklideanNorm.max);
   points.each(p,begin
     plot3DPoly(p);
     drawTextAbsolute(0.01,0.99,format('α=%{$0/1000}5.3fπ/7=%{$0*0.02571428571428571}4.1f°',configs[index,0]),'TL');

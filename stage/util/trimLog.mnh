@@ -1,2 +1,0 @@
-main(inputFile,outputFile)->outputFile.writeFileLines(inputFile.fileContents.split("\n").filter({$line.copy(0,1)!="\r"}).trim);
-main->main('runWithAll.log','runBatch.log');

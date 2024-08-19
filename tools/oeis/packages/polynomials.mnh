@@ -85,14 +85,14 @@ end,|).groupToPolynomial;
 //*Returns [quotient,rest]
 polyDivision(A:Polynomial,B:Polynomial)->begin
   quotient:=[0..max(A.size-B.size,0)]*0;
-  rest:=A; while(rest.size<B.size,rest|=0);
+  rest:=A; while rest.size<B.size do rest|=0;
   degB:=B.size-1;
   [max(A.size-1 - degB,0)..0].each(i,begin
     quotient[i]:=rest[i+degB]/B[degB];
     [degB..0].each(j,rest[i+j]:=rest[i+j]-B[j]*quotient[i]);
   end);
-  while(quotient.size>1 AND quotient.trailing=0,quotient:=quotient.leading);
-  while(rest    .size>1 AND rest    .trailing=0,rest    :=rest    .leading);
+  while quotient.size>1 AND quotient.trailing=0 do quotient:=quotient.leading;
+  while rest    .size>1 AND rest    .trailing=0 do rest    :=rest    .leading;
   [quotient.toPolynomial,rest.toPolynomial];
 end;
 
@@ -149,7 +149,7 @@ begin
        ? L
        : k<0 ? L.trailing(L.size+2*k)
              : L.head    (L.size-2*k);
-    while(Y.size+1>maxDeg,Y:=Y.tail.leading);
+    while Y.size+1>maxDeg do Y:=Y.tail.leading;
     Y.discreteTaylor(dx).shift(k*dx);
   end).bcWeightAgg.toPolynomial;
 end;
@@ -158,7 +158,7 @@ bairstowReduceBy2(P:Polynomial)->begin
   n:=P.size-1;
   a :=[P[n-1] orElse 0,P[n-2] orElse 0]/P[n];
   alreadySeenA:=[a];
-  while(true,begin
+  while true do begin
     b :=[P[n],0];
     q :=[0,0];
     [n-1..0].each(j,begin
@@ -167,7 +167,7 @@ bairstowReduceBy2(P:Polynomial)->begin
       void;
     end);
     M:=-(a*q).agg(+);
-    D:= q[0]² - M  * q[1]  ;
+    local D:= q[0]² - M  * q[1]  ;
     da  :=[(b[0]*q[1]-b[1]*q[0])/D,
            (b[1]*M   -b[0]*q[0])/D];
     a-=da;
@@ -177,18 +177,18 @@ bairstowReduceBy2(P:Polynomial)->begin
         return [P/part,part];
       end
     : alreadySeenA|=[a];
-  end);
+  end;
 end;
 
 bairstowFactorize(P:Polynomial)->begin
   R:=P;
   Q:=[];
-  while(R.size>2,begin
+  while R.size>2 do begin
     B:=R.bairstowReduceBy2;
     print(B);
     Q||=B[1];
     R:=B[0];
-  end);
+  end;
   Q||R;
 end;
 
@@ -205,12 +205,12 @@ allRealRootsOf(P:Polynomial)->begin
 end;
 
 gregoryNewton(X:NumericList)->begin
-  D:=X;
+  local D:=X;
   S:=D[0];
-  while(D.unique.size>1,begin
+  while D.unique.size>1 do begin
     D:=D.tail-D.leading;
     S|=D[0];
-  end);
+  end;
   p:=[1].toPolynomial;
   S.each(s,s*p/factorial(index),begin
     p*=shift([0,1].toPolynomial,-index);

@@ -5,13 +5,13 @@ UNIT_NOISE:=randomGenerator(intRandom(2^64)).chunkMap(2).filter((r)->r.euklidean
 
 
 makePeriodicSignal(periodicity>1)-> begin
-  local S:=map([1..periodicity],()->random(2)*2-1);
+  S:=map([1..periodicity],()->random(2)*2-1);
   S[[1..STEP_COUNT] mod S.size]+0*UNIT_NOISE;
 
 end;
 
 detectPeriod(signal)->begin
-  local fft:=signal.trailing(STEP_COUNT).FFT;
+  fft:=signal.trailing(STEP_COUNT).FFT;
   fft[0]:=[0,0];
   fft:=(fft.head(STEP_COUNT div 2).euklideanNorm²|0)
           + (0|fft.tail(STEP_COUNT div 2).reverseList.euklideanNorm²);
@@ -19,14 +19,14 @@ end;
 
 fuzzyOr(...)->1-(1-...).agg(*);
 plausiblePeriod(signal)->begin
-  local F:=signal.trailing(STEP_COUNT).FFT;
+  F:=signal.trailing(STEP_COUNT).FFT;
   F[0]:=[0,0];
   F:=(F.head(STEP_COUNT div 2).euklideanNorm²|0) + (0|F.tail(STEP_COUNT div 2).reverseList.euklideanNorm²) + 0.001;
 
-  local peak:=1-((F.tail(2)|0)+(0|F.leading(2)))/F.tail;
+  peak:=1-((F.tail(2)|0)+(0|F.leading(2)))/F.tail;
   peak:=0|vectorIfThenElse(peak<0,0,peak);
 
-  local P:=
+  P:=
   [0,0,peak[120],peak[80]];
   P[4]:=peak[60];
   P[5]:=fuzzyOr@peak[[48,96]];
@@ -69,7 +69,7 @@ plausiblePeriod(signal)->begin
   P[ 4]*=P[ 2]                   *(1-P[[8,12,16,20,24]]).agg(*);
   P[ 3]*=                         (1-P[[6,9,12,15,18,21,24]]).agg(*);
   P[ 2]*=                         (1-P[[4,6,8,10,12,14,16,18,20,22,24]]).agg(*);
-  (local total:=P.agg(+))<1
+  (total:=P.agg(+))<1
   ? P
   : P/total;
 end;
@@ -78,19 +78,19 @@ end;
 testPlausiblePeriod->([''|[2..24]]|[2..24].each(k,k|format('%3.3f',makePeriodicSignal(k).plausiblePeriod.tail(2)).replace('0.000',''))).showTable(1,1,'Plausible period');
 
 generatePeakDetectionCode->begin
-  local Q:=[[0],[0]]|[2..STEP_COUNT div 10].each(i,unique(round(STEP_COUNT*[1..i div 2]/i)));
+  Q:=[[0],[0]]|[2..STEP_COUNT div 10].each(i,unique(round(STEP_COUNT*[1..i div 2]/i)));
   [4..24].each(i,begin
     filter([2..i-1],(j)->gcd(i,j)<>1).each(j,
     Q[i]:=Q[i].minus(Q[j]));
   end);
   Q.map(::sort)
    .each(q,begin
-      local code:=
+      code:=
       q.size==1
       ? format('P[%s]:=peak[%s]',index,q[0])
       : format('P[%s]:=fuzzyOr@peak[%s]',index,q.toString);
 
-      local factors:=[2..23].filter((i)->i<index AND index mod i=0).map((i)->format('P[%s]',i)).join('*');
+      factors:=[2..23].filter((i)->i<index AND index mod i=0).map((i)->format('P[%s]',i)).join('*');
 
       factors==''
       ? code &                 ';'
@@ -100,17 +100,17 @@ generatePeakDetectionCode->begin
 end;
 
 freq_components(signal)->begin
-  local F:=signal.trailing(STEP_COUNT).FFT;
+  F:=signal.trailing(STEP_COUNT).FFT;
   F[0]:=[0,0];
   F:=(F.head(STEP_COUNT div 2).euklideanNorm²|0) + (0|F.tail(STEP_COUNT div 2).reverseList.euklideanNorm²);
   F/=F.agg(+);
 end;
 
 M:=begin
-  local seen:=[].toSet;
-  local all:=
+  seen:=[].toSet;
+  all:=
   [2..STEP_COUNT div 10].each(period,begin
-    local K:=unique(round(STEP_COUNT*[1..period div 2]/period));
+    K:=unique(round(STEP_COUNT*[1..period div 2]/period));
     K:=K.minus(seen); seen|=K;
     K.each(k,k=>[period,1/K.size]);
   end,|);
@@ -121,11 +121,11 @@ end;
 Freqs:=M.getInner(1).agg(|).getInner(0).max+1;
 
 guessPeriod(signal)->begin
-  local F:=signal.trailing(STEP_COUNT).FFT;
+  F:=signal.trailing(STEP_COUNT).FFT;
   F[0]:=[0,0];
   F:=(F.head(STEP_COUNT div 2).euklideanNorm²|0) + (0|F.tail(STEP_COUNT div 2).reverseList.euklideanNorm²);
-  local Q:=F.each(a,begin
-             local per:=M[index];
+  Q:=F.each(a,begin
+             per:=M[index];
              note(index,per);
              per.isVoid ? void : [per.getInner(0),per.getInner(1)*a].transpose;
            end,|).transpose;

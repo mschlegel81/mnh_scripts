@@ -19,8 +19,8 @@ private TRANSITION:=[0,0,0,1,0,0,0,0,0,
 private step(w:IntList)->TRANSITION[shifts.each(sh,w[sh],+)+9*w];
 
 F12:=begin
-  local F1:=[];
-  local F2:=[];
+  F1:=[];
+  F2:=[];
   [0..SAMPLE_SIZE-1].each(i,[0..SAMPLE_SIZE²-1][[SAMPLE_SIZE*i..SAMPLE_SIZE*(i+1)-1]])
              .transpose
              .reverseList
@@ -36,9 +36,9 @@ M:=[' ','▀','▄','█'];
 worldToText(world:IntList)->F12.each(f,M[world[f[0]]+world[f[1]]*2].join);
 
 endsInSimpleState(initial:IntList)->begin
-  local P0:=initial;
-  local P1:=step(P0);
-  local P2:=step(P1);
+  P0:=initial;
+  P1:=step(P0);
+  P2:=step(P1);
   [1..1000].each(_,begin
     P0:=P1; P1:=P2; P2:=P2.step;
     (P2==P1) OR (P2==P0) ? return void : void;
@@ -49,7 +49,7 @@ end;
 ultimates(initial:IntList,final:IntList)->begin
   zip(worldToText(initial),
       worldToText(final),
-      worldToText(local s:=final.step),
+      worldToText(s:=final.step),
       worldToText(s:=s.step),
       worldToText(s:=s.step),
       worldToText(s:=s.step),
@@ -66,26 +66,16 @@ end;
 
 INNER_OUT:=cross([0..SAMPLE_SIZE-1]-(SAMPLE_SIZE-1)/2,
                  [0..SAMPLE_SIZE-1]-(SAMPLE_SIZE-1)/2).map(::euklideanNorm).sortPerm.sortPerm;
-//begin
-//  local n:=4;
-//  local d:=digits(n,2).reverseList;
-//  printDirect("\r",n);
-//  while(d.size<SAMPLE_SIZE²,d|=0);
-//  d[INNER_OUT];
-//
-//end.worldToText.join("\n").print;
-//
-//halt;
 
 rangeGenerator(0)
   .map((n)->begin
-     local d:=digits(n,2).reverseList;
+     d:=digits(n,2).reverseList;
      printDirect("\r",n);
-     while(d.size<SAMPLE_SIZE²,d|=0);
+     while d.size<SAMPLE_SIZE² do d|=0;
      d[INNER_OUT];
    end)
   .pMap((initialState)->begin
-     local E:=endsInSimpleState(initialState);
+     E:=endsInSimpleState(initialState);
      E.isVoid
      ? void
      : [initialState,E];

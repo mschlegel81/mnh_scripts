@@ -1,0 +1,72 @@
+FIBFAK:=2*pi/sqr((sqrt(5)-1)/2);
+fp(P:NumericList)->[cos(FIBFAK*P),sin(FIBFAK*P)].transpose*sqrt(P);
+fp(n:Numeric    )->[cos(FIBFAK*n),sin(FIBFAK*n)]*sqrt(n);
+FP:=[0..5000].fp;
+
+fibonacciList:=begin
+  f:=[1,2];
+  [0..17].each(k,f[0],begin f:=f.tail|f.agg(+); void; end);
+end;
+
+ordSort(modulus:Int)->begin
+  k:=max(fibonacciList[fibonacciList<modulus]);
+  [0..modulus]*k mod modulus;
+end;
+
+tolerantToInt(x:String)->try({x.toInt},void);
+
+highlight(m,x,y)->begin
+  xy:=[x,y];
+  closestIndex:=FP.pMap({($p-xy).euklideanNorm}).argMin;
+  k:=closestIndex mod m;
+  removePlot;
+  addPlot(FP[[0..FP.size-1] mod m = k],'1.2 . l black');
+
+
+  print('---------------------',m,' (',closestIndex,')---------------------');
+
+
+  [closestIndex-m,
+   closestIndex,
+   closestIndex+m].filter({0<=$i<FP.size}).each(i,format("%s\t(\v%s,\v%s\v)\t %s°",i,FP[i,0],FP[i,1],arctan2(FP[i,1],FP[i,0])/pi*180)).join("\n").print;
+  postDisplay;
+end;
+
+USE customFormUtil;
+
+main->begin
+  ignoreMe:='144';
+  modulus:=144;
+  animating:=false;
+  setOptions(['autoscaleFactor'=>1.0,'autoscaleX'=>true,'autoscaleY'=>true,'axisStyleX'=>0,'axisStyleY'=>0,'preserveAspect'=>true]);
+  plot(FP,'GREY0.7 1.2 .');
+  addPlot(FP,'.');
+  postDisplay;
+  showDialog('Fibonacci Spirals',
+    [newComboBox(fibonacciList.map(::toString))
+       .withActionOnChange({modulus:=$x.tolerantToInt orElse modulus})
+       .bind(::ignoreMe),
+     newPlotLink
+       .withMouseMoved({highlight(modulus,$x,$y)}),
+     newLabel
+       .withCaption('Hover mouse over plot to highlight spiral.'),
+     newButton
+       .withCaption({animating
+                     ? 'Stop animation'
+                     : 'Show animation'})
+       .withAction({animating
+                    ? begin clearAnimation; plot(FP,'GREY0.7 1.2 .'); addPlot(FP,'.'); postDisplay; animating:=false; end
+                    : begin
+                        clearAnimation;
+                        //angleSortPerm(fp([modulus*2..modulus*3-1]))
+                        ordSort(modulus)
+                        .each(i,begin
+                          mask:=[0..FP.size-1] mod modulus=i;
+                          plot(FP[mask],'1.2 . l');
+                          addPlot(FP[!mask],'GREY0.7 1.2 .');
+                          addAnimationFrame;
+                        end);
+                        animating:=true;
+                      end}),
+     newPlotDock]);
+end;

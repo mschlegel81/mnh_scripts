@@ -1,7 +1,0 @@
-#!C:\bin\mnh_light.exe -headless
-main(filename:String)->begin
-  assert(filename.fileExists,'File '&filename&" doesn't exist");
-  local allLines:=[].toSet;
-  filename.fileLineIterator.each(line,allLines|=line);
-  allLines.sort.map(::print);
-end;

@@ -2,15 +2,15 @@
 //*Method of Gauss, Salamin and Brent
 //*Floating point version
 agmPi->begin
-  local a:=[1,sqrt(1/2)];
-  local prevDelta:=Inf;
-  local quotient:=0;
-  local quotFactor:=2;
-  while(a.agg(-)!=prevDelta,begin
+  a:=[1,sqrt(1/2)];
+  prevDelta:=Inf;
+  quotient:=0;
+  quotFactor:=2;
+  while a.agg(-)!=prevDelta do begin
     prevDelta:=a.agg(-);
     a:=[a.agg(+)/2,a.agg(*).sqrt];
     quotient+=sqr(a).agg(-)*(quotFactor*=2);
-  end);
+  end;
   4*a[0]²/(1-quotient);
 end;
 
@@ -19,16 +19,16 @@ end;
 //*Fixed point version
 agmPi(scale:Int)->begin
   //We use a fixed point representation
-  local a:=[local SCALE_FACTOR:=10^scale,isqrt(10^(scale*2-1)*5)[0]]; //=1 * 10^scale, sqrt(1/2)* 10^scale
-  local prevQuotient:=1;
-  local quotient:=0;
-  local quotFactor:=2;
-  while(quotient!=prevQuotient,begin
+  a:=[SCALE_FACTOR:=10^scale,isqrt(10^(scale*2-1)*5)[0]]; //=1 * 10^scale, sqrt(1/2)* 10^scale
+  prevQuotient:=1;
+  quotient:=0;
+  quotFactor:=2;
+  while quotient!=prevQuotient do begin
     note(a.agg(-));
     a:=[a.agg(+).shiftRight(1),a.agg(*).isqrt[0]];
     prevQuotient:=quotient;
     quotient+=sqr(a).agg(-)*(quotFactor*=2) div SCALE_FACTOR;
-  end);
+  end;
   a:=4*a[0]^2 div (SCALE_FACTOR - quotient);
   '3.'&toString(a).copy(1);
 end;

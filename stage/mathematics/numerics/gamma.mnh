@@ -1,8 +1,0 @@
-sinh(x:Numeric)->(exp(x)-exp(-x))/2;
-
-Gamma(i=1)->1;
-Gamma(i>1)->[1..(i-1)].agg(*);
-Gamma(x<36.5)->Gamma(x+1)/x;
-Gamma(x>37.5)->Gamma(x-1)*(x-1);
-//*Approximation of the Gamma-Function; see http://www.ebyte.it/library/docs/math07/GammaApproximation.html
-Gamma(x)->exp(0.5*ln(2*pi)+(x-1/2)*ln(x)-x+x/2*ln(x*sinh(1/x)+1/(810*x^6)));

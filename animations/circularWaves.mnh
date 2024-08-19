@@ -1,12 +1,12 @@
 #!C:\bin\mnh.exe -GUI
 circlePoint(t)->[cos(t),sin(t)];
-DEPTH:=10;
-MAX_AMPLITUDE:=1;
-wavePoint(baseX,baseY,phase)->begin
-  local amplitude:=MAX_AMPLITUDE*(baseY/DEPTH);
-  local alpha:=baseX-phase;
-  [cos(alpha),sin(alpha)]*amplitude+[baseX,baseY];
-end;
+//DEPTH:=10;
+//MAX_AMPLITUDE:=1;
+//wavePoint(baseX,baseY,phase)->begin
+//  amplitude:=MAX_AMPLITUDE*(baseY/DEPTH);
+//  alpha:=baseX-phase;
+//  [cos(alpha),sin(alpha)]*amplitude+[baseX,baseY];
+//end;
 
 POINTS_X:=61;
 POINTS_Y:=31;
@@ -19,7 +19,7 @@ MESH_IDX:=[0..POINTS_X-1].each(i,
 
 
 mesh(p:List)->begin
-  local P:=p|[[Nan,Nan]];
+  P:=p|[[Nan,Nan]];
 
   P[MESH_IDX];
 end;
@@ -30,8 +30,8 @@ begin
   setOptions(["x0"=>1,"x1"=>19,"y0"=>-10,"y1"=>1,"autoscaleX"=>false,"autoscaleY"=>false,"axisStyleX"=>6,"axisStyleY"=>6].toMap);
   clearAnimation;
   ([0..-49]/50*2*pi).each(phaseShift,begin
-    local d:=0;
-    local a:=1;
+    d:=0;
+    a:=1;
     ([0..100]/5).map({a*circlePoint($x+phaseShift)+[$x,d]}).plot('black 2');
     ([1..7]*2.5).map({a*circlePoint($x+phaseShift)+[$x,d]}).addPlot('red .');
     ([1..7]*2.5).each(cx,[cx-a,d-a],[cx+a,d+a]).addPlot('red ellipse 0.5');
@@ -59,3 +59,4 @@ begin
 end;
 
 main->inLines;
+main('mesh')->mesh;

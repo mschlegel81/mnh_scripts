@@ -15,7 +15,7 @@ curry MillerRabinTest(a>=2,n:Int)->(n and 1)=0 ? fail : begin
 oddCompositeGenerator->{begin
   pg:=primeGenerator; pg(); p:=pg(); n:=1;
 save;
-  n+=2; while(n=p,begin n+=2; p:=pg(); end); n;
+  n+=2; while n=p do begin n+=2; p:=pg(); end; n;
 end}.toIterableExpression;
 
 private strongPseudoprimeGenerator(base:Int)->oddCompositeGenerator().filter(MillerRabinTest(base));

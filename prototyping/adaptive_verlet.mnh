@@ -1,0 +1,23 @@
+TOLERANCE:=1E-6;
+
+adaptive_verlet(x,v,a,fa:Expression(2),dt)->begin
+  dtRest:=dt;
+  dtMicro:=dt;
+  x0:=x; v0:=v; a0:=a;
+  while dtRest>0 do begin
+    x1:=x0+dtMicro*(v0+dtMicro*0.5*a0);
+    a1:=fa(x1,v0);
+    v1:=v0+0.5*dtMicro*(a0+a1);
+
+    factor:=TOLERANCE/euklideanNorm(a0.flatten-a1.flatten)^3;
+    if factor>=1 then begin
+      x0:=x1; v0:=v1; a0:=a1; dtRest-=dtMicro;
+    end;
+    dtMicro:=dtRest/ceil(dtRest/(dtMicro*factor));
+
+  end;
+  [x0,v0,a0];
+end;
+
+
+adaptive_verlet(0,1,0,(x,v)->-x,0.1);

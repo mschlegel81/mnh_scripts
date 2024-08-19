@@ -1,0 +1,47 @@
+plain script;
+
+console_width:=exec('cmd',['/C','mode','con'])[0].filter((L)->L.matches(': *\d+$'))[[1,0]].split(':').getInner(1).trim.softCast;
+console_height:=console_width[1];
+@Override
+console_width :=console_width[0];
+
+turnMove(antState:List(2),turnLeft:Boolean)->begin
+ MOVE:=[[[ 1, 0],0],
+        [[ 0, 1],0],
+        [[-1, 0],0],
+        [[ 0,-1],0]];
+save;
+  turn:=[antState[0],(antState[1]+(turnLeft ? 1 : 3)) mod 4];
+  (turn+MOVE[turn[1]] + [[console_width,console_height],0]) mod [[console_width,console_height],4];
+end;
+
+
+step(antState:List(2),activeCells:Set)->begin
+  antState[0] in activeCells
+  ? [turnMove(antState,false),activeCells.minus([antState[0]])]
+  : [turnMove(antState,true ),activeCells ||     antState[0]];
+end;
+
+INITIAL:=[[[0,0],0],[].toSet];
+ANT_CHAR:=['>','v','<','^'];
+
+begin
+  S:=INITIAL;
+  S[0,0]:=[console_width div 2,console_height div 2];
+  clearPrint;
+  while true do begin
+    paint:=[//Move cursor to old position
+            #27'[',S[0,0,1],';',S[0,0,0],'H',
+            //overwrite ant state with grid
+            S[0,0] in S[1] ? '#' : ' '];
+    S:=step@S;
+    paint|=[//Move cursor to new position
+            #27'[',S[0,0,1],';',S[0,0,0],'H',
+            //Plot ant
+            ANT_CHAR[S[0,1]]];
+    printDirect@paint;
+    sleep(0.01);
+  end;
+end;
+
+

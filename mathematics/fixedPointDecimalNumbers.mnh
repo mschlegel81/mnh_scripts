@@ -3,19 +3,21 @@ pi_1000:='3.14159265358979323846264338327950288419716939937510582097494459230781
 DECIMAL_PLACES:=799;
 //DECIMAL_PLACES:=300;
 DP10:=10^DECIMAL_PLACES;
+@SuppressUnusedParameterWarning
 type FixedPointDecimal(L:IntList(1))->true;
 
 toString(x:FixedPointDecimal)->begin
-  local s:=x[0].abs.toString;
-  local negative:=x[0]<0;
-  s:=repeat('0',DECIMAL_PLACES+1-s.byteLength)&s;
-  local i:=s.byteLength-DECIMAL_PLACES;
+  s:=x[0].abs.toString;
+  negative:=x[0]<0;
+  s:=repeatString('0',DECIMAL_PLACES+1-s.byteLength)&s;
+  i:=s.byteLength-DECIMAL_PLACES;
   format('%s%s.%s',negative ? '-' : '' ,s.copy(0,i),s.copy(i));
 end;
 
 convertToFixedPointDecimal(i:Int)->[i*DP10].toFixedPointDecimal;
 convertToFixedPointDecimal(x:Real)->[round(x*DP10)].toFixedPointDecimal;
 
+@SuppressUnusedWarning
 inverseOf(i:Int)->[DP10 div i].toFixedPointDecimal;
 
 OPERATOR_PLUS   (x:FixedPointDecimal,y:FixedPointDecimal)->[x[0]+y[0]].toFixedPointDecimal;
@@ -30,32 +32,12 @@ sqrt(x:FixedPointDecimal)->[isqrt(x[0]*DP10)[0]].toFixedPointDecimal;
 
 memoized factorial(i<=1):=1; factorial(i>1)->i*factorial(i-1);
 
-
-
 hideCorrectDigits(s:String)->begin
-  local A:=pi_1000.copy(0,s.length).chars;
-  local B:=s.chars;
+  A:=pi_1000.copy(0,s.length).chars;
+  B:=s.chars;
   [B,A!=B or B='.'].transpose.each(p,p[1] ? p[0] : '_', &);
 end;
 hideCorrectDigits(d:FixedPointDecimal)->hideCorrectDigits(d.toString);
-
-
-//Ramanujan_Factor:=2*sqrt(convertToFixedPointDecimal(2))/convertToFixedPointDecimal(99²);
-//
-//Ramanujan_term(k>=0)->
-//  factorial(4*k)/convertToFixedPointDecimal(factorial(k)^4)*(26390*k+1103)/convertToFixedPointDecimal(396^(4*k));
-//
-//begin
-//  local sum:=convertToFixedPointDecimal(0);
-//  [0..99].each(k,begin
-//    sum+=Ramanujan_term(k);
-//    hideCorrectDigits(1/(Ramanujan_Factor*sum)).print;
-//  end);
-//end;
-
-
-//halt;
-
 
 FOUR:=convertToFixedPointDecimal(4);
 
@@ -64,43 +46,15 @@ piCorrectionTerm(i>0)->begin
 end;
 
 
-//begin
-//  print(pi_1000);
-//
-//  local s:=[0].toFixedPointDecimal;
-//
-//  rangeGenerator(0)
-//  .map((i)->[i,((i and 1)=1 ? -1 : 1)*(i*2+1)])
-//  .pMap((n)->[piCorrectionTerm(n[0]+1),[DP10*4 div n[1]].toFixedPointDecimal])
-//  .map((summand)->(s+=summand[1])+summand[0])
-//  .pMap(::hideCorrectDigits)
-//  .agg((q)->print(q));
-//
-//
-//
-//
-//end;
-
-//begin
-//  local fibonacci:=[1,1];
-//  local prevString:='';
-//  local currString:='x';
-//  while(prevString!=currString,begin
-//    prevString:=currString;
-//    fibonacci:=[fibonacci[1],fibonacci[1]+fibonacci[0]];
-//    printf('%s = %s / %s',currString:=toString(fibonacci[1]/convertToFixedPointDecimal(fibonacci[0])),fibonacci[1],fibonacci[0]);
-//  end);
-//end;
-
 begin
-  local s:=[0].toFixedPointDecimal;
-  local prevString:='';
-  local currString:='x';
-  local k:=0;
-  while(prevString!=currString,begin
+  s:=[0].toFixedPointDecimal;
+  prevString:='';
+  currString:='x';
+  k:=0;
+  while prevString!=currString do begin
     prevString:=currString;
     currString:=toString(s+=[DP10 div factorial(k)].toFixedPointDecimal);
     k+=1;
     print('[',k,'] ',currString);
-  end);
+  end;
 end;

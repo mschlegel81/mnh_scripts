@@ -1,0 +1,38 @@
+memoized
+formulas->fileLines('fn.txt')
+         .filter({!$x.matches('Note')})
+         .replace('[NICE]','')
+         .pMap({$x.split('=').tail.trim})
+         .flatten;
+
+memoized nonNumbers->formulas.join.charSet.minus(['0'..'9']);
+
+//formulas.map({$f.clean(nonNumbers,'%',true)}).unique.size;
+
+//fileLines('C:\dev\mnh_scripts\mathematics\fn.txt')
+// .filter({!$x.matches('Note')})
+// .map({[$line.split('=').head.trim.softCast,$line]})
+// .sort(0)
+// .getInner(1)
+// .map(::print);
+
+formulas.size;
+
+formulas.map({$f.clean(nonNumbers,'%',true)}).unique.size;
+
+begin
+  patternsHere:=
+  fileLines('fn.txt')
+           .filter({!$x.matches('Note')})
+           .replace('[NICE]','')
+           .pMap({begin
+              parts:=$line.split("=").trim;
+              number:=parts.head;
+              patterns:=parts.tail.clean(nonNumbers,'%',true).unique;
+              number==[]
+              ? void
+              : [number.softCast,patterns];
+           end});
+  allPatterns:=[].toSet;
+  patternsHere.each(p,[p[0],print(p[0],' new: ',p[1].minus(allPatterns).join(", ")) orElse (allPatterns|=p[1]) orElse allPatterns.size]);
+end.plot('i l red 0.5');

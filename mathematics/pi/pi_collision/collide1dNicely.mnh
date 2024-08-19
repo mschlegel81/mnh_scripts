@@ -1,0 +1,153 @@
+#!C:\bin\mnh.exe -quiet -convertPrintToLog -logDateFmt hh:mm:ss.zzz -logLocationLength 0 +log stdOut(1)
+USE plotUtil;
+TIME_STEP_SIZE:=0.01;
+
+MAX_BLOCK_SIZE:=2;
+MIN_BLOCK_SIZE:=0.3;
+AVG_BLOCK_SIZE:=sqrt(MAX_BLOCK_SIZE*MIN_BLOCK_SIZE);
+
+//*Draw the blocks and add an animation frame
+memoized draw(p0:Numeric,p1:Numeric,size0:Numeric,size1:Numeric,collisionCount:Int,block1text:String,outputFilename:String)->begin
+  setPlotRangeManually(-0.1,10,-0.03,MAX_BLOCK_SIZE+0.25);
+  setPlotPreserveAspect(true);
+  setPlotAxisStyle('x',false,false,false);
+  setPlotAxisStyle('y',false,false,false);
+save;
+  plot([[0,MAX_BLOCK_SIZE],[0,0],[10,0]],'black l 0.5');
+  q1:=p1+size0;
+  blocks:=[[p0,0],[p0+size0,size0],
+           [q1,0],[q1+size1,size1]];
+  addPlot(blocks,'box fs 0 RGB1,0.7,0.5');
+  addPlot(blocks,'box black 0.5');
+  drawTextAbsolute(0,1,' Collisions: '&collisionCount,11,'TL');
+  drawText(p0+size0/2      ,size0/2,'1g'      ,9.5,'C');
+  drawText(p1+size0+size1/2,size1/2,block1text,9.5,'C');
+  outputFilename=='' ? void : renderToFile(outputFilename,960,270);
+end;
+
+BT:=(100^[0..7]).each(n,n<1000      ? format('%sg',n) :
+                        n<1000²     ? format('%skg',n div 1000) :
+                        n<100*1000³ ? format('%st',n div 1000²) :
+                                      format('10^%st',round(ln(n)/ln(10)-6)));
+
+newCollisionSimulation(POWER:Int,timeOffset:Int)->{begin
+  MASS_RATIO:=100^POWER;
+  BLOCK_TEXT:=BT[POWER];
+  size0:=max(AVG_BLOCK_SIZE/MASS_RATIO^(1/8),MIN_BLOCK_SIZE);
+  size1:=min(AVG_BLOCK_SIZE*MASS_RATIO^(1/8),MAX_BLOCK_SIZE);
+
+  p0:= 1;
+  v0:= 0;
+  v1:=-1;
+  p1:= 2-v1*timeOffset*TIME_STEP_SIZE;
+  collisionCount:=0;
+
+  restStep:=0;
+  t_wall  :=0;
+  t_blocks:=0;
+  stepForward:={
+    begin
+      p0+=v0*$timestep;
+      p1+=v1*$timestep;
+      restStep-=$timestep;
+    end};
+
+  stepRest:={
+    begin
+      p0+=v0*restStep;
+      p1+=v1*restStep;
+      restStep:=0;
+    end};
+
+  wallBounce:={
+    begin
+      stepForward(t_wall);
+      v0:=-v0;
+      collisionCount+=1;
+    end};
+
+  w0:=2           /(1+MASS_RATIO);
+  w1:=2*MASS_RATIO/(1+MASS_RATIO);
+  blockBounce:={
+    begin
+      stepForward(t_blocks);
+      u:=v0*w0+v1*w1;
+      v0:=u-v0;
+      v1:=u-v1;
+      collisionCount+=1;
+    end};
+
+  frameCounter:=0;
+save;
+  stillColliding:=(t_wall<Inf OR t_blocks<Inf);
+  result:=[stillColliding and collisionCount>0,v1<0,[min(10,p0),min(10,p1),size0,size1,collisionCount,BLOCK_TEXT,'sim'&POWER&'_'&(frameCounter+=1)&'.bmp'],false];
+  while restStep>0 do begin
+    (t_wall   := v0<0  ? -p0    /    v0  : Inf)<
+    (t_blocks := v1<v0 ? (p0-p1)/(v1-v0) : Inf)
+    ? t_wall<restStep
+      ? wallBounce()
+      : stepRest()
+    : t_blocks<restStep
+      ? blockBounce()
+      : stepRest();
+  end;
+  restStep:=TIME_STEP_SIZE;
+  result;
+end}.toIterableExpression;
+
+executeWorkflowDelayed(_wait_,state,outputName)->begin
+  sleepUntil(_wait_);
+  print('Creating ',outputName,' ',state.map((s)->s[1] ? '<' : s[0] ? '>' : '_').join);
+  executeWorkflow(
+     [                     'crop:0,2x0,4'  ,state[0,0] ? void : 'grey',           'stash:0',
+      'load:'&state[1,2,6],'crop:0,2x-1,3' ,state[1,0] ? void : 'grey','+stash:0','stash:0',
+      'load:'&state[2,2,6],'crop:0,2x-2,2' ,state[2,0] ? void : 'grey','+stash:0','stash:0',
+      'load:'&state[3,2,6],'crop:0,2x-3,1' ,state[3,0] ? void : 'grey','+stash:0','stash:0',
+      'load:'&state[4,2,6],'crop:-1,1x0,4' ,state[4,0] ? void : 'grey','+stash:0','stash:0',
+      'load:'&state[5,2,6],'crop:-1,1x-1,3',state[5,0] ? void : 'grey','+stash:0','stash:0',
+      'load:'&state[6,2,6],'crop:-1,1x-2,2',state[6,0] ? void : 'grey','+stash:0','stash:0',
+      'load:'&state[7,2,6],'crop:-1,1x-3,1',state[7,0] ? void : 'grey','+stash:0','stash:0'],
+      state[0,2,6],outputName,(s)->void).assert;
+  state.map((s)->s[2,6]).map(::deleteFile).agg(and);
+end;
+
+main->begin
+  sim:=map([0..7],(k)->newCollisionSimulation(k,k*150));
+  state:=sim.map((s)->s());
+  futures:=[];
+  future_cleanup:=()->begin
+    if size(futures)>0 then for i in [size(futures)-1 .. 0] do
+      if peekFuture(futures[i]) then futures[i]:=void;
+    if size(futures)>100 then begin
+      print('Waiting for processing...');
+      for f in futures do f();
+      futures:=[];
+    end;
+  end;
+
+  key_future:=future(::ask,['Press Enter to abort']);
+  key_pressed:=()->peekFuture(key_future);
+
+  index:=0;
+  plotNext:={begin
+    fileExists(outputName:=format('piCollision_%4.4d.png',index)) ? log('Skipping ',outputName) : begin
+      print('Preparing ',outputName,' ',state.map((s)->s[1] ? '<' : s[0] ? '>' : '_').join);
+      state.getInner(2).each(s,draw@s);
+      futures||=future(::executeWorkflowDelayed,[scriptTime+2,state,outputName]);
+    end;
+    future_cleanup();
+    index+=1;
+  end};
+  plotNext();
+  while (state.getInner(0) or state.getInner(1)).agg(OR) and not(key_pressed()) do begin
+    state:=sim.map((s)->s());
+    plotNext();
+  end;
+  if not key_pressed() then
+  [0..300].each(extraFrame,begin
+    state:=sim.map((s)->s());
+    plotNext();
+  end);
+  for f in futures do f();
+end;
+

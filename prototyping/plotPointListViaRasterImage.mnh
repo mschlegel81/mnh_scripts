@@ -1,16 +1,16 @@
 DARTS:=begin
-  local P:=[random(2)-0.5];
-  local r:=sqrt(2);
-  while(P.size<8,begin
-    local q:=random(2)-0.5;
+  P:=[random(2)-0.5];
+  r:=sqrt(2);
+  while P.size<8 do begin
+    q:=random(2)-0.5;
     P.each(p,euklideanNorm(p-q)>r,AND)
     ? begin
         P||=q;
-        local d:=P.agg(+)/P.size;
+        d:=P.agg(+)/P.size;
         P:=P.map((p)->p-d).filter((p)->abs(p[0])<0.5>abs(p[1]));
       end
     : r*=0.9999;
-  end);
+  end;
   P;
 end;
 
@@ -18,38 +18,38 @@ plotGrid->begin
   setOptions(["x0"=>-0.1,"x1"=>1.1,"y0"=>-0.1,"y1"=>1,"fontsize"=>10,"preserveAspect"=>true,
               "autoscaleX"=>false,"autoscaleY"=>false,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
   plot([0,0]);
-  local N0:=[[0,1],[1,1]];
+  N0:=[[0,1],[1,1]];
   N0.each(n,begin
-    local x:=n.agg(/);
+    x:=n.agg(/);
     addPlot([[x,-0],[x,1]],'black');
     drawText (x,-0,n.join("/"),10,'T');
   end);
-  local N1:=[N0.tail,N0.leading].transpose.map((n)->n.agg(+));
+  N1:=[N0.tail,N0.leading].transpose.map((n)->n.agg(+));
   N1.each(n,begin
-    local x:=n.agg(/);
+    x:=n.agg(/);
     addPlot([[x,-0.01],[x,1]],'black 0.75');
     drawText(x,-0.01,n.join("/"),9,'T');
   end);
-  local all:=N0|N1; all:=all[sortPerm(all.getInner(0)/all.getInner(1))];
-  local N2:=[all.tail,all.leading].transpose.map((n)->n.agg(+));
+  all:=N0|N1; all:=all[sortPerm(all.getInner(0)/all.getInner(1))];
+  N2:=[all.tail,all.leading].transpose.map((n)->n.agg(+));
   N2.each(n,begin
-    local x:=n.agg(/);
+    x:=n.agg(/);
     addPlot([[x,-0.02],[x,1]],'black 0.5');
     drawText(x,-0.02,n.join("/"),8,'T');
   end);
 
   all:=N0|N1|N2; all:=all[sortPerm(all.getInner(0)/all.getInner(1))];
-  local N3:=[all.tail,all.leading].transpose.map((n)->n.agg(+));
+  N3:=[all.tail,all.leading].transpose.map((n)->n.agg(+));
   N3.each(n,begin
-    local x:=n.agg(/);
+    x:=n.agg(/);
     addPlot([[x,-0.03],[x,1]],'black 0.25');
     drawText(x,-0.03,n.join("/"),7,'T');
   end);
 
   all:=N0|N1|N2|N3; all:=all[sortPerm(all.getInner(0)/all.getInner(1))];
-  local N4:=[all.tail,all.leading].transpose.map((n)->n.agg(+));
+  N4:=[all.tail,all.leading].transpose.map((n)->n.agg(+));
   N4.each(n,begin
-    local x:=n.agg(/);
+    x:=n.agg(/);
     addPlot([[x,-0.04],[x,1]],'black 0.125');
     drawText(x,-0.04,n.join("/"),6,'T');
   end);
@@ -60,20 +60,20 @@ end;
 
 
 pointsToRasterImage(pointList,width,height)->begin
-  local X:=pointList.getInner(0); local x0:=min(X); local x1:=max(X);
-  local Y:=pointList.getInner(1); local y0:=min(Y); local y1:=max(Y);
+  X:=pointList.getInner(0); x0:=min(X); x1:=max(X);
+  Y:=pointList.getInner(1); y0:=min(Y); y1:=max(Y);
   X:=(X-x0)*((width -1)/(x1-x0));
   Y:=(y1-Y)*((height-1)/(y1-y0));
 
-  log('Median frequency: ',local MF:=elementFrequency(round(X)+round(Y)*width).getInner(1).sort.{$L[$L.size div 2]});
+  log('Median frequency: ',MF:=elementFrequency(round(X)+round(Y)*width).getInner(1).sort.{$L[$L.size div 2]});
 
-  local gamma:=0.7^(2/MF);
+  gamma:=0.7^(2/MF);
 
-  local img:=
+  img:=
   DARTS.each(d,begin
-    local x_:=round(d[0]+X);
-    local y_:=round(d[1]+Y);
-    local mask:=0<=x_<width and 0<=y_<height;
+    x_:=round(d[0]+X);
+    y_:=round(d[1]+Y);
+    mask:=0<=x_<width and 0<=y_<height;
     elementFrequency(x_[mask]+width*y_[mask])
     .toList
     .{groupToList(gamma^$L.getInner(1),$L.getInner(0),1,::fail,width*height)};
@@ -88,7 +88,7 @@ end;
 samples:=
 [2..2000].pMap((n)->
   begin
-    local N:=[0..n];
+    N:=[0..n];
     transpose([N,N² mod n]*(1/n));
   end)
 .flatMap
@@ -117,7 +117,7 @@ addAnimationFrame; postDisplay;
 
 //primes(2000).pMap((n)->
 //  begin
-//    local N:=[0..n];
+//    N:=[0..n];
 //    transpose([N,N² mod n]*(1/n));
 //  end)
 //.flatMap

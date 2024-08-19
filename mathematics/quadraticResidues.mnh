@@ -1,0 +1,64 @@
+
+
+
+quadraticResidues(i:Int,resolution:Int)->begin
+  X:=[1..i div 2];
+  Y:=X² mod i;
+  if (i and 1)=1 then begin
+    X|=(i-X.reverseList);
+    Y|=Y.reverseList;
+  end else begin
+    X|=(i-X.leading.reverseList);
+    Y|=Y.leading.reverseList;
+  end;
+  floor(resolution/i*X)+(resolution-1-floor(resolution/i*(Y)))*resolution;
+end;
+
+toDensity(L:IntList,resolution)->begin
+  count:=L.map(()->1);
+  output:=groupToList(count,L,0,::+,resolution²);
+  _99_percentile:=output.sort[floor(output.size*0.99)];
+  //TODO: Anti-Aliasing?
+  map(output/_99_percentile,(alpha)->[0,0,0,alpha]);
+end;
+
+
+setOptions(["x0"=>0,"x1"=>1,"y0"=>0,"y1"=>1,"autoscaleX"=>false,"autoscaleY"=>false,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
+[1..100].each(k,begin
+  X:=[0..100]/100;
+  Y:=k*X²;
+  mask:=intersect([0..100],indexOf(Y<1).toSet+[-1..1].toSet).sort;
+  [X,Y].transpose[mask];
+end,
+[[Nan,Nan]],
+begin
+  X:=[0..100]/100;
+  Y:=k*(1-X)²;
+  mask:=intersect([0..100],indexOf(Y<1).toSet+[-1..1].toSet).sort;
+  [X,Y].transpose[mask];
+end,
+[[Nan,Nan]],|).addPlot('red 0.5');
+
+[1..100].each(k,begin
+  X:=[0..100]/100;
+  Y:=k*((1-(X-0.5)²)-(0.75));
+  mask:=intersect([0..100],indexOf(Y<1).toSet+[-1..1].toSet).sort;
+  [X,Y].transpose[mask] | [[Nan,Nan]];
+end,|).addPlot('blue 0.5');
+
+
+
+cross([1..10],
+      [1..10]).filter((xy)->xy.agg(<) AND gcd@xy=1).each(rat,begin
+  x:=rat.agg(/);
+  map([1..rat[1]²]/rat[1]²,(y)->[x,y]);
+end,|).addPlot('red . 0.5');
+
+display;
+
+res:=plotImageSize.min;
+
+//plot();
+[2..2000].pMap((i)->quadraticResidues(i,res)).flatMap.toList.toDensity(res).plotRasterImage(res,1/res);
+
+

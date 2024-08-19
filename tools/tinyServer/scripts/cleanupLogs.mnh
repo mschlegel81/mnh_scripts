@@ -1,7 +1,7 @@
 USE '../packages/tinyServer_config.mnh','../packages/loggingRunner.mnh';
 
 main('list')->begin
-  local logsInHistory:=taskHistory.getInner(0).map(::getLogName).expandedFileName;
+  logsInHistory:=taskHistory.getInner(0).map(::getLogName).expandedFileName;
   allFiles(LOG_FOLDER).expandedFileName
                       .filter({!($i in logsInHistory)})
                       .fileInfo

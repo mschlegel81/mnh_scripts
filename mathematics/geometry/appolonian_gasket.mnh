@@ -1,0 +1,248 @@
+@SuppressUnusedParameterWarning
+ducktype Vector(x:NumericList(2))->true;
+ducktype Triangle(x:List(3))->x.each(e,e.isVector,AND);
+ducktype FiniteNumber(n:Numeric)->n.isInt OR !(n.isNan OR n.isInfinite);
+type Circle(circle:List(2))->circle[0].isVector AND circle[1].isFiniteNumber;
+ducktype CircleList(L:List)->L.each(c,c.isCircle,AND);
+ducktype CircleTriplet(t:CircleList)->t.size=3;
+
+@Override
+toCircleTriplet(triangle:Triangle)->begin
+  d:=[euklideanNorm(triangle[0]-triangle[1]),
+      euklideanNorm(triangle[1]-triangle[2]),
+      euklideanNorm(triangle[2]-triangle[0])];
+  radius:=
+  [[ 0.5, 0.5,-0.5],
+   [-0.5, 0.5, 0.5],
+   [ 0.5,-0.5, 0.5]].each(x,d[index]*x,+);
+  triangle.each(center,[center,radius[index]].toCircle).toCircleTriplet;
+end;
+
+@Override
+plot(c:Circle       ,style)->plot.plot([c[0]-c[1],c[0]+c[1]],style & ' ellipse');
+plot(t:CircleList   ,style)->plot.plot(t.each(c,c[0]-c[1],c[0]+c[1]),style & ' ellipse');
+@Override
+addPlot(c:Circle    ,style)->plot.addPlot([c[0]-c[1],c[0]+c[1]],style & ' ellipse');
+addPlot(t:CircleList,style)->plot.addPlot(t.each(c,c[0]-c[1],c[0]+c[1]),style & ' ellipse');
+
+soddyCircleRadii(radii:NumericList(3))->begin
+  k:=1/radii;
+  r:=
+  1/rootOfQuadraticPoly(1,
+    - 2*k.agg(+),
+      2* k.sqr.agg(+) - k.agg(+).sqr);
+  (r<0).agg(and) ? -r : r;
+end;
+
+circlesTouch(a:Circle,b:Circle)->abs(euklideanNorm(a[0]-b[0])-abs(a[1]+b[1]))<1E-6;
+circlesTouch(a:Circle,T:CircleTriplet)->T.each(b,circlesTouch(a,b),AND);
+
+USE mathUtils;
+findSoddyCircles(c:CircleTriplet)->begin
+  rs:=soddyCircleRadii(c.getInner(1));
+  rs.each(r,begin
+    candidates:=circleIntersection(c[0,0],c[0,1]+r,c[1,0],c[1,1]+r).map({[$center,r].toCircle});
+    candidates.filter({$newCircle.circlesTouch(c[2])});
+  end,|);
+end;
+
+exRound(x)->round(x,6);
+
+soddyIteration(initialState:CircleTriplet,radiusLimit>0.0,verbose:Boolean)->begin
+  adjacency:=[].toSet;
+  circles:=initialState;
+  //first round...
+  begin
+    findSoddyCircles(circles[[0,1,2]]).each(newCircle,
+    begin
+       k:=circles.size;
+       circles||=newCircle;
+       adjacency|=[[0,1,k],
+                   [0,2,k],
+                   [1,2,k]];
+    end);
+  end;
+  verbose ? begin
+    initialState.plot('');
+    circles.tail(3).addPlot('red f');
+    addAnimationFrame;
+  end : void;
+
+  aboveRadius:=true;
+  while aboveRadius do begin
+    existingCircles:=circles.map(::exRound).toSet;
+    updates:=
+    adjacency.pEach(A,findSoddyCircles(circles[A]).each(newCircle,begin
+      radiusLimit<newCircle[1] AND !(exRound(newCircle) in existingCircles)
+      ? [A,newCircle]
+      : void; end),|);
+    adjacency:=
+    updates.each(upd,begin
+      k:=circles.size;
+      A:=upd[0];
+      circles|=[upd[1]];
+      verbose AND (0 in A) AND (1 in A) ? print('Adjacent to 0,1: ',upd[0],' ',upd[1]) : void;
+      [[k,A[0],A[1]],
+       [k,A[0],A[2]],
+       [k,A[1],A[2]]];
+    end,|);
+    aboveRadius:=(updates.size>0);// AND (circles.size<1000);
+    if verbose
+    then begin
+      circles.plot('');
+      updates.size>0 ? begin
+        print('New Radii >',updates.getInner(1).getInner(1).min,' ',circles.size,' ',circles.unique.size);
+        updates.getInner(1).addPlot('red f');
+      end
+      : void;
+      addAnimationFrame;
+    end;
+  end;
+  circles;
+end;
+
+private addPlotCircleList(circles:CircleList)->
+  circles.size=0
+  ? void
+  : begin
+      circles.map({[$c,circleStyleByRadius(round($c[1],2))]})
+      .group(1)
+      .getInner(1)
+      .each(g,[g[0,0,1],g.getInner(0),g[0,1]])
+      .sort(0)
+      .reverseList
+      .each(set,set[1].each(c,c[0]-c[1],c[0]+c[1]).addPlot(set[2]));
+    end;
+
+private plotCircleList(circles:CircleList)->
+  begin
+    plot();
+    circles.tail.each(c,begin
+      addPlot([c[0]-c[1],c[0]+c[1]],circleStyleByRadius(round(c[1],2)));
+    end);
+    addPlot([[-1,-1],[1,1]],'black ellipse 0.5');
+  end;
+
+memoized circleStyleByRadius(r)->
+  r<0 ? 'black ellipse 0.5' : 'HUE'&((1-r.sqrt)/6)&' ellipse fs 0';
+
+initialSoddy(alpha,r0,r1)->begin
+  note('Initial ',$params);
+  C:=[[0,0],(r0-1)*[cos(alpha),sin(alpha)]];
+  R:=[-1,r0,r1];
+  C||=circleIntersection(C[0],R[0]+r1,C[1],R[1]+r1).head;
+  [C,R].transpose.map(::toCircle).toCircleList;
+end;
+
+soddyFrameParameter(frameIndex:Int)->begin
+  int:={begin w:=0.5-0.5*cos(pi/100*$t); $f*(1-w)+$g*w; end};
+  initialSoddy@(
+  frameIndex<200 ?                    param3Sym(50)[frameIndex mod 50] :
+  frameIndex<300 ? int(frameIndex-200,param3Sym(50)[frameIndex mod 50],param2Sym(50)[frameIndex mod 50]) :
+  frameIndex<500 ?                    param2Sym(50)[frameIndex mod 50] :
+  frameIndex<600 ? int(frameIndex-500,param2Sym(50)[frameIndex mod 50],param1Sym(50)[frameIndex mod 50]) :
+  frameIndex<800 ?                    param1Sym(50)[frameIndex mod 50]
+                 : int(frameIndex-800,param1Sym(50)[frameIndex mod 50],param3Sym(50)[frameIndex mod 50]));
+end;
+
+renderAnimation->begin
+  fname:={format('soddy_%3.3d.png',$x)};
+  [0..900].each(i,begin
+    print('Creating ',dest:=fname(i));
+    fileExists(dest) ? void :
+    i in [50..200,350..500,650..800]
+    ? copyFile(fname(i-50),dest)
+    : begin
+        setOptions(['axisStyleX'=>0,'axisStyleY'=>0]);
+        soddyFrameParameter(i).soddyIteration(0.001,false).plotCircleList;
+        renderToFile(dest,1920,1080,1);
+      end;
+  end);
+end;
+
+//*Renders animation to files
+main('anim')->renderAnimation;
+
+//*Returns an unary function f with
+//*f(0)=0, f(1)=1, f'(1)/f'(0)=q
+private interpolant(q)->begin
+  b:=2/(q+1);
+  {$x}*(b+(1-b)*{$x});
+end;
+
+@SuppressUnusedWarning
+private cyclicAnimation(parametersPerFrames:List)->begin
+  setOptions(['axisStyleX'=>0,'axisStyleY'=>0]);
+  clearAnimation;
+  parametersPerFrames.each(p,begin
+    soddyIteration(initialSoddy@(p),0.05,false);
+    addAnimationFrame;
+  end);
+end;
+
+private memoized param3Sym(steps>=2)->begin
+  P0:=[ pi/6,sqrt(3/4)/(1+sqrt(3/4)),sqrt(3/4)/(1+sqrt(3/4))];
+  P1:=[ pi/6,sqrt(3/4)/(1+sqrt(3/4)),0.2240092377397957     ];
+  ([0..steps-1]/steps).map(interpolant(0.69639019384382106)).each(w,P0*(1-w)+P1*w);
+end;
+
+private memoized param2Sym(steps>=2)->begin
+  P0:=[0 ,1/3,1/2];
+  P1:=[0 ,1/3,1/6];
+  ([0..steps-1]/steps).map(interpolant(1/3)).each(w,P0*(1-w)+P1*w);
+end;
+
+private memoized param1Sym(steps>=2)->begin
+  P0:=[pi/2,0.1,0.5]       ;
+  P1:=[pi/2,0.1,0.06003534551132157];
+  ([0..steps-1]/steps).map(interpolant(0.06029149200725836)).each(w,P0*(1-w)+P1*w);
+end;
+
+memoized filteredCircles(circles:CircleList,scaleLimit)->circles.filter({$circle[1]>scaleLimit}).toCircleList;
+
+plottableNestedGasket(relativeTo:Circle, [], radiusLimit>0.0)->void;
+plottableNestedGasket(relativeTo:Circle, circles:CircleList, radiusLimit>0.0)->begin
+  scaled:=circles.each(c,begin
+    [relativeTo[0]+c[0]*relativeTo[1],
+                   c[1]*relativeTo[1]].toCircle;
+  end);
+  scaled|(
+  scaled.each(c,c.plottableNestedGasket(circles.filteredCircles(radiusLimit/c[1]),radiusLimit),|));
+end;
+@SuppressUnusedWarning
+nestedGasket(initialState:CircleTriplet, radiusLimit>0.0)->begin
+  setOptions(['axisStyleX'=>0,'axisStyleY'=>0]);
+  plot([[-1,-1],[1,1]],'RGB0.8,0,0 fs e');
+  circles:=soddyIteration(initialState,radiusLimit,false).tail;
+  print('Creating nested Appolonian Gasked based on ',circles.size,' circles');
+  plottableNestedGasket([[0,0],1].toCircle,circles,radiusLimit).addPlotCircleList;
+end;
+
+@SuppressUnusedWarning
+defaultInitialState->initialSoddy @(param3Sym(2).head);
+
+
+begin
+  radiusLimit:=0.003;
+  clearAnimation;
+  param3Sym(50).each(p,[index,p])
+  .toIterableExpression
+  .pMap({begin
+    index:=$p[0];
+    param:=$p[1];
+    t0:=scriptTime;
+    circles:=soddyIteration(initialSoddy@param,radiusLimit,false).tail;
+    circles:=plottableNestedGasket([[0,0],1].toCircle,circles,radiusLimit);
+    print('Frame #',index,' prepared in ',scriptTime-t0,'seconds');
+    circles;
+  end})
+  .each(circles,begin
+    print('Rendering frame #',index);
+    setOptions(['axisStyleX'=>0,'axisStyleY'=>0]);
+    plot([[-1,-1],[1,1]],'RGB0.8,0,0 fs e');
+    circles.addPlotCircleList;
+    addAnimationFrame;
+    postDisplay;
+  end);
+end;
+

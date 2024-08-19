@@ -1,0 +1,64 @@
+ducktype OddInt(i:Int)->(i and 1)=1;
+
+memoized
+abstractDifferentiation(k=0)->[[0,1,0]];
+abstractDifferentiation(k:OddInt)->
+  abstractDifferentiation(k-1).each(d,[d[0]+1, d[1]/2,d[2]-1],
+                                      [d[0]-1,-d[1]/2,d[2]-1]);
+abstractDifferentiation(k:Int)->
+  abstractDifferentiation(k-2).each(d,[d[0]+1,   d[1],d[2]-2],
+                                      [d[0]  ,-2*d[1],d[2]-2],
+                                      [d[0]-1,   d[1],d[2]-2]);
+
+
+
+@SuppressUnusedWarning
+D(f:Expression(1),k=0  ,maxWeight:Numeric)->f;
+D(f:Expression(1),k:Int,maxWeight:Numeric)->begin
+  params:=abstractDifferentiation(k);
+  hPower:=params.head.trailing;
+  params:=params.map(::leading);
+  params:=group(params.getInner(1),params.getInner(0),::+);
+  maxWeightFactor:=params.getInner(1).abs.max;
+
+  // maxWeightFactor*h^hPower = maxWeight
+  //                 h^hPower = maxWeight/maxWeightFactor
+  //                 h        = (maxWeight/maxWeightFactor)^(1/hPower);
+  h:=(maxWeight/maxWeightFactor)^(1/hPower);
+  ph:=h^hPower;
+  //log(params,"\nh=",h,"\nph=",ph);
+  params.each(p,p[1]=0
+                ? void
+                : (p[0]==0 ? f : f(((x)->x)+h*p[0]))*(p[1]*ph),+);
+end;
+
+
+
+x0:=0.000001;
+AnalyticDSin(k:Int)->[::sin,::cos,-::sin,-::cos][k mod 4];
+
+
+["x0"=>1E-100,
+ "x1"=>1,
+ "y0"=>1E-100,
+ "y1"=>1,
+ "fontsize"=>10,
+ "preserveAspect"=>false,
+ "autoscaleX"=>true,
+ "autoscaleY"=>true,
+ "logscaleX"=>true,
+ "logscaleY"=>true,
+ "autoscaleFactor"=>1,
+ "axisStyleX"=>7,
+ "axisStyleY"=>7].toMap.setOptions;
+plot([0,0]);
+display;
+sleep(1);
+display;
+plot   ((h)->abs(AnalyticDSin(1)(x0)-D(::sin,1,h)(x0)),1,1E16,1000,'. l 0.5');
+addPlot((h)->abs(AnalyticDSin(2)(x0)-D(::sin,2,h)(x0)),1,1E16,1000,'. l 0.5');
+addPlot((h)->abs(AnalyticDSin(3)(x0)-D(::sin,3,h)(x0)),1,1E16,1000,'. l 0.5');
+addPlot((h)->abs(AnalyticDSin(4)(x0)-D(::sin,4,h)(x0)),1,1E16,1000,'. l 0.5');
+addPlot((h)->abs(AnalyticDSin(5)(x0)-D(::sin,5,h)(x0)),1,1E16,1000,'. l 0.5');
+//
+//1E5,1E7,1E9,1E10,1E11

@@ -81,12 +81,12 @@ MQ = MathQuill.getInterface(2);~;
 FOOTER:=//!~</script></body></html>~;
 
 page->begin
-  local table:=contents.each(c,
+  table:=contents.each(c,
           '<tr><td><button onclick="toggleVisibility('&index&')">t/m</button></td><td>',
           '<span id="math'&index&'" style="'&(c[0] ? void : 'display:none; ')&'width:100%; align:left">'&c[1]&'</span>',
           '<input type="text" id="text'&index&'" style="'&(c[0] ? 'display:none; ' : void )&'width:100%" value="'&c[1]&'"></td>',
           '<td><button onclick="postDropLine('&index&')">-</button></td></tr>').join("\n");
-  local bindings:=map(contents.size=0 ? [] : [0..contents.size-1],(index)->
+  bindings:=map(contents.size=0 ? [] : [0..contents.size-1],(index)->
           "\ntext"&index&" = $('#text"&index&"').bind('keydown keypress', function() {"&
 //          '  var prev = text'&index&'.val();'&
 //          '  setTimeout(function() {'&
@@ -105,7 +105,7 @@ end;
 
 WRITE_INTERVAL:=10; //seconds
 backgroundUpdate->begin
-  local lastWrite:=scriptTime;
+  lastWrite:=scriptTime;
 save;
   scriptTime>lastWrite+WRITE_INTERVAL
   ? begin
@@ -118,12 +118,12 @@ end;
 
 handleRequest('GET','/page.html',body)->page;
 handleRequest('POST','/mathPart',body)->begin
-  local payload:=try({parseJson(body,NULL_MARKER)});
+  payload:=try({parseJson(body,NULL_MARKER)});
   log('body   : ',body,"\n",
       'payload: ',payload);
 
   payload.isVoid ? return httpError : void;
-  local idx:=payload['index'];
+  idx:=payload['index'];
   isInt(idx) ? void : return httpError;
 
   payload["doAppend"]==true
@@ -148,10 +148,10 @@ memoized warnOnce(method,path,body)->begin
 end;
 
 memoized obtainFile(path)->begin
-  local result:=cachedSecondaries[path];
+  result:=cachedSecondaries[path];
   result.isVoid ? void : return result.decompress;
 
-  local filename:='.'+path;
+  filename:='.'+path;
   fileExists(filename)
   ? begin
       result:=filename.fileContents.wrapTextInHttp(
@@ -168,7 +168,7 @@ handleRequest('GET',path,body)->obtainFile(path) orElse warnOnce('GET',path,body
 handleRequest(method,path,body)->warnOnce(method,path,body);
 
 main->begin
-  local serverIp:=startHttpServer(IP_AND_PORT,(request:Map)->handleRequest(request['request','method'],request['request','path'],request['body']) ,600);
+  serverIp:=startHttpServer(IP_AND_PORT,(request:Map)->handleRequest(request['request','method'],request['request','path'],request['body']) ,600);
   print('Now running at ',serverIp);
   openUrl('http://'&serverIp&'/page.html');
   //localAsync({begin
@@ -177,7 +177,7 @@ main->begin
   //  sleep(1);
   //  halt;
   //end});
-  while(isServerRunning(serverIp),sleep(10));
+  while isServerRunning(serverIp) do sleep(10);
 end;
 
 page.print;

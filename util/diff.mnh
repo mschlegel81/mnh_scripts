@@ -1,18 +1,12 @@
-//  [#27'[91m--- '&aCaption&''#27'[0m',#27'[92m+++ '&bCaption&#27'[0m']|
-//  runs.each(run,
-//      join(['@@ '#27'[91m-',edit[run[0],1],',',edit[run[1],1]-edit[run[0],1]+1,
-//              #27'[92m +',edit[run[0],2],',',edit[run[1],2]-edit[run[0],2]+1,#27'[0m @@']),
-//      edit[[run[0]..run[1]]].each(e,(e[0]='.' ? '  ' : e[0].replace(['+','-'],[#27'[92m+',#27'[91m-'])&' ')&e[3]&#27'[0m'),|);
-
 unifiedDiff(aName:String,bName:String,aLines:StringList,bLines:StringList,additionalLines>=0)->begin
-  local edit:=diff(aLines,bLines,true)['edit'].pEach(e,e[0]='+' ? [e[0],e[1]+1,e[2]+1,bLines[e[2]]]
-                                                                : [e[0],e[1]+1,e[2]+1,aLines[e[1]]]);
-  local runs:=
+  edit:=diff(aLines,bLines,true)['edit'].pEach(e,e[0]='+' ? [e[0],e[1]+1,e[2]+1,bLines[e[2]]]
+                                                          : [e[0],e[1]+1,e[2]+1,aLines[e[1]]]);
+  runs:=
   begin
-    local indexes:=edit.pEach(e,e[0]<>' ' ? [index-additionalLines..index+additionalLines] : void,|) //add additional lines to each run and concatenate all
-                       .unique //remove duplicate lines and sort
-                       .each(i,i>=edit.size or i<0 ? void : i);
-    local splits:=(indexes.tail<>indexes.leading+1);
+    indexes:=edit.pEach(e,e[0]<>' ' ? [index-additionalLines..index+additionalLines] : void,|) //add additional lines to each run and concatenate all
+                 .unique //remove duplicate lines and sort
+                 .each(i,i>=edit.size or i<0 ? void : i);
+    splits:=(indexes.tail<>indexes.leading+1);
     [indexes[true|splits],indexes[splits|true]].transpose;
   end;
   [#27'[91m--- '&aName&#27'[0m',#27'[92m+++ '&bName&#27'[0m']|

@@ -33,16 +33,16 @@ FreeSlipRight:=true;
 //  [Aw,As,Q,Bs];
 //end;
 applyBoundaryConditions(state:List(4),timeStepIndex,dtSub)->begin
-  local dirtFraction:=0.0;
+  dirtFraction:=0.0;
 save;
-  local Aw:=state[0];
-  local As:=state[1];
-  local Q :=state[2];
-  local Bs:=state[3];
+  Aw:=state[0];
+  As:=state[1];
+  Q :=state[2];
+  Bs:=state[3];
 //  dirtFraction:=dirtFraction*0.99+0.01*(As.agg(+)/(As.agg(+)+Aw.agg(+)));
   round(timeStepIndex) mod 500<250
   ? begin
-    //  local dirtFraction:=0.9*(1-timeStepIndex/5000); //start of with 90% sediment; get clearer near the end
+    //  dirtFraction:=0.9*(1-timeStepIndex/5000); //start of with 90% sediment; get clearer near the end
       Aw[0]+=0.2*(1-dirtFraction)*dtSub/GridSize;
       As[0]+=0.2*(  dirtFraction)*dtSub/GridSize;
       Q[0]:=Q[1]/(1E-3+Aw[1]+As[1]*SedimentDensity)*(Aw[0]+As[0]*SedimentDensity);
@@ -95,11 +95,11 @@ smooth(x,k>1)->smooth(x,1).smooth(k-1);
 //BaseProfile:=smooth((1-ord(0.3<[0..Imax]/Imax<0.7))*0.1,Imax div 20);
 
 LocalBaseProfileMax:=begin
-  local m:=BaseProfile.trailing;
+  m:=BaseProfile.trailing;
 
-  local A:=BaseProfile.reverseList.each(b,m:=max(m,b)).reverseList;
+  A:=BaseProfile.reverseList.each(b,m:=max(m,b)).reverseList;
   m:=BaseProfile.head;
-  local B:=BaseProfile            .each(b,m:=max(m,b));
+  B:=BaseProfile            .each(b,m:=max(m,b));
 
   [A,B].transpose.each(p,min(p));
 end;
@@ -114,23 +114,23 @@ Q0 :=(Aw0+As0)*0;
 appendTrailing(L:List)->L|L.trailing;
 
 postPlotSystem(Aw_,As_,Q_,Bs_)->begin
-  local CR:=200;
-  local colorTable:=[-CR..CR].map((q)->q=>'box 0 fs RGB'&join( q<0 ? [-q/CR,0,1+q/CR] : [0,q/CR,1-q/CR],',')).toMap;
-  local vRef:=1;
-  local pending:=[];
-  local done:=false;
-  local backgroundPlot:=future({begin
-    while(!done OR pending.size>0,begin
+  CR:=200;
+  colorTable:=[-CR..CR].map((q)->q=>'box 0 fs RGB'&join( q<0 ? [-q/CR,0,1+q/CR] : [0,q/CR,1-q/CR],',')).toMap;
+  vRef:=1;
+  pending:=[];
+  done:=false;
+  backgroundPlot:=future({begin
+    while !done OR pending.size>0 do begin
       pending.size>0 ? void : sleep(1);
-      local current:=pending[0]; pending[0]:=void;
+      current:=pending[0]; pending[0]:=void;
       current.isVoid ? sleep(5) : begin
-        local Aw:=current[0];
-        local As:=current[1];
-        local Q :=current[2];
-        local Bs:=current[3];
+        Aw:=current[0];
+        As:=current[1];
+        Q :=current[2];
+        Bs:=current[3];
         setOptions(["x0"=>0,"x1"=>Imax,"y0"=>0,"y1"=>1,"fontsize"=>10,"preserveAspect"=>false,"autoscaleX"=>false,"autoscaleY"=>false,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>6,"axisStyleY"=>6].toMap);
         plot;
-        local v:=Q/(Aw+As+1E-10);
+        v:=Q/(Aw+As+1E-10);
         v/=(vRef:=vRef*0.9+0.1*max(0.1,v.abs.sort[v.size*9 div 10]));
         v:=round(vectorIfThenElse(v.isNan,0, vectorIfThenElse(v>1,1,vectorIfThenElse(v<-1,-1,v)))*CR);
         group([[0..Imax],BaseProfile+Bs,BaseProfile+Bs+Aw+As].transpose,v).each(colorGroup,
@@ -143,7 +143,7 @@ postPlotSystem(Aw_,As_,Q_,Bs_)->begin
         addAnimationFrame;
         postDisplay;
       end;
-    end);
+    end;
     true;
   end});
 save;
@@ -155,18 +155,18 @@ end;
 filterValid(n:NumericList)->vectorIfThenElse(n.isNan or n.isInfinite,0.0,n);
 
 edgeCenteredVelocities(state)->begin
-  local mass:=state[0]+state[1]*SedimentDensity;
-  local Q :=state[2];
+  mass:=state[0]+state[1]*SedimentDensity;
+  Q :=state[2];
   filterValid(((Q.head|Q)+(Q|Q.trailing))/((mass.head|mass)+(mass|mass.trailing)));
 end;
 
 edgeCenteredAcceleration(state,v0)->begin
-  local h:=BaseProfile+state[0]+state[1]+state[3];
+  h:=BaseProfile+state[0]+state[1]+state[3];
   ((0|(h.leading-h.tail)|0))*GravFactor-Friction*v0*abs(v0);
 end;
 
 edgeCenteredJerk(state,a)->begin
-   local dh:=state[2]*(state[0]+state[1])/(1E-10+state[0]+state[1]*SedimentDensity);//mass flux must be converted to height flux
+   dh:=state[2]*(state[0]+state[1])/(1E-10+state[0]+state[1]*SedimentDensity);//mass flux must be converted to height flux
   dh:=(dh.leading-dh.tail);
   ((dh.head|dh.head|dh)-(dh|dh.trailing|dh.trailing))*(0.5*GravFactor)+Friction*2*a;
 end;
@@ -175,29 +175,29 @@ updateState(state,vEdge,aEdge,jerkEdge,dtSub)->begin
   jerkEdge.isInfinite.agg(or) ? showTable(state.transpose) : void;
 //  assert(!(jerkEdge.isNan).agg(or));
 //  assert(!(jerkEdge.isInfinite).agg(or));
-  local Aw:=state[0];
-  local As:=state[1];
-  local Q :=state[2];
-  local Bs:=state[3];
+  Aw:=state[0];
+  As:=state[1];
+  Q :=state[2];
+  Bs:=state[3];
   //Calculate upwind factors
-  local TL:=(vEdge.leading+(aEdge.leading+jerkEdge.leading*(dtSub/3))*(dtSub/2))*(dtSub/GridSize); TL*=-1*ord(TL<0);
-  local TR:=(vEdge.tail   +(aEdge.tail   +jerkEdge.tail   *(dtSub/3))*(dtSub/2))*(dtSub/GridSize); TR*=   ord(TR>0);
+  TL:=(vEdge.leading+(aEdge.leading+jerkEdge.leading*(dtSub/3))*(dtSub/2))*(dtSub/GridSize); TL*=-1*ord(TL<0);
+  TR:=(vEdge.tail   +(aEdge.tail   +jerkEdge.tail   *(dtSub/3))*(dtSub/2))*(dtSub/GridSize); TR*=   ord(TR>0);
   FreeSlipLeft  ? void : TL[   0]:=0;
   FreeSlipRight ? void : TR[Imax]:=0;
 
-  local v_post:=((vEdge   .tail+vEdge   .leading)
+  v_post:=((vEdge   .tail+vEdge   .leading)
                +((aEdge   .tail+aEdge   .leading)
                + (jerkEdge.tail+jerkEdge.leading)*0.5*dtSub
                 )*dtSub)*0.5;
 
   //Update state variables:
 
-//  local kb:=Q*abs(v_post)*SedimentUptakeFactor;
+//  kb:=Q*abs(v_post)*SedimentUptakeFactor;
 //  local ka:=               SedimentationFactor;
 //  local sedimentUptake:=(As*ka- vectorIfThenElse(Bs>1E-2 ,1E-2 , Bs)*kb)/(ka+kb)*(exp(-dtSub*(ka+kb))-1)  ;
 
-  local sedimentUptake:=(exp(-SedimentationFactor*dtSub)-1)*As+sqr(v_post)*SedimentUptakeFactor/SedimentationFactor;
-//  local sedimentUptake:=(exp(-SedimentationFactor*dtSub)-1)*As+abs(Q)*SedimentUptakeFactor/SedimentationFactor;
+  sedimentUptake:=(exp(-SedimentationFactor*dtSub)-1)*As+sqr(v_post)*SedimentUptakeFactor/SedimentationFactor;
+//  sedimentUptake:=(exp(-SedimentationFactor*dtSub)-1)*As+abs(Q)*SedimentUptakeFactor/SedimentationFactor;
   sedimentUptake:=vectorIfThenElse(sedimentUptake>Bs,Bs,sedimentUptake);
 
   Q:=(Aw+(As+sedimentUptake*ord(sedimentUptake<0))*SedimentDensity)*v_post;
@@ -225,35 +225,35 @@ updateState(state,vEdge,aEdge,jerkEdge,dtSub)->begin
 end;
 
 sim6->begin
-  local dt:=0.5;
-  local state:=[Aw0,As0,Q0,Bs0];
-  local CFL_LIM:=0.5 *GridSize;
-  local DIV_LIM:=0.05*GridSize;
+  dt:=0.5;
+  state:=[Aw0,As0,Q0,Bs0];
+  CFL_LIM:=0.5 *GridSize;
+  DIV_LIM:=0.05*GridSize;
   postPlotSystem@state;
   [0..5000].each(ts,begin
-    local tRest:=dt;
-    local subSteps:=0;
-    while(tRest>0,begin
+    tRest:=dt;
+    subSteps:=0;
+    while tRest>0 do begin
       subSteps+=1;
-      local v0  :=edgeCenteredVelocities  (state);
-      local a   :=edgeCenteredAcceleration(state,v0);
-      local jerk:=edgeCenteredJerk        (state,a*sign(v0));
+      v0  :=edgeCenteredVelocities  (state);
+      a   :=edgeCenteredAcceleration(state,v0);
+      jerk:=edgeCenteredJerk        (state,a*sign(v0));
       //max allowable time step size:
-      local dtSub:=
+      dtSub:=
       begin
-        local c:=state[0];
-        local mask:=ord(((c.head|c)+(c|c.trailing))>1E-3);
-        local aMax:=(a *mask).abs.max;
-        local vMax:=(v0*mask).abs.max;
+        c:=state[0];
+        mask:=ord(((c.head|c)+(c|c.trailing))>1E-3);
+        aMax:=(a *mask).abs.max;
+        vMax:=(v0*mask).abs.max;
         aMax<1E-3
         ? CFL_LIM/vMax
         : sqrt(CFL_LIM/aMax + (vMax/aMax)²) - vMax/aMax; //CFL limit
       end;
       dtSub:=min(dtSub,tRest,begin
-        local c:=state[0];
-        local mask:=ord(c>1E-3);
-        local aMax:=((a .leading- a.tail)*mask).abs.max;
-        local vMax:=((v0.leading-v0.tail)*mask).abs.max;
+        c:=state[0];
+        mask:=ord(c>1E-3);
+        aMax:=((a .leading- a.tail)*mask).abs.max;
+        vMax:=((v0.leading-v0.tail)*mask).abs.max;
         aMax<1E-3
         ? DIV_LIM/vMax
         : sqrt(DIV_LIM/aMax + (vMax/aMax)²) - vMax/aMax; //CFL limit
@@ -265,7 +265,7 @@ sim6->begin
 
       state:=updateState(state,v0,a,jerk,dtSub).applyBoundaryConditions(ts+1-tRest/dtSub,dtSub);
       //profile:=
-    end);
+    end;
 
     postPlotSystem@state;
     printf('%4d (%2d) %6.2f fps',ts,subSteps,ts/scriptTime);

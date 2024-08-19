@@ -30,9 +30,9 @@ end;
 
 private processToDo(todo:String,delayOuput:Boolean)->receivedKillSignal ? void : begin
   printMethod:=nextPrintMethod;
-  log:=['+-'&todo.clean(['-'],'-')&'-+',
-        '| '&todo                 &' |',
-        '+-'&todo.clean(['-'],'-')&'-+'];
+  local log:=['+-'&todo.clean(['-'],'-')&'-+',
+              '| '&todo                 &' |',
+              '+-'&todo.clean(['-'],'-')&'-+'];
   delayOuput
   ? printMethod(todo&' started')
   : printMethod(log);

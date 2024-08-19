@@ -1,0 +1,47 @@
+#!/usr/bin/mnh -v1 +out ?.log
+private charMask:=['a'..'z','ä','ö','ü','ß'].each(c,[c,([0..29].head(index)*0)|1|([0..29].tail(index+1)*0)]).toMap;
+
+private charMultiSet(s:String)->charMask.getAll(s.lower.chars).agg(+);
+
+private filteredDictionary(dictionary:List,part:IntList(30),greaterThan:String)->
+  dictionary.filter({$x[1]>greaterThan AND
+                     ($x[0]-part<=0).agg(AND)});
+
+memoized constructAnagram(dictionary:List,lookFor:IntList(30))->begin
+  result:=
+  dictionary.pEach(dictEntry,
+    dictEntry[0]==lookFor
+    ? dictEntry[1]
+    : begin
+        rest:=lookFor-dictEntry[0];
+        rest:=dictionary.filteredDictionary(rest,dictEntry[1]).constructAnagram(rest);
+        rest.isVoid
+        ? void
+        : dictEntry[1]&' '&rest;
+      end,|);
+  result;
+end;
+
+USE inputs;
+main('de',...)->main@('C:\dev\german.lower.utf8'|...);
+main('en',...)->main@(dict|...);
+
+main(dictFile:String,anagramFor:String,...)->
+begin
+  print('Constructing an anagram for ',anagramFor,' ',join(...,' '));
+  lookFor:=(anagramFor&join(...)).lower.clean(charMask.getInner(0),'');
+  lookCharSet:=lookFor.charSet;
+  lookFor:=lookFor.charMultiSet;
+  note('Input dictionary: ',dictFile);
+  fileLineIterator(dictFile)
+  .pEach(x,x.charSet.minus(lookCharSet).size=0
+           ? [x.charMultiSet,x] : void)
+  .filteredDictionary(lookFor,'')
+  .{note('Scanning a dictionary of ',$x.size,' entries') orElse $x}
+  .constructAnagram(lookFor)
+  .flatten
+  .pMap({$x.split(" ").sort})
+  .sort
+  .reverseList
+  .map({$x.join(" ").print});
+end;

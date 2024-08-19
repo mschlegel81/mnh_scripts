@@ -1,20 +1,20 @@
 CIRCLE_DETAIL:=30;
 
 halfCircle(startAt:Int,endAt:Int,up:Boolean)->begin
-  local C:=cos([0..CIRCLE_DETAIL]/CIRCLE_DETAIL*pi);
-  local S:=sin([0..CIRCLE_DETAIL]/CIRCLE_DETAIL*pi);
+  C:=cos([0..CIRCLE_DETAIL]/CIRCLE_DETAIL*pi);
+  S:=sin([0..CIRCLE_DETAIL]/CIRCLE_DETAIL*pi);
 save;
-  local radius:=(endAt-startAt)/2;
-  local center:=(endAt+startAt)/2;
+  radius:=(endAt-startAt)/2;
+  center:=(endAt+startAt)/2;
   transpose([center-C*radius,(up ? abs(radius) : -abs(radius))*S]);
 end;
 
-circleAnimation(generator:Iteratable)->begin
+circleAnimation(generator:Iterable)->begin
   clearAnimation;
-  local up:=false;
-  local last:=0;
-  local previous:=[];
-  local row:=[];
+  up:=false;
+  last:=0;
+  previous:=[];
+  row:=[];
   ['autoscaleFactor'=>1.0,
    'autoscaleX'=>false,
    'autoscaleY'=>false,
@@ -42,8 +42,8 @@ end;
 USE customFormUtil,oeis;
 
 formatList(S:IntList)->begin
-  local line:='';
-  local result:=[];
+  line:='';
+  result:=[];
   S.map(::toString)
   .each(part,length(line)+length(part)>50 ? begin result|=line; line:=''; end : line+=part+",");
   result|=replace(line&'#',',#','');
@@ -51,14 +51,14 @@ formatList(S:IntList)->begin
 end;
 
 main->begin
-  local retrievedId  :=local id:=0;
-  local retrievedName:=local name:='?';
-  local sequence:=[];
-  local sequenceAsString:='';
-  local info:='';
-  local genClass :='';
-  local genString:='';
-  local update:={begin
+  retrievedId  :=id:=0;
+  retrievedName:=name:='?';
+  sequence:=[];
+  sequenceAsString:='';
+  info:='';
+  genClass :='';
+  genString:='';
+  update:={begin
     id:=retrievedId:=$retrieved['ID'];
     name:=retrievedName:=$retrieved['Name'];
     sequence:=$retrieved['Sequence'];
@@ -80,7 +80,7 @@ main->begin
     newEdit.withCaption('Query more')
            .withEnabledRule({genString!=''})
            .withAction({begin
-             local queryCount:=$0.trim.softCast;
+             queryCount:=$0.trim.softCast;
              queryCount.isInt AND queryCount>sequence.size
              ? begin
                  sequence:=sendIpcRequest(oeis.ipcId,['gen',id,queryCount]);

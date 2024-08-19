@@ -1,7 +1,7 @@
 main(filename)->begin
   assert(fileExists(filename),'File does not exist');
   assert(filename.extractFileExt.lower=='.jpg','File has the wrong extension');
-  local targetName:=getEnv['APPDATA']&'/Microsoft/Windows/Themes/TranscodedWallpaper.jpg';
+  targetName:=getEnv['APPDATA']&'/Microsoft/Windows/Themes/TranscodedWallpaper.jpg';
   fileExists(targetName)
   ? note(targetName,' exists')
   : warn(targetName,' does not exist');

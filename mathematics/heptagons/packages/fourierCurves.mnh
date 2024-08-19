@@ -13,7 +13,7 @@ periodicTime(Nan)->Nan;
 periodicTime(t)->t-floor(t);
 
 periodicHalfCurveSample(pt:List(2))->begin
-  local t:=pt[0]-floor(pt[0]);
+  t:=pt[0]-floor(pt[0]);
   t>0.5
   ? [t-0.5,-pt[1]]
   : [t    , pt[1]];
@@ -22,16 +22,16 @@ end;
 //*Returns a 1D fourier series + error measure
 private splineFourierTransform(timedSamples:List,coeffCount)->begin
   //Add samples at the start and at the end
-  local prevTime:=-Inf;
-  local tmp:=
+  prevTime:=-Inf;
+  tmp:=
   (timedSamples.trailing(5).map((pt)->(pt[0]-1)*2*pi=>pt[1])
   |timedSamples            .map((pt)-> pt[0]   *2*pi=>pt[1])
   |timedSamples.head(5)    .map((pt)->(pt[0]+1)*2*pi=>pt[1])).filter((pt)->begin
-    local accept:=pt[0]>prevTime;
+    accept:=pt[0]>prevTime;
     prevTime:=pt[0];
     accept;
   end);
-  local allCoefficients:=calculateFourierCoefficients(tmp,coeffCount*2-1);
+  allCoefficients:=calculateFourierCoefficients(tmp,coeffCount*2-1);
   [allCoefficients.each(r,(index and 1)=1 ? r[1] : void),
    allCoefficients.each(r,(index and 1)=1 ? r[0] : r).flatten.euklideanNorm/sqrt(coeffCount*3)];
 end;
@@ -44,8 +44,8 @@ splineFourierTransform(timedCurve:Timed4DSamples,realPhaseShift:Real,maxCoeff>=1
                    .splineFourierTransform(maxCoeff),+)*0.25;
 
 getCurveFunction(coeff:CurveCoefficients,dim:Int)->begin
-  local phaseShift:=coeff[KEY_PHASE]*2*pi/7*dim;
-  local f:=coeff[KEY_KOEFF].each(a,a=0 ? void : a*sin((dim=0 ? {$t} : {$t}-phaseShift)*(index*2+1)),+);
+  phaseShift:=coeff[KEY_PHASE]*2*pi/7*dim;
+  f:=coeff[KEY_KOEFF].each(a,a=0 ? void : a*sin((dim=0 ? {$t} : {$t}-phaseShift)*(index*2+1)),+);
   f.isVoid ? (x)->0
            : f;
 end;
@@ -60,7 +60,7 @@ recommendedSampleCount(coeff:CurveCoefficients)->max(350,min(3500,(coeff[KEY_KOE
 
 //private combine4D(f:Expression(1),ps1,ps2,ps3)->(t)->[f(t),f(t-ps1),f(t-ps2),f(t-ps3)];
 private combine4D(f:Expression(1),ps1,ps2,ps3)->{begin
-  local r:=[f($0),f($0-ps1),f($0-ps2),f($0-ps3)];
+  r:=[f($0),f($0-ps1),f($0-ps2),f($0-ps3)];
   $0.isNumericList
   ? r.transpose
   : r;
@@ -81,26 +81,26 @@ private sampleCurve(coeff:CurveCoefficients,sampleCount:Int)->sampleCurve(coeff[
 sampleCurve(coeff:CurveCoefficients)->coeff.sampleCurve(recommendedSampleCount(coeff));
 
 retimeCurveByFourierCoeff(TY:Timed4DSamples,factors:NumericList,phase:Int,normalize:Boolean)->begin
-  local F :=f4   (factors,phase);
-  local dF:=df4dt(factors,phase);
-  local absolutePrecisionThreshold:=1E-3/TY.size;
-  local stepLimit:=1/TY.size;
+  F :=f4   (factors,phase);
+  dF:=df4dt(factors,phase);
+  absolutePrecisionThreshold:=1E-3/TY.size;
+  stepLimit:=1/TY.size;
 
-  local retimed:=TY[1].pMap((pt)->begin
-    local t:=pt[0]*2*pi;
-    local p:=pt[1];
-    local prevStep:=void;
-    local damping:=1;
-    while(abs(prevStep orElse Inf)>absolutePrecisionThreshold,begin
-      local f0:=F(t);
-      local df:=dF(t);
-      local step:=(((p-f0)*df).agg(+)/(df.sqr.agg(+))).max(-stepLimit).min(stepLimit);
+  retimed:=TY[1].pMap((pt)->begin
+    t:=pt[0]*2*pi;
+    p:=pt[1];
+    prevStep:=void;
+    damping:=1;
+    while abs(prevStep orElse Inf)>absolutePrecisionThreshold do begin
+      f0:=F(t);
+      df:=dF(t);
+      step:=(((p-f0)*df).agg(+)/(df.sqr.agg(+))).max(-stepLimit).min(stepLimit);
       step*=(sign(step)==sign(prevStep orElse step)
              ? damping
              : damping*=0.5);
       prevStep:=step;
       t+=step;
-    end);
+    end;
     [t/(2*pi),p];
   end);
   ['timedSamples'=>[TY[0],
@@ -112,15 +112,15 @@ retimeCurveByFourierCoeff(TY:Timed4DSamples,factors:NumericList,phase:Int,normal
 end;
 
 findPointOnCurveMinimizing(factors:NumericList,phase:Int,toMinimize:Expression(1))->begin
-  local F:=f4(factors,phase);
-  local evaluateAngle:={begin
-    local phi:=F($angle);
+  F:=f4(factors,phase);
+  evaluateAngle:={begin
+    phi:=F($angle);
     [toMinimize(phi),
      $angle,
      phi];
   end};
-  local stepSize:=2*pi*1E-2;
-  local best:=([0..99]*stepSize).each(a,evaluateAngle(a),min);
+  stepSize:=2*pi*1E-2;
+  best:=([0..99]*stepSize).each(a,evaluateAngle(a),min);
   [1..20].each(run,begin
     stepSize*=0.5;
     best:=(best[1]+stepSize*[-1..1]).each(a,evaluateAngle(a),min);

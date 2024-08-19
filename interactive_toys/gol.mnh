@@ -2,19 +2,19 @@ plain script;
 CON_SIZE:=((
 isGuiStarted ? [80,40] :
 begin
-  local console_size:=exec('cmd',['/C','mode','con'])[0].filter((L)->L.matches(': *\d+$'))[[1,0]].split(':').getInner(1).trim.softCast;
+  console_size:=exec('cmd',['/C','mode','con'])[0].filter((L)->L.matches(': *\d+$'))[[1,0]].split(':').getInner(1).trim.softCast;
   console_size.isIntList(2)
   ? begin
-      local width:=console_size[0];
-      local height:=min(width,console_size[1]);
+      width:=console_size[0];
+      height:=min(width,console_size[1]);
       [width,height];
     end
   : [80,40];
 end-[0,1]).reverseList*[2,1]);
 
 F12:=begin
-  local F1:=[];
-  local F2:=[];
+  F1:=[];
+  F2:=[];
   [0..CON_SIZE[1]-1].each(i,[0..CON_SIZE.agg(*)-1][[CON_SIZE[0]*i..CON_SIZE[0]*(i+1)-1]])
              .transpose
              .reverseList
@@ -47,7 +47,7 @@ private memoized step(w:IntList)->TRANSITION[shifts.each(sh,w[sh],+)+9*w];
 mutable quitRequested:=false;
 
 async({begin
-  local answer:='';
+  answer:='';
   while answer not in ['q','Q'] do begin
     answer:=ask('',['q','m'],false);
     answer in ['m','M']

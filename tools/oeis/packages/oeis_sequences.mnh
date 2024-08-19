@@ -3,9 +3,9 @@ private listOf(value,count=0)->[];
 private listOf(value,count>=1)->[1..count].each(i,value);
 private Kolakoski_1_2(len)->begin
   K:=[1,2];
-  while(K.size<len,
+  while K.size<len do
     K:=K.each(runLength,
-              listOf((index and 1)+1,runLength),|));
+              listOf((index and 1)+1,runLength),|);
   K.head(len);
 end;
 @SuppressUnusedWarning=all
@@ -65,7 +65,7 @@ A025426->rangeGenerator(0).map({size(by2Squares($i))});
 
 //for A061358:-------------------------------------------------
 private by2Primes(n:Int)->begin
-  S:=primes(n);
+  local S:=primes(n);
   (n-S).intersect(S).filter({n-$s<=$s}).size;
 end;
 A061358->rangeGenerator(0).map({by2Primes($i)});
@@ -117,11 +117,11 @@ scanFiboMod(stepsBack in [2..5],modulus>=1)->begin
      stepsBack>=4 ? [0..modulus-1] : void,
      stepsBack>=5 ? [0..modulus-1] : void).toSet;
   groupCount:=0;
-  while(openStates.size>0,begin
+  while openStates.size>0 do begin
     openStates>>(s:=openStates.head);
-    while((s:=s.tail|(s.agg(+) mod modulus)) in openStates,openStates>>s);
+    while (s:=s.tail|(s.agg(+) mod modulus)) in openStates do openStates>>s;
     groupCount+=1;
-  end);
+  end;
   groupCount;
 end;
 
@@ -278,12 +278,12 @@ A005114->{begin
   prev:=1;
 save;
   prev+=1;
-  while(true,begin
-    while(scanned<prev^2,touched|=sumOfProperDividers(scanned+=1));
+  while true do begin
+    while scanned<prev^2 do touched|=sumOfProperDividers(scanned+=1);
     prev in touched
     ? prev+=1
     : return prev;
-  end);
+  end;
 end}.toGenerator;
 
 @class=Collatz
@@ -314,6 +314,20 @@ A033478->collatzGenerator(3);
 A033479->collatzGenerator(9);
 @class=Collatz
 A033481->collatzGenerator(21);
+
+//*Prime powers
+A000015->{begin
+  pg:=primeGenerator;
+  P:=[pg()];
+  k:=0;
+save;
+  k+=1;
+  pow:=[0..floor(ln(k)/ln(2))];
+  P.max<k ? P|=pg() : void;
+  pow:=cross(P,pow);
+  pow:=pow.getInner(0)^pow.getInner(1);
+  pow:=pow[pow>=k].min;
+end}.toGenerator;
 
 //*Van Eck's sequence
 A181391->{begin

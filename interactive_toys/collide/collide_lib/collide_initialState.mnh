@@ -46,12 +46,12 @@ GEOMETRIES:=[['simple'    ,[[-5,6],[-5,0],[5,0],[5,6]]],
                             [ (1+5*sin(2*pi/3)),12],[-2,15.5],
                             [ (1+5*sin(2*pi/3)),19]]],
              ['snail',      begin
-                              local f1:={[-cos($t),-sin($t)]*(9-1.2*$t/pi) };
-                              local f2:={begin
-                                      local r:=f1($t);
-                                      local a:=r.sqr.agg(+).sqrt;
-                                      r/a*(a-2.2);
-                                    end};
+                              f1:={[-cos($t),-sin($t)]*(9-1.2*$t/pi) };
+                              f2:={begin
+                                     r:=f1($t);
+                                     a:=r.sqr.agg(+).sqrt;
+                                     r/a*(a-2.2);
+                                   end};
                             (([ 0..110]/10*pi/2).map(f1)|
                              ([70..0]/10*pi/2).map(f2)|
                              ([-1..-10]/10*pi/2).map((t)->f2(t)-[0,3*t]));
@@ -80,21 +80,21 @@ type Geometry(G:Map)-> G.getInner(0).intersect(GEOMETRY_COMPONENTS)==GEOMETRY_CO
 BLANK_GEOMETRY:=GEOMETRY_COMPONENTS.map({[$id,[]]}).toMap.toGeometry;
 
 expandToTop(L:List)->begin
-  local newFirst:=L.head;     newFirst[1]:=max(newFirst[1],1000);
-  local newLast :=L.trailing; newLast [1]:=max(newLast [1],1000);
+  newFirst:=L.head;     newFirst[1]:=max(newFirst[1],1000);
+  newLast :=L.trailing; newLast [1]:=max(newLast [1],1000);
   [newFirst]|L|[newLast];
 end;
 
 getGeometryInfo(geometryName in (GEOMETRIES.getInner(0)))->begin
-  local nodes:=GEOMETRIES[geometryName];
-  local ballLimits:=[['y0',max(nodes.getInner(1))+1],
-                     ['x0',min(nodes.head[0],nodes.trailing[0])+1],
-                     ['x1',max(nodes.head[0],nodes.trailing[0])-1]].toMap;
-  local sysLimits:= [['y0',min(nodes.getInner(1))],
-                     ['x0',min(nodes.getInner(0))],
-                     ['x1',max(nodes.getInner(0))]].toMap;
+  nodes:=GEOMETRIES[geometryName];
+  ballLimits:=[['y0',max(nodes.getInner(1))+1],
+               ['x0',min(nodes.head[0],nodes.trailing[0])+1],
+               ['x1',max(nodes.head[0],nodes.trailing[0])-1]].toMap;
+  sysLimits:= [['y0',min(nodes.getInner(1))],
+               ['x0',min(nodes.getInner(0))],
+               ['x1',max(nodes.getInner(0))]].toMap;
   nodes:=nodes.expandToTop;
-  local edges:=[nodes.leading,nodes.tail].transpose.each(edgePair,normalSystem@edgePair);
+  edges:=[nodes.leading,nodes.tail].transpose.each(edgePair,normalSystem@edgePair);
   [['edges'     ,edges],
    ['nodes'     ,nodes],
    ['limits'    ,sysLimits],
@@ -103,29 +103,29 @@ getGeometryInfo(geometryName in (GEOMETRIES.getInner(0)))->begin
 end;
 
 stacked(geometry:Geometry,count)->begin
-  local yMin:=geometry['ballLimits','y0'];
-  local xMin:=geometry['ballLimits','x0'];
-  local xMax:=geometry['ballLimits','x1'];
-  local xCenter:=(xMin+xMax)*0.5;
-  local xShift :=(xMax-xMin)*1E-3;
+  yMin:=geometry['ballLimits','y0'];
+  xMin:=geometry['ballLimits','x0'];
+  xMax:=geometry['ballLimits','x1'];
+  xCenter:=(xMin+xMax)*0.5;
+  xShift :=(xMax-xMin)*1E-3;
   [0..count-1].each(i,[xCenter+(0.5-random)*xShift,2*i+yMin]);
 end;
 
 leftAligned(geometry:Geometry,count)->begin
-  local yMin:=geometry['ballLimits','y0'];
-  local xMin:=geometry['ballLimits','x0'];
-  local xMax:=geometry['ballLimits','x1'];
-  local xShift :=(xMax-xMin)*1E-3;
+  yMin:=geometry['ballLimits','y0'];
+  xMin:=geometry['ballLimits','x0'];
+  xMax:=geometry['ballLimits','x1'];
+  xShift :=(xMax-xMin)*1E-3;
   [0..count-1].each(i,[xMin+random*xShift,2*i+yMin]);
 end;
 
 rectangularGrid(geometry:Geometry,count)->begin
-  local y   :=geometry['ballLimits','y0']-2;
-  local xMin:=geometry['ballLimits','x0'];
-  local xMax:=geometry['ballLimits','x1'];
-  local ballsInOneRow:=floor((xMax-xMin)/2+1);
+  y   :=geometry['ballLimits','y0']-2;
+  xMin:=geometry['ballLimits','x0'];
+  xMax:=geometry['ballLimits','x1'];
+  ballsInOneRow:=floor((xMax-xMin)/2+1);
   xMin+=((xMax-xMin)-(ballsInOneRow-1)*2)/2;
-  local x:=xMin;
+  x:=xMin;
   ([0..count-1] mod ballsInOneRow).each(i,begin
     i=0 ? begin y+=2; x:=xMin; end : x+=2;
     [x,y];
@@ -133,14 +133,14 @@ rectangularGrid(geometry:Geometry,count)->begin
 end;
 
 denseGrid(geometry:Geometry,count)->begin
-  local y   :=geometry['ballLimits','y0'];
-  local xMin:=geometry['ballLimits','x0'];
-  local xMax:=geometry['ballLimits','x1'];
-  local x:=xMin-2;
-  local c:=count;
-  local shifted:=true;
-  local result:=[];
-  while((c-=1)>=0,begin
+  y   :=geometry['ballLimits','y0'];
+  xMin:=geometry['ballLimits','x0'];
+  xMax:=geometry['ballLimits','x1'];
+  x:=xMin-2;
+  c:=count;
+  shifted:=true;
+  result:=[];
+  while (c-=1)>=0 do begin
     (x+=2)>xMax ? begin
       (shifted:=!shifted)
       ? x:=xMin
@@ -148,20 +148,20 @@ denseGrid(geometry:Geometry,count)->begin
       y+=2*sin(2*pi/3);
     end : void;
     result||=[x,y];
-  end);
-  local shift:=((xMax-xMin)-(result.getInner(0).max-xMin))/2;
+  end;
+  shift:=((xMax-xMin)-(result.getInner(0).max-xMin))/2;
   result.map({$x+[shift,0]});
 end;
 
 denseRotatedGrid(geometry:Geometry,count)->begin
-  local y   :=geometry['ballLimits','y0'];
-  local xMin:=geometry['ballLimits','x0'];
-  local xMax:=geometry['ballLimits','x1'];
-  local x:=xMin-4*sin(2*pi/3);
-  local c:=count;
-  local shifted:=false;
-  local result:=[];
-  while((c-=1)>=0,begin
+  y   :=geometry['ballLimits','y0'];
+  xMin:=geometry['ballLimits','x0'];
+  xMax:=geometry['ballLimits','x1'];
+  x:=xMin-4*sin(2*pi/3);
+  c:=count;
+  shifted:=false;
+  result:=[];
+  while (c-=1)>=0 do begin
     (x+=4*sin(2*pi/3))>xMax
     ? begin
         y+=1;
@@ -169,20 +169,20 @@ denseRotatedGrid(geometry:Geometry,count)->begin
       end
     : void;
     result||=[x,y];
-  end);
-  local shift:=((xMax-xMin)-(result.getInner(0).max-xMin))/2;
+  end;
+  shift:=((xMax-xMin)-(result.getInner(0).max-xMin))/2;
   result.map({$x+[shift,0]});
 end;
 
 randomInitialState(geometry:Geometry,count)->begin
-  local y   :=geometry['ballLimits','y0'];
-  local xMin:=geometry['ballLimits','x0'];
-  local xMax:=geometry['ballLimits','x1'];
-  local randomX:={xMin+random*(xMax-xMin)};
-  local result:=[[randomX(),y]];
-  local accept:={result.each(r,(r-$0).sqr.agg(+)>=4,AND) ? [$0] : void};
-  while(result.size<count,
-    result|=accept([randomX(),y+=0.2]));
+  y   :=geometry['ballLimits','y0'];
+  xMin:=geometry['ballLimits','x0'];
+  xMax:=geometry['ballLimits','x1'];
+  randomX:={xMin+random*(xMax-xMin)};
+  result:=[[randomX(),y]];
+  accept:={result.each(r,(r-$0).sqr.agg(+)>=4,AND) ? [$0] : void};
+  while result.size<count do
+    result|=accept([randomX(),y+=0.2]);
   result;
 end;
 
@@ -196,9 +196,9 @@ INITIAL_BALL_POSITIONS:=[['stacked'     ,::stacked],
 getInitialSystem(geometryName in (GEOMETRIES.getInner(0)),
                  ballPosName in (INITIAL_BALL_POSITIONS.getInner(0)),
                  numberOfBalls>=1)->begin
-  local geometry:=getGeometryInfo(geometryName);
-  local positions:=INITIAL_BALL_POSITIONS[ballPosName](geometry,numberOfBalls);
-  local velocities:=positions.map({[0,0]});
+  geometry:=getGeometryInfo(geometryName);
+  positions:=INITIAL_BALL_POSITIONS[ballPosName](geometry,numberOfBalls);
+  velocities:=positions.map({[0,0]});
   [geometry,positions,velocities];
 end;
 

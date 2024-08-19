@@ -1,0 +1,359 @@
+private randomOf(collection:Collection)->collection.toList[intRandom(collection.size)];
+private scramble([])->[];
+private scramble(collection:Collection)->collection.toList[collection.size.random.sortPerm];
+private CROSS_D2:=[[-2,0],[2,0],[0,-2],[0,2]];
+
+makeMaze(width,height)->makeMaze(width,height,[],[]);
+makeMaze(width,height,mask:BooleanList)->makeMaze(width,height,mask,[]);
+makeMaze(width,height,mask:BooleanList,initialSet:BooleanList)->begin
+  startTime:=lastOutput:=scriptTime;
+  toBeVisited:=cross([0..ceil(height/2)-1]*2,
+                           [0..ceil(width /2)-1]*2);
+  toBeVisited:=
+    mask.size=0
+    ? toBeVisited.toSet
+    : toBeVisited.intersect(indexOf(mask).divMod(width));
+
+  allowedMidPoints:=cross([0..ceil(height/2)-1]*2+1,[0..ceil(width/2)-1]*2  ).union(
+                    cross([0..ceil(height/2)-1]*2  ,[0..ceil(width/2)-1]*2+1));
+  allowedMidPoints:=
+    mask.size=0
+    ? allowedMidPoints.toSet
+    : allowedMidPoints.intersect(indexOf(mask).divMod(width));
+
+  mazePoints:=
+  initialSet.size==0
+  ? []
+  : indexOf(initialSet).divMod(width);
+
+  log('Starting maze creation: ',width,'x',height,
+      "\n  initialPoints: ",mazePoints.size,
+      "\n  to be visited: ",toBeVisited.size);
+
+  firstRun:=true;
+  while toBeVisited.size>0 do begin
+    p:=toBeVisited.randomOf;
+    candidateStack:=
+    firstRun AND mazePoints.size>0
+    ? begin
+        toBeVisited:=toBeVisited.minus(mazePoints);
+         mazePoints
+        .intersect(cross([0..ceil(height/2)-1]*2,[0..ceil(width /2)-1]*2))
+        .map((mp)->(mp+CROSS_D2.transpose).transpose
+                  .map((n)->[shiftRight(mp+n,1),n]))
+        .flatMap((s)->s[0] in allowedMidPoints and s[1] in toBeVisited ? s : void)
+        .toList.scramble;
+      end
+    : begin
+        mazePoints|=[p];
+        toBeVisited>>p;
+        (p+CROSS_D2.transpose).transpose.scramble
+          .map((n)->[shiftRight(p+n,1),n])
+          .filter((s)->s[0] in allowedMidPoints and s[1] in toBeVisited);
+      end;
+
+    while candidateStack.size>0 do begin
+      scriptTime>lastOutput+5
+      ? begin
+          log('Visited: ',mazePoints.size,' Pending: ',toBeVisited.size,' Stack: ',candidateStack.size);
+          lastOutput:=scriptTime;
+        end
+      : void;
+
+      step:=candidateStack.trailing;
+      step[1] in toBeVisited
+      ? begin
+          mazePoints|=step;
+          toBeVisited>>(p:=step[1]);
+          candidateStack:=candidateStack.leading|(p+CROSS_D2.transpose).transpose.scramble.map((n)->[shiftRight(p+n,1),n]).filter((s)->s[0] in allowedMidPoints and s[1] in toBeVisited);
+        end
+      : candidateStack:=candidateStack.leading;
+    end;
+    firstRun:=false;
+  end;
+  mazePoints:=mazePoints.unique.transpose;
+  mazePoints:=mazePoints[0]*width+mazePoints[1];
+  log('Done maze creation: ',width,'x',height,' after ',scriptTime-startTime,'s');
+  groupToList([0..mazePoints.size-1]>=0,mazePoints,false,::or,width*height);
+end;
+
+makeSymmetricMaze(width,height,symmetry in [0..5])->begin
+  assert(width  mod 2=1);
+  assert(height mod 2=1);
+  startTime:=lastOutput:=scriptTime;
+  toBeVisited:=cross([0..ceil(height/2)-1]*2,
+                     [0..ceil(width /2)-1]*2).toSet;
+  allowedMidPoints:=cross([0..ceil(height/2)-1]*2+1,[0..ceil(width/2)-1]*2  ).union(
+                    cross([0..ceil(height/2)-1]*2  ,[0..ceil(width/2)-1]*2+1));
+  symmex:=
+    symmetry==0 ? (p)->p.isIntList(2) ? [p] : p :
+    symmetry==1 ? (p)->p.isIntList(2) ? [p,[height-1-p[0],width-1-p[1]]]                                          : p.each(q,symmex(q),|) :
+    symmetry==2 ? (p)->p.isIntList(2) ? [p,[height-1-p[0],width-1-p[1]],[width-1-p[1],p[0]],[p[1],height-1-p[0]]] : p.each(q,symmex(q),|) :
+    symmetry==3 ? (p)->p.isIntList(2) ? [p,[height-1-p[0],p[1]]]                                                  : p.each(q,symmex(q),|) :
+    symmetry==4 ? (p)->p.isIntList(2) ? [p,[p[0] ,width-1-p[1]]]                                                  : p.each(q,symmex(q),|)
+                : (p)->p.isIntList(2) ? [p,[height-1-p[0],width-1-p[1]],[p[0],width-1-p[1]],[height-1-p[0],p[1]]] : p.each(q,symmex(q),|);
+
+  mazePoints:=[];
+
+  symmetry in [1,2]
+  ? begin
+      (width mod 4)=3
+      ? (height mod 4)=3
+        ? mazePoints:=cross([-1..1]+height div 2,[-1..1]+width div 2).minus([[height div 2,width div 2]])
+        : mazePoints:=[[height div 2,width div 2]]
+      : (height mod 4)=3
+        ? mazePoints:=[[height div 2,width div 2]]
+        : void;
+    end
+  : symmetry=3
+  ? begin
+      (height mod 4)=3
+      ? mazePoints:=[[height div 2,width div 2+1]]
+      : begin
+          xc:=width div 2;
+          yc:=height div 2;
+          toBeVisited:=toBeVisited.minus(cross([yc],[0..width-1])).union([[yc,xc]]);
+          void;
+        end;
+    end
+  : symmetry=4
+  ? begin
+      (width mod 4)=3
+      ? mazePoints:=[[height div 2+1,width div 2]]
+      : begin
+          xc:=width div 2;
+          yc:=height div 2;
+          toBeVisited:=toBeVisited.minus(cross([0..height-1],[xc])).union([[yc,xc]]);
+          void;
+        end;
+    end
+  : symmetry=5
+  ? begin
+      mazePoints:=cross(height div 2+[-1..1],
+                        width  div 2+[-1..1])
+      .filter((p)->(p[0] and 1)=0 xor (p[1] and 1)=0).toSet;
+      toBeVisited:=toBeVisited.minus(mazePoints);
+    end
+  : void;
+
+  log('Starting maze creation: ',width,'x',height,
+      "\n  initialPoints: ",mazePoints.size,
+      "\n  to be visited: ",toBeVisited.size);
+  firstRun:=true;
+  while toBeVisited.size>0 do begin
+    p:=toBeVisited.each(p,[(p-[height/2,width/2]).euklideanNorm,p],min)[1];
+    P:=symmex(p);
+    mazePoints|=P;
+    toBeVisited:=toBeVisited.minus(P);
+    candidateStack:=
+    (p+CROSS_D2.transpose).transpose.scramble
+      .map((n)->[shiftRight(p+n,1),n])
+      .filter((s)->s[0] in allowedMidPoints and s[1] in toBeVisited);
+
+    while candidateStack.size>0 do begin
+      scriptTime>lastOutput+5
+      ? begin
+          log('Visited: ',mazePoints.size,' Pending: ',toBeVisited.size,' Stack: ',candidateStack.size);
+          lastOutput:=scriptTime;
+        end
+      : void;
+      idx:=candidateStack.size>100 ? candidateStack.size-1 : intRandom(candidateStack.size);
+      step:=candidateStack[idx];
+      candidateStack[idx]:=void;
+
+      step[1] in toBeVisited
+      ? begin
+          S:=symmex(step);
+          mazePoints|=S;
+          S.each(s,toBeVisited>>s);
+          p:=step[1];
+          candidateStack|=(p+CROSS_D2.transpose).transpose.scramble.map((n)->[shiftRight(p+n,1),n]).filter((s)->s[0] in allowedMidPoints and s[1] in toBeVisited);
+        end
+      : void;
+    end;
+    firstRun:=false;
+  end;
+  mazePoints:=mazePoints.unique.toList.transpose;
+  mazePoints:=mazePoints[0]*width+mazePoints[1];
+  log('Done maze creation: ',width,'x',height,' after ',scriptTime-startTime,'s');
+  groupToList([0..mazePoints.size-1]>=0,mazePoints,false,::or,width*height);
+end;
+
+halfGrowMaze(maze:BooleanList,width>1)->begin
+  nonZeroEntries:=indexOf(maze).divMod(width).toSet-[[0,0],[1,0],[0,1],[1,1]].toSet;
+  [0..maze.size-1].divMod(width).map((q)->q in nonZeroEntries);
+end;
+
+scaleMaze(maze:BooleanList,width>=1,scalingFactor>1)->begin
+  height:=maze.size div width;
+  C:=
+  cross([0..height*scalingFactor-1] div scalingFactor,
+        [0..width *scalingFactor-1] div scalingFactor);
+  maze[(C.transpose*[width,1]).agg(+)];
+end;
+
+shiftMazeUpRight(maze:BooleanList,width>1)->begin
+  height:=maze.size div width;
+  C:=
+  cross([0,0..height-1],
+        [0,0..width -1]);
+  maze[(C.transpose*[width,1]).agg(+)];
+end;
+
+
+makePeriodicFractalMaze(depth=0,initialSize>=1)->begin
+  M:=makeMaze(initialSize,initialSize,[],[]);
+  [M,initialSize];
+end;
+
+makePeriodicFractalMaze(depth>0,initialSize>=1)->begin
+  smallerMaze:=makePeriodicFractalMaze(depth-1,initialSize);
+  smallerSize:=smallerMaze[1];
+  smallerMaze:=smallerMaze[0];
+
+  largerSize:=smallerSize;
+  mask:=smallerMaze.scaleMaze(largerSize,initialSize-1); largerSize*=initialSize-1;
+  mask:=mask.halfGrowMaze(largerSize);
+  mask:=mask.shiftMazeUpRight(largerSize); largerSize+=1;
+
+  D:=-(largerSize-smallerSize) div 2;
+
+  initialSet:=cross([0..largerSize-1]+D,
+                    [0..largerSize-1]+D)
+    .map((I)->0<=I[0]<smallerSize AND 0<=I[1]<smallerSize
+              ? smallerMaze[I[0]*smallerSize+I[1]]
+              : false);
+  [makeMaze(largerSize,largerSize,mask and !initialSet,initialSet),largerSize,initialSize];
+end;
+
+plotZoom(maze)->begin
+  center:=zoom0:=maze[1]/2;
+  setOptions(["axisStyleX"=>0,"axisStyleY"=>0].toMap);
+  plot;
+  plotRasterImage(ord(!maze[0]),maze[1]);
+  z:=(1/(maze[2]-1));
+  plotRasterImage(ord(!maze[0]),maze[1],z,center-z*center,center-z*center);
+  z*=(1/(maze[2]-1));
+  plotRasterImage(ord(!maze[0]),maze[1],z,center-z*center,center-z*center);
+  z*=(1/(maze[2]-1));
+  plotRasterImage(ord(!maze[0]),maze[1],z,center-z*center,center-z*center);
+  addAnimationFrame;
+
+  (zoom0*(1/(maze[2]-1))^([1..49]/50)).each(z,begin
+    setOptions(["x0"=>center-z,"x1"=>center+z,"y0"=>center-z,"y1"=>center+z,"preserveAspect"=>true,"autoscaleX"=>false,"autoscaleY"=>false].toMap);
+    addAnimationFrame;
+  end);
+end;
+
+heartFunction(x)->[16+12*sin(x)-4*sin(3*x),
+                   22+13*cos(x)-5*cos(2*x)-2*cos(3*x)-cos(4*x)-4]/32;
+
+printableMaze(maze:BooleanList,width>=1)->begin
+  height:=maze.size div width;
+  greyLevels:=[0..maze.size*25-1]*0+1;
+
+  maze.each(v,v ? void : begin
+    P :=divMod(index,width);
+    Q:=P*5;
+    cross([Q[0]..Q[0]+4]*5*width,
+          [Q[1]..Q[1]+4]).map((i)->i.agg(+)).each(i,greyLevels[i]:=0.9);
+
+    (P[1]>0       ) AND maze[index-1]
+    ? map(Q[1]+  Q[0]*width*5+[0..4]*width*5,(i)->greyLevels[i]:=0)
+    : void;
+
+    (P[1]<width-1 ) AND maze[index+1]
+    ? map(Q[1]+4+Q[0]*width*5+[0..4]*width*5,(i)->greyLevels[i]:=0)
+    : void;
+
+    (P[0]>0       ) AND maze[index-width]
+    ? map(Q[1]+  Q[0]*width*5+[0..4]        ,(i)->greyLevels[i]:=0)
+    : void;
+
+    (P[0]<height-1) AND maze[index+width]
+    ? map(Q[1]+  Q[0]*width*5+width*5*4 +[0..4]        ,(i)->greyLevels[i]:=0)
+    : void;
+
+  end);
+
+  log('Ideal size: ',width*5,'x',height*5);
+  plotRasterImage(greyLevels,width*5);
+end;
+
+//*Printable maze
+main('heart',size)->
+begin
+  R:=toInt(size)*2-1;
+  samples:=pMap([0..R*100-1]/(R*100)*2*pi,::heartFunction).map((p)->round(p*(R-1)))
+                .{$L.getInner(1).group($L.getInner(0))}
+                .each(x,[x[1].min..x[1].max].each(y,[y,x[0]]),|)
+                .toSet;
+
+
+  M:=makeMaze(R,R,cross([R-1..0],[0..R-1]).map((x)->x in samples));
+  M:=
+  M.shiftMazeUpRight(R).reverseList
+   .shiftMazeUpRight(R+1).reverseList;
+  R+=2;
+
+  [0..R-1].each(i,begin
+    M[i]:=false;
+    M[R*R-i-1]:=false;
+    M[R*i]:=false;
+    M[R*i+R-1]:=false;
+  end);
+  k:=R div 3; k+=k mod 2-1;
+  M[R*k]:=true;
+  M[R*k+R-1]:=true;
+  resetOptions;
+  setOptions(["axisStyleX"=>0,"axisStyleY"=>0].toMap);
+  printableMaze(M,R);
+end;
+
+main('periodic',initialSize,refinements)->
+  makePeriodicFractalMaze(
+    toInt(refinements),
+    toInt(initialSize))
+  .plotZoom;
+
+hue(f<0.0)->hue(f+1);
+hue(f>=1.0)->hue(f-1);
+hue(f)->begin
+  M:=[(q)->[1,q,0],
+            (q)->[1-q,1,0],
+            (q)->[0,1,q],
+            (q)->[0,1-q,1],
+            (q)->[q,0,1],
+            (q)->[1,0,1-q],
+            ::fail];
+save;
+  q:=f*6; q-=(k:=floor(q));
+  M[k](q);
+end;
+
+
+begin
+  res:=101;
+  maze:=makeSymmetricMaze(res,res,0);
+  distances:=[1..res*res]*0+Inf;
+  mazePoints:=indexOf(maze).divMod(res).toSet;
+  stack:=[[mazePoints.min,0]];
+  while stack.size>0 do begin
+    S:=stack.head; stack:=stack.tail;
+    mazePoints>>S[0];
+    distances[S[0,0]*res+S[0,1]]:=S[1];
+    Q:=[S[0]+[1,0],S[1]+1]; Q[0] in mazePoints ? stack|=[Q] : void;
+    Q:=[S[0]-[1,0],S[1]+1]; Q[0] in mazePoints ? stack|=[Q] : void;
+    Q:=[S[0]+[0,1],S[1]+1]; Q[0] in mazePoints ? stack|=[Q] : void;
+    Q:=[S[0]-[0,1],S[1]+1]; Q[0] in mazePoints ? stack|=[Q] : void;
+  end;
+  imd:=2/3/distances.filter(::isInt).max;
+
+  setOptions(["x0"=>-1,"x1"=>1,"y0"=>-1,"y1"=>1,"fontsize"=>10,"preserveAspect"=>false,"autoscaleX"=>true,"autoscaleY"=>true,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
+  distances.map((d)->d.isInfinite
+                     ? 0
+                     : hue(d*imd)).plotRasterImage(res);
+end;
+
+
+

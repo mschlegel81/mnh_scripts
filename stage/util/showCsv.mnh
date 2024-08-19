@@ -1,3 +1,0 @@
-plain script;
-USE GUI;
-fileLineIterator($1).pMap({$x.split(';').map(::softCast)}).showTable($1,true);

@@ -3,10 +3,10 @@ private allProcessesStartedByMe->begin
   childProcessMap:=taskInfo.getInner('PID').group(taskInfo.getInner('parentPID'));
   parentPidsToConsider:=[mnhInfo['PID']].toSet;
   pc:=0;
-  while(parentPidsToConsider.size<>pc,begin
+  while parentPidsToConsider.size<>pc do begin
     pc:=parentPidsToConsider.size;
     parentPidsToConsider:=parentPidsToConsider.each(pid,childProcessMap[pid],pid).flatten.toSet;
-  end);
+  end;
   parentPidsToConsider.minus([mnhInfo['PID']]);
 end;
 

@@ -1,6 +1,6 @@
 pointSeries(re_:Numeric,im_:Numeric, depth:Int)->begin
-  local c:=
-  local z:=[re_.toReal,im_.toReal];
+  c:=
+  z:=[re_.toReal,im_.toReal];
   [1..depth].each(step,(z:=complex_square@z+c).isNan.agg(or) ? void : z);
 end;
 
@@ -44,14 +44,14 @@ HARM_COL:=[[0  ,0  ,0], //0
 
 fuzzyOr(...)->1-(1-...).agg(*);
 plausiblePeriod(signal)->begin
-  local F:=signal.trailing(240).FFT;
+  F:=signal.trailing(240).FFT;
   F[0]:=[0,0];
   F:=(F.head(120).euklideanNorm²|0) + (0|F.tail(120).reverseList.euklideanNorm²) + 0.001;
 
-  local peak:=1-((F.tail(2)|0)+(0|F.leading(2)))/F.tail;
+  peak:=1-((F.tail(2)|0)+(0|F.leading(2)))/F.tail;
   peak:=0|vectorIfThenElse(peak<0,0,peak);
 
-  local P:=
+  P:=
   [0,0,peak[120],peak[80]];
   P[4]:=peak[60];
   P[5]:=fuzzyOr@peak[[48,96]];
@@ -94,7 +94,7 @@ plausiblePeriod(signal)->begin
   P[ 4]*=P[ 2]                   *(1-P[[8,12,16,20,24]]).agg(*);
   P[ 3]*=                         (1-P[[6,9,12,15,18,21,24]]).agg(*);
   P[ 2]*=                         (1-P[[4,6,8,10,12,14,16,18,20,22,24]]).agg(*);
-  (local total:=P.agg(+))<1
+  (total:=P.agg(+))<1
   ? P
   : P/total;
 end;
@@ -102,9 +102,9 @@ end;
 
 complex_square(re,im)->[sqr(re)-sqr(im),2*re*im];
 pointInfo(re_:Numeric,im_:Numeric)->begin
-  local c:=
-  local z:=[re_.toReal,im_.toReal];
-  local harmonics:=[1..240].each(step,
+  c:=
+  z:=[re_.toReal,im_.toReal];
+  harmonics:=[1..240].each(step,
     (z:=complex_square@z+c).isNan.agg(or) ? return [0.3,0.3,0.3] : z).plausiblePeriod;
   projectedColor((harmonics*HARM_COL).agg(+));
 end;
@@ -114,24 +114,24 @@ time(::pointInfo,[-1.15143299767622,0.26723470178156467]);
 mutable bestRasterImage:=[[],1,0,-1.5,-1];
 
 makePlot->begin
-  local RES:=10;
-  local start:=scriptTime;
+  RES:=10;
+  start:=scriptTime;
 
-  local colors:=
+  colors:=
   map([0..RES-1].cross([0..RES-1])/(RES-1)*2,(p)->p.reverseList+[-1.5,-1])
   .pMap((p)->pointInfo@p);
 
-  local timeForCalculation:=scriptTime-start;
-  local timeForRefinement :=0;
+  timeForCalculation:=scriptTime-start;
+  timeForRefinement :=0;
   bestRasterImage:=[colors,RES,2/RES,-1.5,-1];
   plotRasterImage  (colors,RES,2/RES,-1.5,-1);
   display;
 
-  local refMap:=[].toMap;
+  refMap:=[].toMap;
 
-  while(RES*2<plotImageSize.max,begin
+  while RES*2<plotImageSize.max do begin
     start:=scriptTime;
-    local C:=colors.chunkMap(RES).toList;
+    C:=colors.chunkMap(RES).toList;
     refMap:=  [0..RES-1].pEach(i,[0..RES-1].each(j,
     max(euklideanNorm(C[i,j]-(C[i-1,j-1] orElse C[i,j])),
         euklideanNorm(C[i,j]-(C[i-1,j  ] orElse C[i,j])),
@@ -162,7 +162,7 @@ makePlot->begin
     plot();
     plotRasterImage(colors,RES,2/RES,-1.5,-1);
     bestRasterImage:=[colors,RES,2/RES,-1.5,-1];
-  end);
+  end;
   log('Finished. Plot image size is ',plotImageSize,
      "\nTotal refinement time: ",timeForRefinement,
      "\n          calculation: ",timeForCalculation);
@@ -173,14 +173,14 @@ main->begin
   setOptions(["x0"=>-1.5,"x1"=>0.5,"y0"=>-1,"y1"=>1,"fontsize"=>10,"preserveAspect"=>true,
              "autoscaleX"=>false,"autoscaleY"=>false,"logscaleX"=>false,"logscaleY"=>false,"autoscaleFactor"=>1,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
   async(::makePlot);
-  local lastBestHash:=0;
-  local path_style:='RGB0.9,0.9,0.9 0.5 . l';
+  lastBestHash:=0;
+  path_style:='RGB0.9,0.9,0.9 0.5 . l';
 
   showDialog('Mandelbrot periodicity',[
     newPlotDock,
     newPlotLink.withMouseMoved((x,y)->begin
-      local newSeries:=pointSeries(x,y,50);
-      local bestHash:=hash(bestRasterImage);
+      newSeries:=pointSeries(x,y,50);
+      bestHash:=hash(bestRasterImage);
       bestHash==lastBestHash
       ? begin
           setOptions(["x0"=>-1.5,"x1"=>0.5,"y0"=>-1,"y1"=>1,"fontsize"=>10,"preserveAspect"=>true,
@@ -198,13 +198,13 @@ main->begin
       postDisplay;
     end).withMouseClicked((x,y)->begin
       print('Calculating around ',x,',',y);
-      local newSeries:=pointSeries(x,y,240);
+      newSeries:=pointSeries(x,y,240);
       removePlot;
       addPlot(newSeries,path_style);
       postDisplay;
 
       newSeries.size>=240 ? begin
-        local per:=plausiblePeriod(newSeries).each(a, index<2 OR a<1E-4 ? void : index=>a);
+        per:=plausiblePeriod(newSeries).each(a, index<2 OR a<1E-4 ? void : index=>a);
         printf("%s:\t%2.2f%% confidence",per.getInner(0),per.getInner(1)*100);
       end : print('--diverges--');
 

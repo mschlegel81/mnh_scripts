@@ -2,8 +2,8 @@ message(i)->format('The SHA256-message digest of this string is %x.',i);
 check(i)->message(i).sha256=i;
 
 checkChunk(i)->begin
-  local I:=rangeGenerator(i,i+2^16).toList;
-  local solutions:=I[check(I)];
+  I:=rangeGenerator(i,i+2^16).toList;
+  solutions:=I[check(I)];
   solutions.map(::message).map(::print);
   solutions.size>0
   ? halt

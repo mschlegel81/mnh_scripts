@@ -6,9 +6,9 @@ main('validate',filename)->begin
   fileLines(filename).each(line,begin
     copy(line.trim,0,2)='3.'
     ? begin
-        local p:=line.trim;
+        p:=line.trim;
         p:=p.copy(0,length(PI));
-        local ref:=PI.copy(0,length(p));
+        ref:=PI.copy(0,length(p));
         ref==p
         ? print('Line ',index,' is okay [',p.length-2,']')
         : print('Line ',index,' differs @',indexOf(p.chars!=ref.chars));

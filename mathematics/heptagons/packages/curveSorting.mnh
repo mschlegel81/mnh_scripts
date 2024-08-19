@@ -6,13 +6,13 @@ neighborhood(L:Collection)->L.pEach(p,p.neighborhood,|).toSet;
 //*As a fail-safe the search radius is increased until a non-empty result is found
 private safelyFindNext(reference:IntList(4),c:Collection)->
   c.size<=4 ? c : begin
-    local result:=c.intersect(neighborhood(reference));
-    local radius:=1;
-    while(c.size>1 AND result.size=0,begin
+    result:=c.intersect(neighborhood(reference));
+    radius:=1;
+    while c.size>1 AND result.size=0 do begin
       radius+=1;
       note('Increasing search radius to ',radius);
       result:=c.filter((p)->(p-reference).abs.max<=radius);
-    end);
+    end;
     result;
   end;
 
@@ -21,7 +21,7 @@ private sortForMinLength(reference:IntList(4),c:Collection)->
   c.size<=1
   ? c
   : c.permutations.pEach(ordering,
-      begin local len:=[1..ordering.size-1]
+      begin len:=[1..ordering.size-1]
         .map((i)->(ordering[i]-ordering[i-1]).euklideanNorm)
         .agg(+)+euklideanNorm(reference-ordering[0]);
         [len,ordering];
@@ -30,33 +30,33 @@ private sortForMinLength(reference:IntList(4),c:Collection)->
 //*Sorts a curve so that the total length of the curve is minimized
 sortCurve(curve:List)->curve.size=1 ? curve :begin
   print('Sorting curve of ',curve.size,' samples');
-  local firstSample:=curve.head;
-  local rest:=curve.minus([firstSample,-firstSample]);
-  local localEnv:=rest.filter((x)->euklideanNorm(x-firstSample)<=4).toList;
-  local preferredDirection:=localEnv.transpose.map({$x.max-$x.min});
+  firstSample:=curve.head;
+  rest:=curve.minus([firstSample,-firstSample]);
+  localEnv:=rest.filter((x)->euklideanNorm(x-firstSample)<=4).toList;
+  preferredDirection:=localEnv.transpose.map({$x.max-$x.min});
   preferredDirection/=preferredDirection.euklideanNorm;
   firstSample:=localEnv[sortPerm(localEnv.map((x)->(preferredDirection*(x-firstSample)).agg(+))).trailing];
 
 
-  local result      :=[ firstSample];
-  local next:=safelyFindNext(firstSample,curve.minus(localEnv));
+  result      :=[ firstSample];
+  next:=safelyFindNext(firstSample,curve.minus(localEnv));
   rest:=rest.toSet;
-  local appendNext:={sortForMinLength(result.trailing,next).each(p,rest>>p,result||=p)};
+  appendNext:={sortForMinLength(result.trailing,next).each(p,rest>>p,result||=p)};
 
   appendNext();
   rest:=curve.minus(result);
   next:=safelyFindNext(result.trailing,rest.minus(localEnv));
   appendNext();
 
-  local halfLength:=curve.size div 2;
-  local samplesToDrop:=min(5,curve.size div 10);
+  halfLength:=curve.size div 2;
+  samplesToDrop:=min(5,curve.size div 10);
 
-  while(result.size<halfLength+samplesToDrop, begin
-    local prevSize:=result.size;
+  while result.size<halfLength+samplesToDrop do begin
+    prevSize:=result.size;
     next:=safelyFindNext(result.trailing,rest);
     appendNext();
     assert(result.size>prevSize);
-  end);
+  end;
   result:=result.tail(samplesToDrop).head(halfLength);
   result|=-result;
   note('Done sorting');

@@ -13,12 +13,12 @@ OPERATOR_MULT(m:Matrix,v:Vector)->m.each(r,r*v[index],+);
 
 @SuppressUnusedWarning=all
 normalSystem(a:Vector,b:Vector)->begin
-  local parallel:=b-a;
-  local edgeLength:=parallel.sqr.agg(+).sqrt;
-  local perpendicular:=[-parallel[1],parallel[0]]/edgeLength;
-  local M:=[parallel,perpendicular].toMatrix;
+  parallel:=b-a;
+  edgeLength:=parallel.sqr.agg(+).sqrt;
+  perpendicular:=[-parallel[1],parallel[0]]/edgeLength;
+  M:=[parallel,perpendicular].toMatrix;
   [M,
-   (abs(local determinant:=M[0,0]*M[1,1]-M[1,0]*M[0,1])>1E-30
+   (abs(determinant:=M[0,0]*M[1,1]-M[1,0]*M[0,1])>1E-30
    ? [[ M[1,1],-M[0,1]],
       [-M[1,0], M[0,0]]]/determinant
    : [[Nan,Nan],[Nan,Nan]]).toMatrix,

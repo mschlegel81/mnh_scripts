@@ -1,0 +1,14 @@
+USE GUI;
+dumpFile:=files('*.dump.vraw').head;
+
+main->begin
+  lastInfo:=[];
+  while true do begin
+    currInfo:=dumpFile.fileInfo;
+    currInfo==lastInfo ? sleep(10) : begin
+      lastInfo:=currInfo;
+      loadImage(dumpFile);
+      displayImage;
+    end;
+  end;
+end;

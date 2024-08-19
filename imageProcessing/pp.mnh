@@ -1,0 +1,36 @@
+newFreeName(baseName:String)->begin
+  ext:=baseName.extractFileExt;
+  suffix:=1;
+  result:='';
+  while fileExists(result:=changeFileExt(baseName,'_'&suffix&ext)) do suffix+=1;
+  result;
+end;
+
+mutable timePerImage:=void;
+synchronized logTime(t)->
+  print('  Time per image: ',round(timePerImage:=timePerImage.isVoid ? t : timePerImage*0.8+t*0.2,3),'s');
+
+processFile(filename:String)->
+  fileExists(changeFileExt(filename,'_1'&extractFileExt(filename))) ? void :
+  begin
+    print('Processing ',filename,' -> ',filename.newFreeName);
+    t0:=time;
+    ['normalizeV','sharpen:0.1,0.5']
+    .executeWorkflow(filename,2*1024^2,filename.newFreeName);
+    logTime(time-t0);
+  end;
+
+getFiles->files('*.jpg').filter({!($f.extractFileName.matches('_1'))})
+                        .filter({!($f.extractFileName.matches('_2'))})
+                        .filter({!(fileExists(changeFileExt($filename,'_1'&extractFileExt($filename))))});
+
+//*Process all files
+main       ->getFiles.                  pMap(::processFile);
+//*List pending files
+main('list')->begin
+  f:=getFiles;
+  printf("%s",f);
+  print('Total files: ',f.size);
+end;
+//*Process the given number of files
+main(count)->getFiles.head(count.toInt).pMap(::processFile);

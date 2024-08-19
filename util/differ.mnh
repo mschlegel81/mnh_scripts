@@ -1,16 +1,16 @@
 USE customFormUtil,guiScripts;
 
 main(file1:String,file2:String)->begin
-  local fileAName:=fileExists(file1) ? file1 : 'A';
-  local fileBName:=fileExists(file2) ? file2 : 'B';
-  local a:=fileExists(file1) ? file1.fileLines.join("\n") : '';
-  local b:=fileExists(file2) ? file2.fileLines.join("\n") : '';
-  local diffLines:=2;
+  fileAName:=fileExists(file1) ? file1 : 'A';
+  fileBName:=fileExists(file2) ? file2 : 'B';
+  a:=fileExists(file1) ? file1.fileLines.join("\n") : '';
+  b:=fileExists(file2) ? file2.fileLines.join("\n") : '';
+  diffLines:=2;
   showDialog('Diff',
      [newGrid(3,
       [newLabel.withCaption(fileAName),
        newEdit.withCaption('Diff').withAction({begin
-         local d:=softCast($0);
+         d:=softCast($0);
          d.isInt AND d>=0
          ? diffLines:=d
          : void;

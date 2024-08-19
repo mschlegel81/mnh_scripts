@@ -1,0 +1,88 @@
+private extractRange(L:IntList)->begin
+  deltaIdx:=-1|[0..size(L)-2].get(leading(L)+1<>tail(L))|(size(L)-1);
+  [0..size(deltaIdx)-2].each(k,[L.get(deltaIdx.get(k)+1),L.get(deltaIdx.get(k+1))]);
+end;
+
+PRECISION:=1000000;
+
+pointsOf(a)->begin
+  printDirect("\rgenerating @a=",a,"                    ");
+  ap:=a/PRECISION;
+  x:=PRECISION div 2;
+  visited:=[];
+  while x not in visited do begin
+    visited||=x;
+    x:=round(x*(PRECISION-x)*ap);
+  end;
+  visited:=[x];
+  x:=round(x*(PRECISION-x)*ap);
+  while !(x==visited[0]) do begin
+    visited||=x;
+    x:=round(x*(PRECISION-x)*ap);
+  end;
+  visited.flatten.unique/PRECISION;
+end;
+
+findFixedPoints(a)->begin
+  x:=pointsOf(a);
+  xDx:=[x,x*0+1];
+  [1..32].each(step,begin
+    xDx:=[xDx[0]*a*(1-  xDx[0]),
+          xDx[1]*a*(1-2*xDx[0])];
+    (xDx[1].abs<=1).agg(and)
+    ? [step,a,xDx[0]-(x-xDx[0])/(xDx[1]-1)]
+    : void;
+  end,head);
+end;
+
+isOdd(i:Int)->(i and 1)=1;
+
+A0:=2.8;
+A1:=4;
+rangeInAccuracy(accuracy:Int)->[round(A0*accuracy)..round(A1*accuracy)];
+
+main->begin
+  aAccuracy:=15625;
+  toScan:=rangeInAccuracy(aAccuracy);
+  samples:=[].toMap;
+  periods:=[].toMap;
+
+  tableData:=void;
+  while aAccuracy<=1000000 do begin
+    print("\nPoints to scan: ",toScan.size,' at resolution ',1/aAccuracy,'=1/',aAccuracy);
+    pMap(toIterableExpression(toScan/aAccuracy),::findFixedPoints).each(sample,begin
+      a:=sample[1];
+      periodicity:=sample[0];
+      ax:=sample[2].map((x)->0<x<1 ? a=>x : void);
+
+      samples[periodicity]|=ax;
+      periods[round(a*aAccuracy)]:=periodicity;
+      void;
+    end);
+
+    plot();
+    samples.sort.getInner(1).map((points)->addPlot(points,'. 0.4'));
+  //  addAnimationFrame;
+    postDisplay;
+    clearPrint;
+    tableData:=
+    (group@(periods.sort.transpose)).each(g,g[1].extractRange
+    .each(range,g[0]|(range/aAccuracy|(range[1]-range[0])/aAccuracy)),|)
+    .filter((row)->row[3]>0)
+    .sort(1);
+    (tableData:=([['Period','a0','a1','size']]|tableData)).map((row)->format("%s\t%6.6f\t%6.6f\t%6.6f")@row).join("\n").print;
+
+    periods:=periods.map((entry)->[entry[0]*2,entry[1]])
+                    .toMap
+                    .mergeMaps(
+      (group@(periods.sort.transpose)).each(g,g[1].extractRange
+      .each(range,[g[0],range]),|)
+      .each(run,run[1,1]>run[1,0] ? [2*run[1,0]..2*run[1,1]].filter(::isOdd).each(j,j=>run[0]) : void,|)
+      .toMap,::orElse);
+    aAccuracy*=2;
+    aAccuracy<10000
+    ? toScan:=rangeInAccuracy(aAccuracy).filter(::isOdd).minus(periods.getInner(0)).sort
+    : toScan:=minus(periods.getInner(0).toSet+[-1,1].toSet,periods.getInner(0)).filter((i)->aAccuracy*2.8<=i<=aAccuracy*4).sort;
+  end;
+  showTable(tableData,true);
+end;

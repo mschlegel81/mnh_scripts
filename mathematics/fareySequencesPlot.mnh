@@ -1,0 +1,62 @@
+plain script;
+
+memoized farey(1)->[[0,1],[1,1]];
+memoized farey(k)->begin
+  S:=farey(k-1);
+  S|=S.tail+S.leading;
+  S:=S[S.getInner(1)<=k];
+  S[sortPerm(S.getInner(0)/S.getInner(1))];
+end;
+
+plottable(level)->begin
+  f:=farey(level).transpose;
+  [f[0]/f[1],
+   f[1]/level].transpose;
+end;
+
+plotFrame->
+  cross([1..7],
+        [1..7])
+  .filter((i)->i.agg(<))
+  .filter((i)->gcd@i=1)
+  .each(frac,
+    addPlot([[frac.agg(/),0],[frac.agg(/), -extraSpacing],[Nan,Nan],
+             [frac.agg(/),1],[frac.agg(/),1+extraSpacing],[Nan,Nan],
+             [0,frac.agg(/)],[ -extraSpacing,frac.agg(/)],[Nan,Nan],
+             [1,frac.agg(/)],[1+extraSpacing,frac.agg(/)]],'black');
+    drawText(frac.agg(/), -extraSpacing,frac.join('/'),6,'B','Times New Roman',[0,0,0],[1,1,1]),
+    drawText(frac.agg(/),1+extraSpacing,frac.join('/'),6,'T','Times New Roman',[0,0,0],[1,1,1]),
+    drawText( -extraSpacing,frac.agg(/),frac.join('/'),6,'L','Times New Roman',[0,0,0],[1,1,1]),
+    drawText(1+extraSpacing,frac.agg(/),frac.join('/'),6,'R','Times New Roman',[0,0,0],[1,1,1]));
+
+extraSpacing:=0.03;
+setOptions(["x0"=>-extraSpacing,
+            "x1"=>1+extraSpacing,
+            "y0"=>-extraSpacing,
+            "y1"=>1+extraSpacing,
+            "preserveAspect"=>false,
+            "autoscaleX"=>false,
+            "autoscaleY"=>false,
+            "axisStyleX"=>0,
+            "axisStyleY"=>0].toMap);
+
+begin
+  assertGuiStarted;
+  freeConsole;
+  clearAnimation;
+  recent:=map([1..8],()->plottable(1));
+  old:=[];
+  maxPointSize:=3;
+  for k in [1..200] do begin
+    new:=plottable(k);
+    old|=recent.head;
+    recent:=recent.tail|[new];
+    plot(old,'. 0.2 black');
+    recent.each(r,addPlot(r,'. black '&(index*maxPointSize/7*0.1+0.2)));
+    plotFrame;
+    addAnimationFrame;
+    maxPointSize*=0.99;
+  end;
+end;
+halt;
+

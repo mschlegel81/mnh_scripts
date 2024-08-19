@@ -4,13 +4,13 @@ constantPadding(L:NumericList,extras>0)->
   ([1..extras]*0+L.trailing);
 
 convolutionViaFFT(x,y)->begin
-  local X:=x.constantPadding(y.size div 2)|(0*y);
-  while(X.size.factorize.max>5,X|=0);
-  local YRight:=y.head(y.size div 2);
-  local YLeft :=y.tail(y.size div 2);
-  local fill:=[];
-  while(fill.size+YLeft.size+YRight.size<X.size,fill|=0);
-  local Y:=YLeft|fill|YRight;
+  X:=x.constantPadding(y.size div 2)|(0*y);
+  while X.size.factorize.max>5 do X|=0;
+  YRight:=y.head(y.size div 2);
+  YLeft :=y.tail(y.size div 2);
+  fill:=[];
+  while fill.size+YLeft.size+YRight.size<X.size do fill|=0;
+  Y:=YLeft|fill|YRight;
   zip(FFT(X),FFT(Y))
     .pMap((a,b)->[a[0]*b[0]-a[1]*b[1],
                   a[0]*b[1]+a[1]*b[0]])

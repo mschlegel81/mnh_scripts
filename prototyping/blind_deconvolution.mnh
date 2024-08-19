@@ -6,13 +6,13 @@ constantPadding(L:NumericList,extras>0)->
   ([1..extras]*0+L.trailing);
 
 convolutionViaFFT(x,y)->begin
-  local X:=x.constantPadding(y.size div 2)|(0*y);
-  while(X.size.factorize.max>5,X|=0);
-  local YRight:=y.head(y.size div 2);
-  local YLeft :=y.tail(y.size div 2);
-  local fill:=[];
-  while(fill.size+YLeft.size+YRight.size<X.size,fill|=0);
-  local Y:=YLeft|fill|YRight;
+  X:=x.constantPadding(y.size div 2)|(0*y);
+  while X.size.factorize.max>5 do X|=0;
+  YRight:=y.head(y.size div 2);
+  YLeft :=y.tail(y.size div 2);
+  fill:=[];
+  while fill.size+YLeft.size+YRight.size<X.size do fill|=0;
+  Y:=YLeft|fill|YRight;
   zip(FFT(X),FFT(Y))
     .pMap((a,b)->[a[0]*b[0]-a[1]*b[1],
                   a[0]*b[1]+a[1]*b[0]])
@@ -33,15 +33,15 @@ blurred:=convolutionViaFFT(signal,gauss).head(signal.size)+random(signal.size)*0
 addPlot(blurred,'.  l 0.5');
 
 guess0:=begin
-  local b:=blurred.convolutionViaFFT(gauss).head(blurred.size);
-  local g:=blurred-(b-blurred);
+  b:=blurred.convolutionViaFFT(gauss).head(blurred.size);
+  g:=blurred-(b-blurred);
   vectorIfThenElse(g<0,0,g);
 end;
 
 
 
 RichardsonLucyStep(observation,guess,kernel)->begin
-  local D:=convolutionViaFFT(guess,kernel);//.head(observation.size);
+  D:=convolutionViaFFT(guess,kernel);//.head(observation.size);
   clearAnimation;
   plot(D);
   addPlot(observation);
@@ -55,7 +55,7 @@ end;
 
 ////Richardson-Lucy:
 //begin
-//  local guess:=guess0;
+//  guess:=guess0;
 //  plot(signal,'stepLeft'); addPlot(blurred,'stepLeft'); addPlot(guess,'stepLeft'); addAnimationFrame;
 //  [1..100].each(_,begin
 //    guess:=RichardsonLucyStep(blurred,guess,gauss);
@@ -67,8 +67,8 @@ end;
 
 //Blind deconvolution:
 begin
-  local guess:=guess0;
-  local kernel:=[-5..5]*0+1; kernel*=1/kernel.agg(+);
+  guess:=guess0;
+  kernel:=[-5..5]*0+1; kernel*=1/kernel.agg(+);
   plot(signal,'stepLeft'); addPlot(guess,'stepLeft'); addPlot(gauss,'stepLeft'); addPlot(kernel,'stepLeft'); addAnimationFrame;
   [1..1000].each(_,begin
 //    clearAnimation;

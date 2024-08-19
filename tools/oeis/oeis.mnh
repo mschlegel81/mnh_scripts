@@ -18,9 +18,9 @@ private CLASS(e,i,d)->'alternating';
 
 memoized implementationOf(index:Int)->begin
   result:=implemented[index];
-  result.isVoid ? void : return result;
+  if not result.isVoid then return result;
   result:=foundImplementations[index];
-  result.isVoid ? void : return [result[0].toExpression,result[1]];
+  if not result.isVoid then return [result[0].toExpression,result[1]];
   result:=sequences[index];
   result.isVoid ? return void : void;
   result:=guessImplementation(result);
@@ -95,12 +95,11 @@ private queryDetails(index:Int)->begin
     end).toMap.serialize.compress;
 end;
 
-private findSequencesContaining(parts:StringList)->begin
-  sequencesAsString:=sequences.pMap(::toString);
-save;
-  parts.pEach(partTxt,partTxt.sequencesAsString.matches(partTxt).indexOf,|).unique;
-end;
-
+//private findSequencesContaining(parts:StringList)->begin
+//  sequencesAsString:=sequences.pMap(::toString);
+//save;
+//  parts.pEach(partTxt,partTxt.sequencesAsString.matches(partTxt).indexOf,|).unique;
+//end;
 
 private serve_('download',...)->begin
   response:=[KEY_PLAIN_TEXT_OUTPUT=>downloadData].toMap;
@@ -345,3 +344,5 @@ main('plot','frequencies')->begin
   setOptions(["x0"=>1E-100,"y0"=>1E-100,"logscaleX"=>true,"logscaleY"=>true].toMap);
   sequences.pMap({$seq[0<$seq<1E6]}).flatten.elementFrequency.sort.plot('. red 0.5');
 end;
+
+implementationOf(15);

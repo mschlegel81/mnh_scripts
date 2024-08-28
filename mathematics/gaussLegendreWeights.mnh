@@ -23,7 +23,7 @@ gw(n,i)->[0,0];
 
 [1..5].each(n,
 [0..4].each(i,begin
-  local c:=gw(n,i);
+  c:=gw(n,i);
   format("(d:\v%s\v; w:\v%s\v)",0.5*c[0],0.5*c[1]);
 end).join(",")).join("\n").print;
 

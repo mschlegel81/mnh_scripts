@@ -117,5 +117,5 @@ begin
     .sort
     .map((x,i,j,y)->f"P[{i}]\t=\tP[{j}]\t=\t{y}\t@\t{x}")
     .join("\n")
-    .print;            //Log @factorCounter.mnh:16,33 P[2] = P[5] = 535514860 @3468361808
+    .print;
 end;

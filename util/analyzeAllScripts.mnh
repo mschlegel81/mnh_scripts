@@ -1,36 +1,37 @@
-private isError  (message:StringList)->message.head.matches('^el3');
-private isWarning(message:StringList)->message.head.matches('^el(1|2)');
+isError  (message:StringList)->message.head.matches('^el3');
+isWarning(message:StringList)->message.head.matches('^el2');
+isNote   (message:StringList)->message.head.matches('^el1');
 
 main->begin
   allScriptFiles:=allFiles(mnhInfo['configDir'],'*.mnh').union(allFiles('C:\dev\','*.mnh'));
-  usedScripts       :=[].toSet;
-  warnings:=[];
-  errors  :=[];
+  usedScripts:=[].toSet;
+  warnings   :=[];
+  errors     :=[];
+  notes      :=[];
   usedBuiltin:=[].toSet;
-  allScriptFiles
-  .toIterableExpression
-  .pMap(::inspect)
-  .each(s,begin
-    usedScripts|=s['uses'].getInner(1);
-    warnings|=s['messages'].filter(::isWarning);
-    errors  |=s['messages'].filter(::isError);
-    usedBuiltin|=s['called builtin'];
-    warnings|=for line in s['source'].split("\n") do
-              if line.matches('while\(') then ['el2_warning',f'@{s["path"]}:{index},1','Suspicious use of while'];
-  end);
+  for scriptInfo in allScriptFiles.toIterableExpression.pMap(::inspect) do begin
+    log('Examining ',scriptInfo["path"]);
+    usedScripts|=scriptInfo['uses'].getInner(1);
+    warnings|=scriptInfo['messages'].filter(::isWarning);
+    errors  |=scriptInfo['messages'].filter(::isError);
+    notes   |=scriptInfo['messages'].filter(::isNote);
+    usedBuiltin|=scriptInfo['called builtin'];
+    warnings|=for line in scriptInfo['source'].split("\n") do
+              if line.matches('while\(') then ['el2_warning',f'@{scriptInfo["path"]}:{index},1','Suspicious use of while'];
+  end;
   print('Found ',allScriptFiles.size,' scripts');
   print('Used scripts');
   printf('  %s',usedScripts.unique);
-  warnings:=warnings.sort(1);
-  errors  :=errors  .sort(1);
-  print('Scripts with warnings');
-  printf("  %s:\t%s",warnings.getInner(1),warnings.getInner(2));
-  print('Scripts with errors');
-  printf("  %s:\t%s",errors.getInner(1),errors.getInner(2));
-  warnings.unique;
+  notes   :=notes   .unique.sort(1);
+  warnings:=warnings.unique.sort(1);
+  errors  :=errors  .unique.sort(1);
+  print('Scripts with notes');    printf("  %s:\t%s",notes   .getInner(1),notes   .getInner(2));
+  print('Scripts with warnings'); printf("  %s:\t%s",warnings.getInner(1),warnings.getInner(2));
+  print('Scripts with errors');   printf("  %s:\t%s",errors  .getInner(1),errors  .getInner(2));
 
-  errors.size>0 ? return void :
+ // errors.size>0 ? return void :
   print('The following builtin functions are not used anywhere:');
   printf('  %s',listBuiltin.minus(usedBuiltin.flatten).sort);
 end;
+
 

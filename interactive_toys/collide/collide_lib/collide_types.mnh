@@ -11,7 +11,6 @@ type EdgeSystem(L:List(5))->L[0].isMatrix AND //Orthonormal matrix A
 @Override
 OPERATOR_MULT(m:Matrix,v:Vector)->m.each(r,r*v[index],+);
 
-@SuppressUnusedWarning=all
 normalSystem(a:Vector,b:Vector)->begin
   parallel:=b-a;
   edgeLength:=parallel.sqr.agg(+).sqrt;

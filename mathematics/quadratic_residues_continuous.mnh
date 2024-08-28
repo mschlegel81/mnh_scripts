@@ -1,0 +1,74 @@
+screenWidth :=3440;
+screenHeight:=1440;
+
+datastore collector;
+datastore lastModulus:=1;
+
+quadraticResidues(i:Int)->begin
+  print('Calculating quadratic residues modulo ',i,' at t=',scriptTime.round);
+  X:=[1..i div 2];
+  Y:=powMod(X,2,i);// X² mod i;
+  if (i and 1)=1 then begin
+    X|=(i-X.reverseList);
+    Y|=Y.reverseList;
+  end else begin
+    X|=(i-X.leading.reverseList);
+    Y|=Y.leading.reverseList;
+  end;
+
+  R:=transpose([screenWidth/i*X,screenHeight-1-screenHeight/i*Y])
+    .map((rx,ry)->begin
+       wx:=rx-(x0:=floor(rx));
+       wy:=ry-(y0:=floor(ry));
+       [[x0  ,y0  ,(1-wx)*(1-wy)],
+        [x0+1,y0  ,   wx *(1-wy)],
+        [x0  ,y0+1,(1-wx)*   wy ],
+        [x0+1,y0+1,   wx *   wy ]];
+     end).flatMap.toList.transpose;
+  mask:=0<=R[0]<screenWidth and
+        0<=R[1]<screenHeight and
+           R[2]>0;
+  [R[2,mask],R[0,mask]+screenWidth*R[1,mask]].transpose;
+end;
+
+main->begin
+  assertUniqueInstance;
+  callMemoryCleaner;
+  collected:=[];
+  done:=false;
+  repeat
+    collected|=quadraticResidues(lastModulus+=1);
+    if scriptTime>120 then begin
+      done:=true;
+      print('Stopping because of timeout');
+    end else if mnhInfo['used_mem']>mnhInfo['configured_mem']*0.5 then begin
+      done:=true;
+      print('Stopping because of memory usage');
+    end;
+  until done;
+  print('Updating collector with ',collected.size,' new samples');
+  if collector.isVoid then collector:=rangeGenerator(1,screenHeight*screenWidth).map(()->0).toList;
+  collected.getInner(0).group(collected.getInner(1),::+).map((key,value)->collector[key]+=value);
+end;
+
+main('render')->begin
+  normalization_factor:=collector.sort[floor(collector.size*0.99)];
+  ["x0"=>-1,
+   "x1"=>1,
+   "y0"=>-1,
+   "y1"=>1,
+   "fontsize"=>10,
+   "preserveAspect"=>true,
+   "autoscaleX"=>true,
+   "autoscaleY"=>true,
+   "logscaleX"=>false,
+   "logscaleY"=>false,
+   "autoscaleFactor"=>1,
+   "axisStyleX"=>0,
+   "axisStyleY"=>0].toMap.setOptions;
+  transpose([0,0,0,collector/normalization_factor],0).plotRasterImage(screenWidth);
+  renderToFile(targetName:=myPath.changeFileExt('.png'),screenWidth,screenHeight);
+  print(targetName,' created');
+end;
+
+

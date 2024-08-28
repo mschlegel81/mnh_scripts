@@ -17,7 +17,6 @@ end}.toIterableExpression;
 
 toVariadicExpression(e:Expression)->e and {$params.isList};
 
-@SuppressUnusedWarning
 cdnfForGivenArity(b:Expression,givenArity:Int)->
   givenArity==b.arity
   ? b.toCDNF
@@ -26,7 +25,6 @@ cdnfForGivenArity(b:Expression,givenArity:Int)->
       [2^givenArity-1,givenArity.booleanInputIteratorForArity.each(p,safeB@p ? index : void)].toCDNF;
     end;
 
-@SuppressUnusedWarning
 cdnfForGivenRelevanceMask(b:Expression,relevanceMask:Int)->
   [relevanceMask,unique(b.cdnfForGivenArity(relevanceMask.digits(2).size)[1] and relevanceMask)].toCDNF;
 
@@ -51,7 +49,6 @@ toBooleanExpression(cdnf:CDNF)->begin
       (positive ? '' : '!') & '$'&index).join(' AND ')).join(" OR ").toExpression;
 end;
 
-@SuppressUnusedWarning
 implicantToString(e:Expression)->begin
   names:=e.parameterNames.each(n,['$'&index,n]).reverseList;
   toExpression(['implicantToString($input).replace(',names.getInner(0),',',names.getInner(1),')']);

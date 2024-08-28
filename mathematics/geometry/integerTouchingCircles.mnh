@@ -25,6 +25,7 @@ save;
   [i,j,k];
 end}.toIterableExpression;
 
+@SuppressUnusedWarning
 allSquares(i:IntList)->sqrt(i).isIntList;
 
 tripletGenerator().filter((p)->gcd@p=1)

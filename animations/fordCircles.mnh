@@ -26,7 +26,7 @@ addPlot({0.5-sqrt(1-4*(1-$x)^2)*0.5},0.5,1  ,100,'0.5 black');
     [1..denominator-1]
     .each(enumerator,gcd(denominator,enumerator)=1 ? [denominator,enumerator,enumerator/denominator,0.5/sqr(denominator)] : void)
     .each(part,begin
-      local fontSize:=textSize[part[0]];
+      fontSize:=textSize[part[0]];
       fontSize.isVoid
       ? void
       : drawText(part[2],part[3],format('%s/%s',part[1],part[0]),fontSize,'C','Times New Roman');
@@ -44,7 +44,6 @@ end;
 phi(1)->1;
 phi(n:Int)->factorize(n).elementFrequency.each(p,p[0]^(p[1]-1)*(p[0]-1),*);
 
-@SuppressUnusedWarning
 coveredArea(kMax>=1)->[kMax..1].pEach(k,phi(k)*sqr(0.5/k^2),+)*pi;
 coveredArea(kMax< 1)->0;
 
@@ -52,7 +51,7 @@ coveredArea->0.87228404106562797617519753217122587064027778088993303252035214778
              //=pi/4 * sum_i=1^inf(phi(i)/i^4) = 45*zeta(3)/(2*pi^3);
 
 memoized colorOf(d:Int)->begin
-  local k:=d.factorize.size;
+  k:=d.factorize.size;
   k<=1 ? 'red'   :
   k =2 ? 'green' :
   k =3 ? 'blue'  :
@@ -83,14 +82,14 @@ plot([0,0],'0.5 black');
 //    d       <= ceil(sqrt(400/stretch))
 [2..ceil(sqrt(400/stretch))].each(denominator,
   begin
-    local radius:=0.5/denominator^2;
+    radius:=0.5/denominator^2;
     // x0<= e/d+radius, e/d-radius <=x1
     // (x0-radius)*d<=e<=(x1+radius)*d
     [floor((centerX-stretch-radius)*denominator)..
      ceil ((centerX+stretch+radius)*denominator)]
     .pEach(enumerator,gcd(denominator,enumerator)=1 ? [denominator,enumerator,enumerator/denominator] : void)
     .pEach(part,
-      local fontSize:=radius/stretch*100;
+      fontSize:=radius/stretch*100;
       500>fontSize>2
       ? drawText(part[2],radius,format('%s/%s',part[1],part[0]),fontSize,'C','Times New Roman')
       : void;

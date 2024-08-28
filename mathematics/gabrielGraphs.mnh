@@ -23,12 +23,14 @@ pointRadii_recursive(points:List,splitIndex)->
 
 randomPointList(count>1,numberOfDimensions)->[1..count].map({random(numberOfDimensions)});
 
+@SuppressUnusedWarning
 validate(P:List) ->begin
   A:=P.pointRadii_naive;
   B:=P.pointRadii_recursive(0);
   assert(A==B);
 end;
 
+@SuppressUnusedWarning
 memoized FP->begin
   FIBFAK:=2*pi/sqr((sqrt(5)-1)/2);
   i:=[0..5000];
@@ -49,6 +51,7 @@ gabrielGraph(P:List)->begin
   spheres;
 end;
 
+@SuppressUnusedWarning
 testGabriel->begin
   P:=randomPointList(100,2);//.map({$x*[1,0.5]});
   splitValue:=P.getInner(0).sort[P.size div 2];
@@ -116,6 +119,7 @@ end;
 //end;
 //
 
+@SuppressUnusedWarning
 gabrielGraph_beta(P:List)->begin
   spheres:=
   [P.size-1..1].pEach(i,

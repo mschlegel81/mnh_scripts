@@ -1,6 +1,4 @@
 USE collide_types;
-@SuppressUnusedWarning=all
-
 TIME_STEP_SIZE:=0.3;
 DOWNWARD_ACCEL:=-0.1;
 

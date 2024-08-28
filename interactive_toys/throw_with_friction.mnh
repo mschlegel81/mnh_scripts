@@ -28,24 +28,24 @@ begin
 end;
 
 main->begin
-  local initialSpeed  :=local initialSpeedTxt  :=10;
-  local angle         :=local angleTxt         :=45;
-  local frictionFactor:=local frictionFactorTxt:=0;
-  local addAutomatically:=false;
+  initialSpeed  :=initialSpeedTxt  :=10;
+  angle         :=angleTxt         :=45;
+  frictionFactor:=frictionFactorTxt:=0;
+  addAutomatically:=false;
 
-  local allRows:=[];
+  allRows:=[];
 
-  local addRow:=()->begin
+  addRow:=()->begin
     allRows:=trailing(allRows|[getThrowCurve(angle/180*pi,initialSpeed,frictionFactor)],30);
     plot(allRows.trailing);
     allRows.reverseList.tail.each(r,addPlot(r,'RGB0,0,0,0.5 l '&((31-index)*1/31)));
     display;
   end;
 
-  local validate:=()->begin
-    local allOkay:=true;
+  validate:=()->begin
+    allOkay:=true;
 
-    local temp:=softCast(initialSpeedTxt);
+    temp:=softCast(initialSpeedTxt);
     temp.isNumeric AND temp>0
     ? initialSpeed:=temp
     : begin

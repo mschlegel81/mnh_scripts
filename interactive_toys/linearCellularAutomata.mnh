@@ -2,7 +2,7 @@
 USE customFormUtil;
 
 Rule(n:Int)->begin
-  local m:=digits(n,2).reverseList;
+  m:=digits(n,2).reverseList;
   while m.size<8 do m|=0;
   m.head(8);
 end;
@@ -14,9 +14,9 @@ cellularStep(state:IntList,rule:IntList(8))->
   (state.tail|0   )];
 
 memoized deBruijn(n:Int)->begin
-  local a:=[1..2*n]*0;
-  local sequence:=[];
-  local constructSequence:=((t,p)->begin
+  a:=[1..2*n]*0;
+  sequence:=[];
+  constructSequence:=((t,p)->begin
     t>n
     ? n mod p=0
       ? sequence|=a[[1..p]]
@@ -35,10 +35,10 @@ end;
 
 main->begin
   hideConsole;
-  local state:=[0,1,0];
-  local rule:=Rule(local prevRuleIdx:=local ruleIdx:=30);
-  local rows:=[state];
-  local nextFrame:=scriptTime;
+  state:=[0,1,0];
+  rule:=Rule(prevRuleIdx:=ruleIdx:=30);
+  rows:=[state];
+  nextFrame:=scriptTime;
 
   clearAnimation(true);
   localAsync({

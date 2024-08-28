@@ -1,0 +1,105 @@
+
+
+OPERATORS:=['+','*','/','^'];
+
+type SyntaxTree(L:List(3))-> L[0] in OPERATORS AND
+                             L[1].isSyntaxTree AND
+                             L[2].isSyntaxTree OR
+                             L[0]=='X' AND L[1].isInt AND L[2].isInt;
+
+toString(tree:SyntaxTree)->
+  if tree[0]=='X'
+  then if tree[2]==1 then tree[1] else tree[[1,2]].join("/")
+  else '(' & tree[1].toString & tree[0] & tree[2].toString &')';
+
+memoized partMasks(n>=2)->begin
+  acceptables:=[1..n-1].map((k)->[0..k]);
+  [0..n^n-1]
+  .digits(n)
+  .map((I)->begin J:=I; while J.size<n do J:=0|J; J; end)
+  .filter((I)->I.unique in acceptables);
+end;
+
+shorten(0,0)->[0,0];
+shorten(X,Y)->begin
+  x:=abs(X);
+  y:=abs(Y);
+  s:=sign(X)*sign(Y);
+  n:=gcd(x,y);
+  [s*x/n,y/n];
+end;
+
+//rat_plus(A:IntList(2),B:IntList(2))->shorten(A[0]*B[1]+B[0]*A[1],A[1]*B[1]);
+//rat_mult(A:IntList(2),B:IntList(2))->shorten(A[0]*B[0]          ,A[1]*B[1]);
+//rat_div (A:IntList(2),B:IntList(2))->shorten(A[0]*B[1]          ,A[1]*B[0]);
+//rat_pot (A:IntList(2),B:IntList(2))->(B[1]==1) AND (abs(B[0])<=100)
+//                                     ? (note('POWER: ',A.join('/'),'^',B.join('/')) orElse B[0]>=0)
+//                                       ? try({shorten(A[0]^B[0],A[1]^B[0])},[0,0])
+//                                       : try({shorten(A[1]^abs(B[0]),A[0]^abs(B[0]))},[0,0])
+//                                     : [0,0]; //mark as invalid
+//
+COLLAPSE_MAP:=['+'=>(A,B)->shorten(A[0]*B[1]+B[0]*A[1],A[1]*B[1]),
+               '*'=>(A,B)->shorten(A[0]*B[0]          ,A[1]*B[1]),
+               '/'=>(A,B)->shorten(A[0]*B[1]          ,A[1]*B[0]),
+               '^'=>(A,B)->(B[1]==1) AND (abs(B[0])<=100)
+                           ? B[0]>=0
+                             ? try((x,y)->shorten(x[0]^    y[0] ,x[1]^    y[0] ),[A,B],[0,0])
+                             : try((x,y)->shorten(x[1]^abs(y[0]),x[0]^abs(y[0])),[A,B],[0,0])
+                           : [0,0]].toMap;
+
+collapse(S:SyntaxTree)->
+  if S[0]=='X'
+  then S
+  else toSyntaxTree('X' | (COLLAPSE_MAP[S[0]] orElse fail('Unknown operation'))(S[1].collapse.tail,S[2].collapse.tail));
+
+partitionsWithNegations(L:List)->
+  partMasks(L.size)
+   .each(m,cross@(group(L,m).getInner(1).map({$list.permutations.toList})),|)
+   .map((partition)->partition.map(::composeDigits))
+   .unique
+   .each(p,begin
+      sets:=[p];
+      K:=size(p);
+      [0..K-1].map((k)->1-2*ord([0..K-1]=k)).each(m,sets:=sets.union(sets.map((e)->e*m)));
+      sets.toList;
+    end,|)
+   .unique
+   .toIterableExpression
+   .filter((partition)->0 not in partition OR partition.size>2)
+   .filter((partition)->partition.digits.flatten.sort==L.sort);
+
+findAllFormulas(candidates:List(1),value:Numeric)->collapse(candidates[0])==['X',value,1] ? candidates[0].toString : void;
+findAllFormulas(candidates:List   ,value:Numeric)->
+//  log('Candidates: ',candidates.map(::toString).join(", ")) orElse
+  cross([0..candidates.size-1],
+        [0..candidates.size-1])
+  .filter((i,j)->i<>j)
+  .map((i,j)->[candidates[i],
+               candidates[j],
+               candidates.each(c,index in [i,j] ? void : c)])
+  .unique
+  .map((operand1,operand2,rest)->(
+     //log('Operands: ',operand1.toString,' o ',operand2.toString,'; rest: ',rest),
+     findAllFormulas([['+',operand1,operand2].toSyntaxTree]|rest,value)|
+     findAllFormulas([['*',operand1,operand2].toSyntaxTree]|rest,value)|
+     findAllFormulas([['/',operand1,operand2].toSyntaxTree]|rest,value)|
+     findAllFormulas([['^',operand1,operand2].toSyntaxTree]|rest,value)))
+  .flatMap;
+
+findFriedmanRepresentation(N:Int)->begin
+  N.digits.partitionsWithNegations
+  .map((p)->p.map((d)->['X',d,1].toSyntaxTree))
+  .pMap((d)->findAllFormulas(d,N))
+  .flatMap((s)->s.replace('+-','-'))
+  .toList;
+end;
+
+printFriedman(N:Int)->begin
+  rep:=findFriedmanRepresentation(N);
+  if rep==[] then return void;
+  N_:=N.toString;
+  print(N,' = ',rep.each(r,r.clean(['0'..'9'],'')==N_ ? 'NICE: ' &r :  r).join(' = '));
+end;
+
+main->[10..1000].map(::printFriedman);
+

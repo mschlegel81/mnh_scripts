@@ -40,6 +40,11 @@ end;
 //*The Transision table
 private TRANSITION:=[0,0,0,1,0,0,0,0,0,
                      0,0,1,1,0,0,0,0,0];
+//
+//*The Transision table
+//private TRANSITION:=[0,0,0,1,0,0,0,0,0,
+//                     0,1,1,1,1,1,0,0,0];
+
 
 //*Computes the following generation based on current generation w
 @MaxAge=1

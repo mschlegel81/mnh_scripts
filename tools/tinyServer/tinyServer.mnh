@@ -21,7 +21,6 @@ private getStatusSection->tag(
                                            '<b style="color:red">'&formatTime('hh:nn:ss',doNotStartTasksBefore)&'</b>']])
     &getCpuDiagram,'div');
 
-
 @SuppressUnusedParameterWarning
 startPage(parameters:Map)->htmlPage('Server Overview',getHeadLinks&getStatusSection&getTasksSection,true).wrapTextInHttp;
 

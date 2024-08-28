@@ -1,7 +1,7 @@
 USE tinyServer_html;
 
 stopProcess(pid:Int)->begin
-  execResult:=exec('taskkill',['/f','/PID',toString(pid)])
+  execResult:=exec('taskkill',['/f','/PID',toString(pid)]);
   execResult[1]==0
   ? log('Process kill (PID=',pid,') was successful')
   : log('Process kill (PID=',pid,") failed: \n",execResult[0].join("\n"));

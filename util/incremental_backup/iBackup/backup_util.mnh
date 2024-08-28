@@ -128,7 +128,6 @@ end;
 //*Returns a tuple [listOfBackups:StringList,fullBackupRequired:Boolean]
 findBackups(config:BackupConfig)->findBackups(config,false);
 
-@SuppressUnusedParameterWarning=Used in format statement
 findBackups(config:BackupConfig, includeBackupsBeforeLastFullBackup:Boolean)->begin
   fileList:=[INDEX_EXTENSION,DATA_EXTENSION].each(ext,
              regex.replace(files(f'{BACKUP_ROOT_DIR}/{config["backupNameBase"]}*{ext}'),'\'&ext&'$',''));
@@ -151,11 +150,8 @@ end;
 listAll(config:BackupConfig)->begin
   root:=config['root'];
   printWithTime('Listing contents for folder ',root.expandedFileName,' (',config['backupNameBase'],')');
-  @SuppressUnusedWarning
   BLUE:="\e[94m";
-  @SuppressUnusedWarning
   RESET:="\e[00m";
-  @SuppressUnusedWarning
   RED:="\e[91m";
   matcher:=config['matcher'];
   printf('%s',
@@ -172,12 +168,9 @@ listAll(config:BackupConfig)->begin
       ));
 end;
 
-
 backupFilenameGenerator(config:BackupConfig,full:Boolean)->toIterableExpression({begin
-  @SuppressUnusedWarning
   prefix:=BACKUP_ROOT_DIR&'/'&config['backupNameBase']&'_'&formatTime('yyyymmdd',systime)&'_';
   counter:=formatTime('hhnn',systime).toInt;
-  @SuppressUnusedWarning
   suffix:=full ? FULL_BACKUP_STEM_SUFFIX : '';
   fname:='';
   while fileExists(fname:=f'{prefix}%{counter}4.4d{suffix}.{INDEX_EXTENSION}') do counter+=1;

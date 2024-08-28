@@ -1,0 +1,138 @@
+_T_->f"\e[90m{formatTime('hh:nn:ss',systime)}\e[0m ";
+MAX_SIZE:=16;
+
+mutable updated:=[];
+
+datastore known_sub_paths:=[].toMap;
+
+pathcounter_exe:=myPath.extractFileDirectory&'/'&'pathcounter.exe';
+
+lineToInts(s:String)->s.split(',').trim.softCast.filter(::isInt);
+
+niceRequired(w,h,runsRequired)->begin
+  tab:=for y in [0..h-1]*w do
+       for x in y+[0..w-1] do begin
+         color:=x in runsRequired
+                ? known_sub_paths[x].isVoid
+                  ? 91
+                  : 92
+                : 90;
+         format("\e[%sm%3.0d\e[0m",color,x);
+       end;
+  if tab.size>tab[0].size then tab:=tab.transpose;
+  width:=tab[0].size;
+  tab:=for row in tab do '        ║'&join(row,'│')&'║';
+  line_before :='        ╔'&repeatString("═══╤",width-1)&"═══╗";
+  line_between:='        ╟'&repeatString("───┼",width-1)&"───╢";
+  line_after  :='        ╚'&repeatString("═══╧",width-1)&"═══╝";
+  join((for row in tab do index=0 ? line_before : line_between do row)|line_after,"\n");
+end;
+
+callExt(gridWidth:Int,gridHeight:Int)->begin
+  print(_T_,' Calculating paths in ',gridWidth,'x',gridHeight);
+  R0:=exec(pathcounter_exe,[gridWidth,gridHeight,-1]);
+  assert(R0[1]==0);
+  runsRequired:=R0[0].map(::lineToInts)[0];
+  print(_T_,' Runs required: ');
+  printf('%s',niceRequired(gridWidth,gridHeight,runsRequired));
+  output:=
+  for run in runsRequired do parallel begin
+    if known_sub_paths[run].isVoid then begin
+      print(_T_,' Start at ',run);
+      R1:=exec(pathcounter_exe,[gridWidth,gridHeight,run]);
+      assert(R1[1]==0);
+      subPaths:=R1[0].map(::lineToInts);
+      known_sub_paths[run]:=subPaths;
+      print(_T_,f' Done at %{run}2.0d; required: ',runsRequired.map((i)->known_sub_paths[i].isVoid ? f"\e[91m\v{i}\v\e[0m" : f"\e[92m\v{i}\v\e[0m") .join(', '));
+      writeDataStores;
+      subPaths;
+    end else begin
+      known_sub_paths[run];
+    end;
+  end aggregator(+);
+  known_sub_paths:=[].toMap;
+  output;
+end;
+
+datastore known:=[].toMap;
+
+zeroToBlank(0)->'';
+zeroToBlank(i)->i;
+
+printTable(colorTableEntry:Expression(3))->begin
+  S:="\t│\t"&join([2..MAX_SIZE].map((n)->colorTableEntry(n,0,0)),"\t")&"\n"&
+  [2..MAX_SIZE].each(i,f"{i}\t│\t"& [2..MAX_SIZE].each(j,
+    begin
+      dat:=known[[i,j]] orElse known[[j,i]];
+      colorTableEntry(dat.isVoid ? "?" : zeroToBlank(dat.agg(+).agg(+)),
+                      i,
+                      j);
+    end).join("\t")).join("\n");
+  S:=S.formatTabs;
+  hline:=regex.replace(S.head.replace("│",'┼'),"\e\\[\\d+m",'').replace(['0'..'9',' '],'─');
+  S:=' '|'Hamiltonian Paths (all)'|S.head|hline|S.tail;
+  printf('%s',S);
+end;
+
+
+printTableCycles(colorTableEntry:Expression(3))->begin
+  S:="\t│\t"&join([2..MAX_SIZE].map((n)->colorTableEntry(n,0,0)),"\t")&"\n"&
+  [2..MAX_SIZE].each(i,f"{i}\t│\t"& [2..MAX_SIZE].each(j,
+    begin
+                         dat:=known[[i,j]]; width:=i;
+      dat.isVoid ? begin dat:=known[[j,i]]; width:=j; end : void;
+      colorTableEntry(
+      dat.isVoid
+      ? "?"
+      : zeroToBlank(dat[0,1]+dat[0,width]),i,j);
+    end).join("\t")).join("\n");
+  S:=S.formatTabs;
+  hline:=regex.replace(S.head.replace("│",'┼'),"\e\\[\\d+m",'').replace(['0'..'9',' '],'─');
+  S:=' '|'Hamiltonian cycles'|S.head|hline|S.tail;
+  printf('%s',S);
+end;
+
+printTableCorner(colorTableEntry:Expression(3))->begin
+  S:="\t│\t"&join([2..MAX_SIZE].map((n)->colorTableEntry(n,0,0)),"\t")&"\n"&
+  [2..MAX_SIZE].each(i,f"{i}\t│\t"& [2..MAX_SIZE].each(j,
+    begin
+      dat:=known[[i,j]] orElse known[[j,i]];
+      colorTableEntry(
+      dat.isVoid
+      ? "?"
+      : zeroToBlank(dat[0].trailing),i,j);
+    end).join("\t")).join("\n");
+  S:=S.formatTabs;
+  hline:=regex.replace(S.head.replace("│",'┼'),"\e\\[\\d+m",'').replace(['0'..'9',' '],'─');
+  S:=' '|'Hamiltonian paths (corner to corner)'|S.head|hline|S.tail;
+  printf('%s',S);
+end;
+
+printTables(ri,rj)->begin
+  colorTableEntry:=(s,i,j)->
+    [i,j] in updated OR [j,i] in updated
+    ? f"\e[92m\v{s}\v\e[0m"
+    : ri=i AND rj=j OR ri=j AND rj=i
+    ? f"\e[91m\v{s}\v\e[0m"
+    : f"\e[00m\v{s}\v\e[0m";
+
+
+  printTable      (colorTableEntry);
+  printTableCycles(colorTableEntry);
+  printTableCorner(colorTableEntry);
+end;
+
+main->begin
+  assertUniqueInstance;
+  cross([2..MAX_SIZE],[2..MAX_SIZE]).filter((i,j)->i<=j).sort((x)->x.agg(*))
+  .filter((gridSize)->known[gridSize].isVoid)
+  .map((i,j)->begin
+     printTables(i,j);
+     known[[i,j]]:=callExt(i,j);
+     updated|=[[i,j]];
+     writeDataStores;
+   end)
+  .toList;
+end;
+
+

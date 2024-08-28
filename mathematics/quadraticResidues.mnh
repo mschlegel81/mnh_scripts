@@ -1,28 +1,3 @@
-
-
-
-quadraticResidues(i:Int,resolution:Int)->begin
-  X:=[1..i div 2];
-  Y:=X² mod i;
-  if (i and 1)=1 then begin
-    X|=(i-X.reverseList);
-    Y|=Y.reverseList;
-  end else begin
-    X|=(i-X.leading.reverseList);
-    Y|=Y.leading.reverseList;
-  end;
-  floor(resolution/i*X)+(resolution-1-floor(resolution/i*(Y)))*resolution;
-end;
-
-toDensity(L:IntList,resolution)->begin
-  count:=L.map(()->1);
-  output:=groupToList(count,L,0,::+,resolution²);
-  _99_percentile:=output.sort[floor(output.size*0.99)];
-  //TODO: Anti-Aliasing?
-  map(output/_99_percentile,(alpha)->[0,0,0,alpha]);
-end;
-
-
 setOptions(["x0"=>0,"x1"=>1,"y0"=>0,"y1"=>1,"autoscaleX"=>false,"autoscaleY"=>false,"axisStyleX"=>0,"axisStyleY"=>0].toMap);
 [1..100].each(k,begin
   X:=[0..100]/100;
@@ -46,19 +21,140 @@ end,
   [X,Y].transpose[mask] | [[Nan,Nan]];
 end,|).addPlot('blue 0.5');
 
-
-
 cross([1..10],
       [1..10]).filter((xy)->xy.agg(<) AND gcd@xy=1).each(rat,begin
   x:=rat.agg(/);
   map([1..rat[1]²]/rat[1]²,(y)->[x,y]);
 end,|).addPlot('red . 0.5');
 
+
+//
+//
+//darts:=begin
+//  P:=[[0,0]];
+//  radius:=1;
+//  while P.size<16 do begin
+//    candidate:=random(2)-0.5;
+//    P.each(p,euklideanNorm(p-candidate)>radius,AND)
+//    ? P||=candidate
+//    : radius*=0.999;
+//  end;
+//  P;
+//end;
+//
+quadraticResidues(i:Int,resolution:Int)->begin
+  print('Calculating quadratic residues modulo ',i);
+  X:=[1..i div 2];
+  Y:=X² mod i;
+  if (i and 1)=1 then begin
+    X|=(i-X.reverseList);
+    Y|=Y.reverseList;
+  end else begin
+    X|=(i-X.leading.reverseList);
+    Y|=Y.leading.reverseList;
+  end;
+
+  R:=transpose([resolution/i*X,resolution-1-resolution/i*Y])
+    .map((rx,ry)->begin
+       wx:=rx-(x0:=floor(rx));
+       wy:=ry-(y0:=floor(ry));
+       [[x0  ,y0  ,(1-wx)*(1-wy)],
+        [x0+1,y0  ,   wx *(1-wy)],
+        [x0  ,y0+1,(1-wx)*   wy ],
+        [x0+1,y0+1,   wx *   wy ]];
+     end).flatMap.toList.transpose;
+  mask:=0<=R[0]<resolution and
+        0<=R[1]<resolution and
+           R[2]>0;
+  [R[2,mask],R[0,mask]+resolution*R[1,mask]].transpose;
+end;
+
+
+toDensity(output:NumericList,red,green,blue)->begin
+  _99_percentile:=output.sort[floor(output.size*0.99)];
+  map(output/_99_percentile,(alpha)->[red,green,blue,alpha]);
+end;
+
 display;
-
 res:=plotImageSize.min;
+plot();
 
-//plot();
-[2..2000].pMap((i)->quadraticResidues(i,res)).flatMap.toList.toDensity(res).plotRasterImage(res,1/res);
+//rangeGenerator(2,8192)
+primes(10000).toIterableExpression
+  .pMap((n)->quadraticResidues(n,res))
+  .flatMap
+  .chunkMap(65536,(chunk)->group(chunk.getInner(0),chunk.getInner(1),::+))
+  .agg((x,y)->mergeMaps(x,y,::+)).transpose
+  .{groupToList($L[1],$L[0],0,::+,res²)}
+  .toDensity(0,0,0)
+  .plotRasterImage(res,1/res);
 
+
+
+//begin
+//  callMemoryCleaner;
+//  collected:=[];
+//  for k in [2..8192] do parallel note('Calculating: ',k) orElse quadraticResidues(k,res)
+//  aggregator((m)->begin
+//    collected||=m;
+//    if collected.size>256 OR mnhInfo['used_mem']>mnhInfo['configured_mem']
+//    then begin
+//      collected:=[temp:=mergeMaps@(collected|[::+])];
+//      temp:=temp.transpose;
+//      log('Plotting ',temp[1].agg(+).round,' samples');
+//      temp:=groupToList(temp[1],temp[0],0.0,::+).toDensity(0,0,0);
+//      plot;
+//      plotRasterImage(temp,res,1/res);
+//      display;
+//      callMemoryCleaner;
+//    end;
+//  end);
+//end;
+
+
+//begin
+//  callMemoryCleaner;
+//
+//  P:=[0..16].map(()->[]);
+//  panic:=false;
+//  for k in [2..8192] do parallel begin
+//    if not panic then begin
+//      note('Calculating ',k);
+//      k=>quadraticResidues(k,res);
+//    end;
+//  end
+//  aggregator((c)->begin
+//    i:=c[0];
+//    count:=c[1];
+//    note('Collecting  ',i);
+//    for m in [1..16] do if i mod m=0 then P[m]|=[count];
+//    if (not panic) and mnhInfo['used_mem']>mnhInfo['configured_mem']*0.66 then begin
+//      warn('Memory high ',round(mnhInfo['used_mem']/1024²),'MiB used - attempting cleanup');
+//      P:=P.map((maps)->maps.size<=1 ? maps : [mergeMaps@(maps|[::+])]);
+//      callMemoryCleaner;
+//      panic := mnhInfo['used_mem']>mnhInfo['configured_mem']*0.66;
+//      if panic
+//      then warn('Memory after cleanup: ',round(mnhInfo['used_mem']/1024²),'MiB - cleanup failed')
+//      else log ('Memory after cleanup: ',round(mnhInfo['used_mem']/1024²),'MiB - cleanup successful');
+//    end;
+//    if panic then warn('Memory panic ',round(mnhInfo['used_mem']/1024²),'MiB used');
+//  end);
+//  log('Done collecting');
+//
+//  callMemoryCleaner;
+//
+//  P.pMap((maps)-> maps.size==0
+//                  ? []
+//                  : maps.size==1
+//                    ? maps[0].toList
+//                    : toList(mergeMaps@(maps|[::+])))
+//   .pMap((c)->c.getInner(1).groupToList(c.getInner(0),0.0,::+).toDensity(0,0,0))
+//   .each(plottable,
+//    plot(),
+//    plotRasterImage(plottable,res,1/res),
+//    addAnimationFrame);
+//
+//  callMemoryCleaner;
+//end;
+//
 

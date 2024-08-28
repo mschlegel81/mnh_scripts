@@ -148,6 +148,7 @@ treeToExpression(tree:List)->
   treeToExpression(tree[2]));
 treeToExpression(i:Int)->i.toExpression;
 
+@SuppressUnusedWarning
 validateTree(tree:List,expectedValue)->begin
   actualValue:=tree.treeToExpression()();
   assert(abs(actualValue-expectedValue)<=1E-6,format('%s evaluated to %s while expecting %s',tree.toString,actualValue,expectedValue));

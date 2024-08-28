@@ -10,6 +10,7 @@ makePeriodicSignal(periodicity>1)-> begin
 
 end;
 
+@SuppressUnusedWarning
 detectPeriod(signal)->begin
   fft:=signal.trailing(STEP_COUNT).FFT;
   fft[0]:=[0,0];
@@ -77,6 +78,7 @@ end;
 
 testPlausiblePeriod->([''|[2..24]]|[2..24].each(k,k|format('%3.3f',makePeriodicSignal(k).plausiblePeriod.tail(2)).replace('0.000',''))).showTable(1,1,'Plausible period');
 
+@SuppressUnusedWarning
 generatePeakDetectionCode->begin
   Q:=[[0],[0]]|[2..STEP_COUNT div 10].each(i,unique(round(STEP_COUNT*[1..i div 2]/i)));
   [4..24].each(i,begin
@@ -99,6 +101,8 @@ generatePeakDetectionCode->begin
     end).map(::print);
 end;
 
+
+@SuppressUnusedWarning
 freq_components(signal)->begin
   F:=signal.trailing(STEP_COUNT).FFT;
   F[0]:=[0,0];

@@ -4,7 +4,7 @@ convexHull(points:List)->begin
   rest:=points.sort;
   P:=rest.head(1);
 
-  while(rest.size>0,begin
+  while rest.size>0 do begin
     dp:=P.size==1 ? [0,1] : -P.trailing(2).agg(-); dp/=dp.euklideanNorm;
     q:=P.trailing;
     i:=rest.map((p)->begin delta:=p-q; (delta/delta.euklideanNorm*dp).agg(+); end).argMax;
@@ -12,7 +12,7 @@ convexHull(points:List)->begin
     i==0
     ? return P
     : rest[i]:=void;
-  end);
+  end;
   P;
 end;
 

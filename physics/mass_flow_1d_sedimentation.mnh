@@ -105,7 +105,7 @@ LocalBaseProfileMax:=begin
 end;
 
 
-Bs0:=(LocalBaseProfileMax-BaseProfile)+0.01;//*ord([0..Imax]<Imax/2).smooth(Imax div 20);
+//Bs0:=(LocalBaseProfileMax-BaseProfile)+0.01;//*ord([0..Imax]<Imax/2).smooth(Imax div 20);
 Bs0:=[0..Imax].map((i)->0.25+cos(i/Imax*20*pi)*0.06).map((x)->max(0,x));
 Aw0:=((LocalBaseProfileMax-BaseProfile)*0+0.2)*0.0;
 As0:=((LocalBaseProfileMax-BaseProfile)*0+0.2)*0.0;

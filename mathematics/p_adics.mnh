@@ -1,0 +1,58 @@
+
+@SuppressUnusedParameterWarning
+type PAdic(L:IntList(2))->true;
+
+MAX_DIGITS:=100;
+
+D:=['0'..'9','A'..'Z'];
+
+toString(x:PAdic)->begin
+  d:=D[digits@x];
+  d.size>=MAX_DIGITS
+  ? '...'&d.trailing(MAX_DIGITS).join
+  : repeatString(' ',3+MAX_DIGITS-d.size)&d.join;
+end;
+
+private crop(value:Int,base:Int)->begin
+  d:=digits(value,base);
+  if d.size>MAX_DIGITS then begin
+    d:=d.trailing(MAX_DIGITS);
+    if d[0]=0 then d:=1|d;
+    [composeDigits(d,base),base].toPAdic;
+  end else [value,base].toPAdic;
+end;
+
+OPERATOR_PLUS  (x:PAdic,y:PAdic)->crop(x[0]+y[0],x[1]);
+OPERATOR_NEGATE_ARITHMETIC(x:PAdic)->begin
+  d:=trailing(digits@x,MAX_DIGITS);
+  while d.size<MAX_DIGITS do d:=0|d;
+  d:=(d.leading-1)|(d.trailing-2);
+  crop(composeDigits(vectorIfThenElse(d<0,x[1]-1,d),x[1]),x[1]);
+end;
+OPERATOR_MINUS (x:PAdic,y:PAdic)->x+(-y);
+OPERATOR_MULT  (x:PAdic,y:PAdic)->crop(x[0]*y[0],x[1]);
+inverse(x:PAdic)->crop(modularInverse(x[0],x[1]^MAX_DIGITS),x[1]);
+OPERATOR_DIVREAL(x:PAdic,y:PAdic)->x*inverse(y);
+OPERATOR_POT(x:PAdic,y:Int)->crop(powMod(x[0],y,x[1]^(MAX_DIGITS+1)),x[1]);
+
+begin
+  X:=[9,10].toPAdic;
+
+  print(inverse(X).toString);
+
+  print(X.toString);
+  for _ in [1..1000] do begin
+    before:=X;
+    X:=X*X;
+//    print(X);
+    print(X.toString,' ',X==before);
+  end;
+end;
+
+[2254270163595650875433851147123214227266605403581781469090806576468950587661997186505665475715792896,10].toPAdic.toString;
+[2254270163595650875433851147123214227266605403581781469090806576468950587661997186505665475715792896,10].toPAdic².toString;
+[2254270163595650875433851147123214227266605403581781469090806576468950587661997186505665475715792896,10].toPAdic²;
+
+isqrt(2254270163595650875433851147123214227266605403581781469090806576468950587661997186505665475715792896);
+
+

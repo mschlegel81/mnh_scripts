@@ -133,5 +133,7 @@ end;
 
 
 main->showSingleAttractor;
+main('dots')->showDots;
+main('anim')->showAnimation;
 
 

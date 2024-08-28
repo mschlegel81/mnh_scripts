@@ -61,11 +61,10 @@ formatBlock(text:StringList,col1Width:Int,
     .map((H,space)->BLOCK[([blockHeight-1..0]*8).each(d,max(0,min(8,H-d)))].replace(' ',space))
     .transpose
     .map(::join);
-  if length(commandLine)>0 then begin
-    if length(commandLine)>=totalBarSize
-    then bars[blockHeight-1]:=copy(commandLine,0,totalBarSize)
-    else bars[blockHeight-1]:=copy(bars[blockHeight-1],0,totalBarSize-length(commandLine))&commandLine;
-  end;
+  cmd_line:=copy(commandLine,0,totalBarSize-splitAtIdx[0]-2);
+
+  if length(cmd_line)>0
+  then bars[blockHeight-1]:=copy(bars[blockHeight-1],0,totalBarSize-length(cmd_line)-1)&cmd_line;
 
   (lineIndex and 1)=1
   ? "\e[94m"&txt&bars.replace('│',"\e[0m│\e[94m")&"\e[0m"

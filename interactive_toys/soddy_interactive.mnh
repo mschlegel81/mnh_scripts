@@ -1,4 +1,46 @@
-USE customFormUtil,soddy;
+USE customFormUtil,mathUtils;
+
+ducktype Vector(x:NumericList(2))->true;
+//ducktype VectorList(L:List)->L.each(v,v.isVector,AND);
+//ducktype AdjacencyList(L:Set)->L.each(v,v.isIntList(3) AND (v>=0).agg(and),AND);
+ducktype Triangle(x:List(3))->x.each(e,e.isVector,AND);
+ducktype FiniteNumber(n:Numeric)->n.isInt OR !(n.isNan OR n.isInfinite);
+type Circle(circle:List(2))->circle[0].isVector AND circle[1].isFiniteNumber;
+ducktype CircleList(L:List)->L.each(c,c.isCircle,AND);
+ducktype CircleTriplet(t:CircleList)->t.size=3;
+
+@Override
+toCircleTriplet(triangle:Triangle)->begin
+  d:=[euklideanNorm(triangle[0]-triangle[1]),
+      euklideanNorm(triangle[1]-triangle[2]),
+      euklideanNorm(triangle[2]-triangle[0])];
+  radius:=
+  [[ 0.5, 0.5,-0.5],
+   [-0.5, 0.5, 0.5],
+   [ 0.5,-0.5, 0.5]].each(x,d[index]*x,+);
+  triangle.each(center,[center,radius[index]].toCircle).toCircleTriplet;
+end;
+
+soddyCircleRadii(radii:NumericList(3))->begin
+  k:=1/radii;
+  r:=
+  1/rootOfQuadraticPoly(1,
+    - 2*k.agg(+),
+      2* k.sqr.agg(+) - k.agg(+).sqr);
+  (r<0).agg(and) ? -r : r;
+end;
+
+circlesTouch(a:Circle,b:Circle)->abs(euklideanNorm(a[0]-b[0])-abs(a[1]+b[1]))<1E-6;
+circlesTouch(a:Circle,T:CircleTriplet)->T.each(b,circlesTouch(a,b),AND);
+
+findSoddyCircles(c:CircleTriplet)->begin
+  rs:=soddyCircleRadii(c.getInner(1));
+  rs.each(r,begin
+    candidates:=circleIntersection(c[0,0],c[0,1]+r,c[1,0],c[1,1]+r).map({[$center,r].toCircle});
+    candidates.filter({$newCircle.circlesTouch(c[2])});
+  end,|);
+end;
+
 main->begin
   c:=[[0,0],[1,1],[0,1]];
   selIdx:=-1;

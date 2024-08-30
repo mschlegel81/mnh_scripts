@@ -1,0 +1,25 @@
+memoized getLines(filename:String)->filename.fileLines;
+
+
+similarityIndex(fileA,fileB)->
+  begin
+    linesA:=fileA.getLines;
+    linesB:=fileB.getLines;
+    diff(linesA,linesB)['matches']*2/(linesA.size+linesB.size);
+  end;
+
+scramble(L:List)->L[L.size.random.sortPerm];
+
+main->begin
+  root:='C:\dev\private';
+  F:=allFiles(root,'*.mnh');
+  reducedFileName:=(s)->s.systemSpecificFilename.replace(root&'\','');
+  F:=
+  F.cross(F)           //all pairs...
+   .filter((i,j)->i<j) //filter out duplicates and self-comparisons
+   .scramble           //reduce probability of parallel file accesses
+   .pMap((fileA,fileB)->[similarityIndex(fileA,fileB),fileA.reducedFileName,fileB.reducedFileName])
+   .sort
+   .transpose;
+  "%s\t%s\t%s".printf@F;
+end;

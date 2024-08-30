@@ -26,6 +26,17 @@ createSyntheticConfig(s)->begin
   : s.map(::makeConfig);
 end;
 
+sortConfigsForRevert(filename:String)->begin
+  expanded:=filename.expandedFileName;
+  CONFIGS_INCLUDING_SELF.sort((cfg)->begin
+    root:=cfg['root'].expandedFileName;
+    -zip(expanded.chars,
+         root    .chars,
+         rangeGenerator(1))
+    .map((a,b,index)->a==b ? index : void).toList.max;
+  end);
+end;
+
 filteredConfigsForBackup()->CONFIGS_INCLUDING_SELF;
 filteredConfigsForBackup(...)->begin
   f:=union@((...).map((r)->CONFIGS_INCLUDING_SELF[CONFIGS_INCLUDING_SELF.getInner('root').matches(r) or CONFIGS_INCLUDING_SELF.getInner('backupNameBase').matches(r)]));
@@ -53,7 +64,9 @@ fileIsRelevantForFullSync(filename)->filename.extractFileExt in [DATA_EXTENSION,
 
 syncPush(isRelevant:Expression(1),allowDelete:Boolean)->begin
   mounted:=driveInfo;
-  copyFile(myPath,BACKUP_ROOT_DIR&'/'&myPath.extractFileName);
+  for file in (myPath|inspect['uses'].getInner(1).filter((f)->f.extractFileDirectory.systemSpecificFilename<>BACKUP_ROOT_DIR.systemSpecificFilename)) do
+    copyFile(file,BACKUP_ROOT_DIR&'/'&file.extractFileName);
+
   ftpSyncFuture:=future({
     FTP_SYNC_CONFIGS.each(cfg,begin
     syncToFTP(BACKUP_ROOT_DIR,cfg['host'],cfg['user'],cfg['pass'],cfg['path']&'/'&BACKUP_ROOT_NAME,allowDelete,isRelevant);
@@ -99,7 +112,6 @@ end;
 //*Backup files; give an additional matcher to select one backup set
 main('backup',...)->map(filteredConfigsForBackup@...,::createBackup);
 
-//TODO: Implement restoring of a specific revision ?
 //*Restore files; give an additional matcher to select one backup set
 main('restore',...)->map(filteredConfigsForRestore@...,(config)->restoreBackup(config,true));
 
@@ -121,7 +133,9 @@ end;
 
 //*Revert single file to the latest backup
 main('revert',filename)->begin
-  diffListing:=CONFIGS_INCLUDING_SELF.each(config,fileRevert(config,expandedFileName(filename), true, ''),orElse);
+  diffListing:=sortConfigsForRevert(filename)
+              .each(config,fileRevert(config,expandedFileName(filename), true, '')
+                          ,orElse);
   diffListing.isVoid ? printWithTime('File could not be found in backups') : printf('%s',diffListing);
 end;
 
@@ -139,7 +153,9 @@ end;
 //*Revert single file to a selected backup
 //
 main('revert',filename,revision)->begin
-  diffListing:=CONFIGS_INCLUDING_SELF.each(config,fileRevert(config,expandedFileName(filename), false, revision),orElse);
+  diffListing:=sortConfigsForRevert(filename)
+              .each(config,fileRevert(config,expandedFileName(filename), false, revision)
+                          ,orElse);
   diffListing.isVoid ? printWithTime('File could not be found in backups') : printf('%s',diffListing);
 end;
 

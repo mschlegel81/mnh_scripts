@@ -1,0 +1,37 @@
+//*Attempt at a "true" random number based on the observation, that the sleep time never is quite perfect
+sleepyRandom->
+  [1..2*mnhInfo['configured_cpus']].pMap(()->time(::sleep,[0.01])['time'].toString).join.sha256;
+
+primeAndPrimitveRoot->
+  begin
+    phi_factors:=p:=void;
+    repeat phi_factors:=intRandom(2^128,3) until (p:=phi_factors.agg(*)+1).isPrime;
+    powersToTest:=(p-1)/phi_factors;
+    r:=
+    intRandomGenerator(intRandom(2^256),p)
+      .filter((q)->(powMod(q,powersToTest,p)!=1).agg(and))
+      .head(1)[0];
+    [p,r];
+  end;
+
+
+//Diffie–Hellman key exchange
+begin
+  p:=primeAndPrimitveRoot;
+  g:=p[1];
+  p:=p[0];
+
+  a_secret:=sleepyRandom;
+  A:=powMod(g,a_secret,p);
+
+  b_secret:=sleepyRandom;
+  B:=powMod(g,b_secret,p);
+  log(f"p=\t{p}\ng=\t{g}\nA=\t{A}\nB=\t{B}");
+         sharedSecret:=powMod(A,b_secret,p);
+  assert(sharedSecret==powMod(B,a_secret,p));
+
+  log('Shared secret: ',sharedSecret);
+end;
+
+
+

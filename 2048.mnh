@@ -1,0 +1,71 @@
+FMT:=
+"\f"&//!~
+╔══════╤══════╤══════╤══════╗
+║      │      │      │      ║
+║ xxxx │ xxxx │ xxxx │ xxxx ║
+║      │      │      │      ║
+╟──────┼──────┼──────┼──────╢
+║      │      │      │      ║
+║ xxxx │ xxxx │ xxxx │ xxxx ║
+║      │      │      │      ║
+╟──────┼──────┼──────┼──────╢
+║      │      │      │      ║
+║ xxxx │ xxxx │ xxxx │ xxxx ║
+║      │      │      │      ║
+╟──────┼──────┼──────┼──────╢
+║      │      │      │      ║
+║ xxxx │ xxxx │ xxxx │ xxxx ║
+║      │      │      │      ║
+╚══════╧══════╧══════╧══════╝~.replace('xxxx','%4s');
+
+printState(s:IntList(16))->FMT.printf@(s.map((i)->i=0 ? '' : i));
+
+addRandom(s:IntList(16))->begin
+  i:=indexOf(s=0);
+  assert(i.size>=1);
+  i:=i[intRandom(i.size)];
+  S:=s;
+  S[i]:=random<0.1 ? 4 : 2;
+  S;
+end;
+
+moveRowLeft(i:IntList(4))->begin
+  I:=i.sort((k)->k=0);
+  for k in [0..2] do
+    if I[k]==I[k+1] then begin
+      I[k]*=2;
+      I[k+1]:=0;
+    end;
+  I.sort((k)->k=0);
+end;
+
+move(grid:List(4),dx=-1,dy= 0)->grid.map(::moveRowLeft);
+move(grid:List(4),dx= 1,dy= 0)->grid.map((row)->row.reverseList.moveRowLeft.reverseList);
+move(grid:List(4),dx= 0,dy= 1)->grid.transpose.map((row)->row.reverseList.moveRowLeft.reverseList).transpose;
+move(grid:List(4),dx= 0,dy=-1)->grid.transpose.map(::moveRowLeft).transpose;
+
+moveGrid(g:IntList(16),dx in [-1,0,1],dy in [-1,0,1])->
+  begin
+    G:=g.chunkMap(4).toList;
+    Gnew:=G.move(dx,dy);
+    Gnew==G ? g : Gnew.flatten.addRandom;
+  end;
+
+
+[0..15].map(()->0).addRandom.addRandom.moveGrid(1,0);
+
+
+
+main->begin
+  grid:=[0..15].map(()->0).addRandom.addRandom;
+  while true do begin
+    grid.printState;
+    movement:=ask('',['w','a','s','d','q'],false);
+    movement=='q' ? halt :
+    movement=='a' ? grid:=grid.moveGrid(-1,0) :
+    movement=='w' ? grid:=grid.moveGrid(0,-1) :
+    movement=='s' ? grid:=grid.moveGrid(0, 1) :
+                    grid:=grid.moveGrid(1,0);
+  end;
+end;
+//

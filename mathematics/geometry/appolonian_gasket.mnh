@@ -87,16 +87,17 @@ soddyIteration(initialState:CircleTriplet,radiusLimit>0.0,verbose:Boolean)->begi
        [k,A[1],A[2]]];
     end,|);
     aboveRadius:=(updates.size>0);// AND (circles.size<1000);
-    if verbose
-    then begin
-      circles.plot('');
-      updates.size>0 ? begin
-        print('New Radii >',updates.getInner(1).getInner(1).min,' ',circles.size,' ',circles.unique.size);
-        updates.getInner(1).addPlot('red f');
+    verbose
+    ? begin
+        circles.plot('');
+        updates.size>0 ? begin
+          print('New Radii >',updates.getInner(1).getInner(1).min,' ',circles.size,' ',circles.unique.size);
+          updates.getInner(1).addPlot('red f');
+        end
+        : void;
+        addAnimationFrame;
       end
-      : void;
-      addAnimationFrame;
-    end;
+    : void;
   end;
   circles;
 end;
@@ -180,25 +181,25 @@ private cyclicAnimation(parametersPerFrames:List)->begin
   end);
 end;
 
-private memoized param3Sym(steps>=2)->begin
+private param3Sym(steps>=2)->begin
   P0:=[ pi/6,sqrt(3/4)/(1+sqrt(3/4)),sqrt(3/4)/(1+sqrt(3/4))];
   P1:=[ pi/6,sqrt(3/4)/(1+sqrt(3/4)),0.2240092377397957     ];
   ([0..steps-1]/steps).map(interpolant(0.69639019384382106)).each(w,P0*(1-w)+P1*w);
 end;
 
-private memoized param2Sym(steps>=2)->begin
+private param2Sym(steps>=2)->begin
   P0:=[0 ,1/3,1/2];
   P1:=[0 ,1/3,1/6];
   ([0..steps-1]/steps).map(interpolant(1/3)).each(w,P0*(1-w)+P1*w);
 end;
 
-private memoized param1Sym(steps>=2)->begin
+private param1Sym(steps>=2)->begin
   P0:=[pi/2,0.1,0.5]       ;
   P1:=[pi/2,0.1,0.06003534551132157];
   ([0..steps-1]/steps).map(interpolant(0.06029149200725836)).each(w,P0*(1-w)+P1*w);
 end;
 
-memoized filteredCircles(circles:CircleList,scaleLimit)->circles.filter({$circle[1]>scaleLimit}).toCircleList;
+filteredCircles(circles:CircleList,scaleLimit)->circles.filter({$circle[1]>scaleLimit}).toCircleList;
 
 plottableNestedGasket(relativeTo:Circle, [], radiusLimit>0.0)->void;
 plottableNestedGasket(relativeTo:Circle, circles:CircleList, radiusLimit>0.0)->begin
@@ -222,7 +223,7 @@ end;
 defaultInitialState->initialSoddy @(param3Sym(2).head);
 
 
-begin
+main->begin
   radiusLimit:=0.003;
   clearAnimation;
   param3Sym(50).each(p,[index,p])

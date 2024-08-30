@@ -8,7 +8,7 @@ makeMaze(width,height,mask:BooleanList)->makeMaze(width,height,mask,[]);
 makeMaze(width,height,mask:BooleanList,initialSet:BooleanList)->begin
   startTime:=lastOutput:=scriptTime;
   toBeVisited:=cross([0..ceil(height/2)-1]*2,
-                           [0..ceil(width /2)-1]*2);
+                     [0..ceil(width /2)-1]*2);
   toBeVisited:=
     mask.size=0
     ? toBeVisited.toSet
@@ -78,8 +78,8 @@ makeMaze(width,height,mask:BooleanList,initialSet:BooleanList)->begin
 end;
 
 makeSymmetricMaze(width,height,symmetry in [0..5])->begin
-  assert(width  mod 2=1);
-  assert(height mod 2=1);
+  assert(width  mod 2=1,'Width must be odd');
+  assert(height mod 2=1,'Height must be odd');
   startTime:=lastOutput:=scriptTime;
   toBeVisited:=cross([0..ceil(height/2)-1]*2,
                      [0..ceil(width /2)-1]*2).toSet;
@@ -331,8 +331,7 @@ save;
   M[k](q);
 end;
 
-
-begin
+main->begin
   res:=101;
   maze:=makeSymmetricMaze(res,res,0);
   distances:=[1..res*res]*0+Inf;
@@ -355,5 +354,41 @@ begin
                      : hue(d*imd)).plotRasterImage(res);
 end;
 
+main('symmetric',width,symmetryKind in ['0'..'5'])->
+  makeSymmetricMaze(width.toInt,width.toInt,symmetryKind.toInt).ord.plotRasterImage(width.toInt);
 
+
+getConsoleSize(forceOdd:Boolean)->begin
+  result:=((
+  isGuiStarted ? [80,40] :
+  begin
+    console_size:=exec('cmd',['/C','mode','con'])[0].filter((L)->L.matches(': *\d+$'))[[1,0]].split(':').getInner(1).trim.softCast;
+    console_size.isIntList(2)
+    ? begin
+        width:=console_size[0];
+        height:=min(width,console_size[1]);
+        [width,height];
+      end
+    : [80,40];
+  end-[1,2])*[1,2]);
+  for k in [0,1] do if forceOdd and (result[k] and 0)=0 then result[k]-=1;
+  result;
+end;
+
+main('console')->begin
+  CON_SIZE:=getConsoleSize(false);
+  M:=[' ','▀','▄','█'];
+  maze:=makeMaze@CON_SIZE;
+  maze.chunkMap(CON_SIZE[0])
+      .chunkMap(2,(a,b)->M[ord(a)+2*ord(b)].join).agg((x)->print(x));
+end;
+
+main('console','symmetric',symmetryKind in ['0'..'5'])->begin
+  CON_SIZE:=getConsoleSize(true);
+  M:=[' ','▀','▄','█'];
+  maze:=makeSymmetricMaze(CON_SIZE.min,CON_SIZE.min,symmetryKind.toInt);
+  maze|=[1..CON_SIZE.min].map(()->false);
+  maze.chunkMap(CON_SIZE.min)
+      .chunkMap(2,(a,b)->M[ord(a)+2*ord(b)].join).agg((x)->print(x));
+end;
 

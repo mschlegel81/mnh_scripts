@@ -1,0 +1,48 @@
+USE backup_util;
+
+@SuppressUnusedParameterWarning
+matchAll(filename:String)->true;
+dropPascalCompilates(x)->!(x.matches('\.(exe|log|o|ppu|a)$|\.git')) AND !(x.matches('/backup/'));
+EXAMPLE_CONFIG_1:=
+  ['root'          => '.',   //Relative roots are expanded using the location of the iBackup.mnh script
+   'backupNameBase'=>'dev',  //The base name of the backup. These must be unique;
+   'basePattern'   =>'*.*',  //Base patterns can be the usual search pattern
+   'recurse'       =>false,  //Usually you want to recurse subdirectories. But in this case you don't.
+   'matcher'       =>//You can write inline custom matchers...
+                     {!($x.matches('(\.(ib|log|7z))|(\.datastore0)|(smart7z\.datastore.)$|iBackup|\.kdbx$'))}].toMap.toBackupConfig;
+EXAMPLE_CONFIG_2:=
+  ['root'          =>'3rd_party',
+   'backupNameBase'=>'3rd_party',
+   'basePattern'   =>'*.*',
+   'recurse'       =>true,
+   'matcher'       =>//You can also use custom matchers implemented as functions that accept one string and return a boolean (true for accept)
+                     ::dropPascalCompilates].toMap.toBackupConfig;
+EXAMPLE_CONFIG_3:=
+  ['root'          =>'C:\users\admin', //Of course you can use absolute paths as well
+   'backupNameBase'=>'kdbx',
+   'basePattern'   =>'*.kdbx',
+   'recurse'       =>true,
+   'matcher'       =>::matchAll].toMap.toBackupConfig;
+
+ALL_CONFIGS:=[EXAMPLE_CONFIG_1, EXAMPLE_CONFIG_2, EXAMPLE_CONFIG_3];
+
+@SuppressUnusedWarning=validation on startup
+validateConfig:=assert(ALL_CONFIGS.getInner('backupNameBase').{$L.unique.size==$L.size});
+
+SYNC_CONFIGS:=[[//Drives are identified by their serial number; Find serial numbers using the function driveInfo
+                'drive_serial'=>3404974937,
+                //The drive description is used only for logging
+                'drive_description'=>'Samsung_T5',
+                'target_folder'=>'\backup\dev'].toMap,
+                //You can add more sync configs if needed
+               ['drive_serial'=>2827518892,
+                'drive_description'=>'Thumb drive',
+                'target_folder'=>'\dev'].toMap];
+
+FTP_SYNC_CONFIGS:=[//This is an example for an FTP sync config
+                   ['host'=>'192.168.1.1',
+                    'user'=>'user',
+                    'pass'=>'pwd',
+                    'path'=>'/volume'].toMap];
+
+afterSync->void; //If you want to do something after each sync (push), implement it here.

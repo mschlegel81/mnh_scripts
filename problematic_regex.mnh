@@ -1,0 +1,4 @@
+'y:\server\logs\log412.txt'.fileLineIterator
+.map((line)->note(line) orElse line.matchComposite('(C|D):/((\w|.)+/)*(\w|.)'))
+.head(10);
+

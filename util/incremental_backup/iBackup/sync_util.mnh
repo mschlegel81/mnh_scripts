@@ -31,7 +31,7 @@ private excludeOldBackups(list)->begin
 end;
 
 private getFilesForSync(folder:String,acceptor:Expression(1),doExcludeOld:Boolean)->begin
-  list:=allFiles(folder,'*'&[INDEX_EXTENSION,DATA_EXTENSION],false)
+  list:=allFiles(folder,'*',false)
           .map((f)->relativeFileName(folder,f))
           .filter(acceptor)
           .{doExcludeOld ? $L.excludeOldBackups : $L};

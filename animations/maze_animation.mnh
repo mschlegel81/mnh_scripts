@@ -1,0 +1,72 @@
+private randomOf(collection:Collection)->collection.toList[intRandom(collection.size)];
+private scramble([])->[];
+private scramble(collection:Collection)->collection.toList[collection.size.random.sortPerm];
+private CROSS_D2:=[[-2,0],[2,0],[0,-2],[0,2]];
+
+M:=[' ','▀','▄','█'];
+
+printQueue:=newQueue;
+
+visualize(points:Set,latest:List)->begin
+  toPrint:=[];
+  latest.map((x,y)->begin
+    yh:=y div 2;
+    toPrint|=["\e[",yh+1,';',x+1,'H', //Move cursor
+                 M[ord([x,yh*2] in points)+ord([x,yh*2+1] in points)*2]];
+  end);
+  printQueue.put(toPrint.join);
+end;
+
+makeMaze(height,width)->begin
+  toBeVisited:=cross([0..ceil(height/2)-1]*2,
+                     [0..ceil(width /2)-1]*2).toSet;
+  allowedMidPoints:=cross([0..ceil(height/2)-1]*2+1,[0..ceil(width/2)-1]*2  ).union(
+                    cross([0..ceil(height/2)-1]*2  ,[0..ceil(width/2)-1]*2+1));
+  mazePoints:=[].toSet;
+
+  p:=toBeVisited.min;
+  mazePoints|=[p];
+  toBeVisited>>p;
+  candidateStack:=newStack;
+  for candidate in (p+CROSS_D2.transpose).transpose.scramble
+      .map((n)->[shiftRight(p+n,1),n])
+      .filter((p0,p1)->p0 in allowedMidPoints and p1 in toBeVisited) do candidateStack.push(candidate);
+  visualize(mazePoints,[p]);
+
+  while candidateStack.size>0 do begin
+    step:=candidateStack.pop;
+    step[1] in toBeVisited
+    ? begin
+        mazePoints|=step;
+        toBeVisited>>(p:=step[1]);
+        newCandidates:=(p+CROSS_D2.transpose).transpose.scramble
+        .map((n)->[shiftRight(p+n,1),n]).filter((s0,s1)->s0 in allowedMidPoints and s1 in toBeVisited);
+        for candidate in newCandidates do candidateStack.push(candidate);
+        visualize(mazePoints,step);
+      end
+    : void;
+  end;
+  printQueue.closeQueue;
+end;
+
+
+main->begin
+  clearPrint;
+  console_size:=exec('cmd',['/C','mode','con'])[0].filter((L)->L.matches(': *\d+$'))[[1,0]].split(':').getInner(1).trim.softCast;
+  console_size:=
+  console_size.isIntList(2) and not isGuiStarted
+  ? begin
+      width :=console_size[0];
+      height:=console_size[1];
+      [width,height];
+    end
+  :
+  [80,40];
+  localAsync({makeMaze(console_size[0],console_size[1]*2)});
+  for p in printQueue do begin
+    printDirect(p);
+    sleep(0.001);
+  end;
+
+  printDirect(f"\e[{console_size[1]-1};{1}H");
+end;

@@ -168,6 +168,7 @@ listAll(config:BackupConfig)->begin
       ));
 end;
 
+
 backupFilenameGenerator(config:BackupConfig,full:Boolean)->toIterableExpression({begin
   prefix:=BACKUP_ROOT_DIR&'/'&config['backupNameBase']&'_'&formatTime('yyyymmdd',systime)&'_';
   counter:=formatTime('hhnn',systime).toInt;
@@ -306,21 +307,20 @@ end;
 fileRevert(config:BackupConfig, localFileName:String, pickLatest:Boolean, backup_id:String)->begin
   !pickLatest AND !hasPrefix(backup_id,config['backupNameBase']) ? return void :
   nameInBackup:=relativeFileName(expandedFileName(config['root']),localFileName);
+  if nameInBackup.hasPrefix('..') then return void;
   states:=
   findBackups(config,true)[0].map((backupName)->begin
     [backupName.extractFileNameOnly,
      backupName.backupFileToContentMap[nameInBackup]];
   end)
   .filter((b)->b.size=2).map((id,val)->[id,val[0],val[1]]);
-
   dataSource:=pickLatest ? states.trailing : states.filter((name,time,lines)->name==backup_id)[0];
-  log(dataSource);
-  dataSource.isVoid
-  ? return "\e[91mBackup "&backup_id&" could not be found\e[0m"
-  : begin
-      writeFileWithAge(localFileName,dataSource[2],dataSource[1]);
-      ['File ',localFileName,' reset to state ',dataSource[0],' from ',formatTime(dataSource[1])].join;
-    end;
+  if not dataSource.isList(3)
+  then return "\e[91mBackup "&backup_id&" could not be found\e[0m"
+  else begin
+    writeFileWithAge(localFileName,dataSource[2],dataSource[1]);
+    ['File ',localFileName,' reset to state ',dataSource[0],' from ',formatTime(dataSource[1].trailing)].join;
+  end;
 end;
 
 fileHistory(config:BackupConfig, localFileName:String, additionalLines>=0)->begin

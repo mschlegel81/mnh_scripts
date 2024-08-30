@@ -8,9 +8,9 @@ D:=['0'..'9','A'..'Z'];
 
 toString(x:PAdic)->begin
   d:=D[digits@x];
-  d.size>=MAX_DIGITS
-  ? '...'&d.trailing(MAX_DIGITS).join
-  : repeatString(' ',3+MAX_DIGITS-d.size)&d.join;
+  (d.size>=MAX_DIGITS
+   ? '...'&d.trailing(MAX_DIGITS).join
+   : repeatString(' ',3+MAX_DIGITS-d.size)&d.join)&'_'&x[1];
 end;
 
 private crop(value:Int,base:Int)->begin
@@ -21,14 +21,24 @@ private crop(value:Int,base:Int)->begin
     [composeDigits(d,base),base].toPAdic;
   end else [value,base].toPAdic;
 end;
+P2(i:Int)->[i,2].toPAdic;
+P3(i:Int)->[i,3].toPAdic;
+P5(i:Int)->[i,5].toPAdic;
+P7(i:Int)->[i,7].toPAdic;
+P10(i:Int)->[i,10].toPAdic;
+P3(s:String)->[s.clean(['0'..'2'],'').chars.softCast.composeDigits(3),3].toPAdic;
+P5(s:String)->[s.clean(['0'..'4'],'').chars.softCast.composeDigits(5),5].toPAdic;
+P7(s:String)->[s.clean(['0'..'6'],'').chars.softCast.composeDigits(7),7].toPAdic;
+P10(s:String)->[s.clean(['0'..'9'],'').chars.softCast.composeDigits,10].toPAdic;
 
 OPERATOR_PLUS  (x:PAdic,y:PAdic)->crop(x[0]+y[0],x[1]);
 OPERATOR_NEGATE_ARITHMETIC(x:PAdic)->begin
   d:=trailing(digits@x,MAX_DIGITS);
   while d.size<MAX_DIGITS do d:=0|d;
-  d:=(d.leading-1)|(d.trailing-2);
-  crop(composeDigits(vectorIfThenElse(d<0,x[1]-1,d),x[1]),x[1]);
+  d:=x[1]-1-d;
+  crop(composeDigits(vectorIfThenElse(d<0,x[1]-1,d),x[1])+1,x[1]);
 end;
+
 OPERATOR_MINUS (x:PAdic,y:PAdic)->x+(-y);
 OPERATOR_MULT  (x:PAdic,y:PAdic)->crop(x[0]*y[0],x[1]);
 inverse(x:PAdic)->crop(modularInverse(x[0],x[1]^MAX_DIGITS),x[1]);
@@ -36,7 +46,7 @@ OPERATOR_DIVREAL(x:PAdic,y:PAdic)->x*inverse(y);
 OPERATOR_POT(x:PAdic,y:Int)->crop(powMod(x[0],y,x[1]^(MAX_DIGITS+1)),x[1]);
 
 begin
-  X:=[9,10].toPAdic;
+  X:=P10(5);
 
   print(inverse(X).toString);
 
@@ -44,15 +54,12 @@ begin
   for _ in [1..1000] do begin
     before:=X;
     X:=X*X;
-//    print(X);
     print(X.toString,' ',X==before);
+    if X==before then return void;
   end;
 end;
 
-[2254270163595650875433851147123214227266605403581781469090806576468950587661997186505665475715792896,10].toPAdic.toString;
-[2254270163595650875433851147123214227266605403581781469090806576468950587661997186505665475715792896,10].toPAdic².toString;
-[2254270163595650875433851147123214227266605403581781469090806576468950587661997186505665475715792896,10].toPAdic²;
+X:=P10(7);
 
-isqrt(2254270163595650875433851147123214227266605403581781469090806576468950587661997186505665475715792896);
-
-
+inverse(X).toString;
+1/7;

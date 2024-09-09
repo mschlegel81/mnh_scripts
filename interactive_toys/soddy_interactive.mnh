@@ -1,8 +1,7 @@
 USE customFormUtil,mathUtils;
 
+@SuppressUnusedParameterWarning
 ducktype Vector(x:NumericList(2))->true;
-//ducktype VectorList(L:List)->L.each(v,v.isVector,AND);
-//ducktype AdjacencyList(L:Set)->L.each(v,v.isIntList(3) AND (v>=0).agg(and),AND);
 ducktype Triangle(x:List(3))->x.each(e,e.isVector,AND);
 ducktype FiniteNumber(n:Numeric)->n.isInt OR !(n.isNan OR n.isInfinite);
 type Circle(circle:List(2))->circle[0].isVector AND circle[1].isFiniteNumber;

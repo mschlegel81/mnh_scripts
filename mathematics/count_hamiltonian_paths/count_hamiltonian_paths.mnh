@@ -39,7 +39,7 @@ callExt(gridWidth:Int,gridHeight:Int)->begin
   for run in runsRequired do parallel begin
     if known_sub_paths[run].isVoid then begin
       print(_T_,' Start at ',run);
-      R1:=exec(pathcounter_exe,[gridWidth,gridHeight,run]);
+      R1:=exec(pathcounter_exe,[gridWidth,gridHeight,run],-1);
       assert(R1[1]==0);
       subPaths:=R1[0].map(::lineToInts);
       known_sub_paths[run]:=subPaths;

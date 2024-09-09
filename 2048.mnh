@@ -25,7 +25,7 @@ addRandom(s:IntList(16))->begin
   assert(i.size>=1);
   i:=i[intRandom(i.size)];
   S:=s;
-  S[i]:=random<0.1 ? 4 : 2;
+  S[i]:=random<0.05 ? 4 : 2;
   S;
 end;
 
@@ -51,10 +51,7 @@ moveGrid(g:IntList(16),dx in [-1,0,1],dy in [-1,0,1])->
     Gnew==G ? g : Gnew.flatten.addRandom;
   end;
 
-
 [0..15].map(()->0).addRandom.addRandom.moveGrid(1,0);
-
-
 
 main->begin
   grid:=[0..15].map(()->0).addRandom.addRandom;
@@ -68,4 +65,3 @@ main->begin
                     grid:=grid.moveGrid(1,0);
   end;
 end;
-//

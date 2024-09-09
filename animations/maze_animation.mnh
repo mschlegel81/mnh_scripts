@@ -1,7 +1,18 @@
-private randomOf(collection:Collection)->collection.toList[intRandom(collection.size)];
-private scramble([])->[];
-private scramble(collection:Collection)->collection.toList[collection.size.random.sortPerm];
-private CROSS_D2:=[[-2,0],[2,0],[0,-2],[0,2]];
+console_size:=begin
+  not isGuiStarted and (tmp:=exec('cmd',['/C','mode','con'])[0].filter((L)->L.matches(': *\d+$'))[[1,0]].split(':').getInner(1).trim.softCast).isIntList(2)
+  ? begin
+      width :=tmp[0];
+      height:=tmp[1];
+      [width,height];
+    end
+  : [80,40];
+end;
+
+
+scramble([])->[];
+scramble(collection:Collection)->collection.toList[collection.size.random.sortPerm];
+
+CROSS_D2:=[[-2,0],[2,0],[0,-2],[0,2]];
 
 M:=[' ','▀','▄','█'];
 
@@ -17,55 +28,123 @@ visualize(points:Set,latest:List)->begin
   printQueue.put(toPrint.join);
 end;
 
-makeMaze(height,width)->begin
-  toBeVisited:=cross([0..ceil(height/2)-1]*2,
-                     [0..ceil(width /2)-1]*2).toSet;
-  allowedMidPoints:=cross([0..ceil(height/2)-1]*2+1,[0..ceil(width/2)-1]*2  ).union(
-                    cross([0..ceil(height/2)-1]*2  ,[0..ceil(width/2)-1]*2+1));
+visualize(points:Set, latest,customColor)->begin
+  toPrint:=[];
+  latest.map((x,y)->begin
+    yh:=y div 2;
+    toPrint|=[customColor,"\e[",yh+1,';',x+1,'H', //Move cursor
+                 M[ord([x,yh*2] in points)+ord([x,yh*2+1] in points)*2]];
+  end);
+  printQueue.put(toPrint.join);
+end;
+
+makeMaze(width,height)->begin
+  toBeVisited:=cross([0..ceil(width/2)-1]*2,
+                     [0..ceil(height /2)-1]*2).toSet;
+  allowedMidPoints:=cross([0..ceil(width/2)-2]*2+1,[0..ceil(height/2)-1]*2  ).union(
+                    cross([0..ceil(width/2)-1]*2  ,[0..ceil(height/2)-2]*2+1));
   mazePoints:=[].toSet;
 
-  p:=toBeVisited.min;
+  p:=toBeVisited.max;
   mazePoints|=[p];
+  visualize(mazePoints,[p]);
+
   toBeVisited>>p;
   candidateStack:=newStack;
-  for candidate in (p+CROSS_D2.transpose).transpose.scramble
+  for candidate
+  in (p+CROSS_D2.transpose).transpose
       .map((n)->[shiftRight(p+n,1),n])
-      .filter((p0,p1)->p0 in allowedMidPoints and p1 in toBeVisited) do candidateStack.push(candidate);
-  visualize(mazePoints,[p]);
+      .filter((p0,p1)->p0 in allowedMidPoints and p1 in toBeVisited)
+      .scramble
+  do candidateStack.push(candidate);
 
   while candidateStack.size>0 do begin
     step:=candidateStack.pop;
     step[1] in toBeVisited
     ? begin
         mazePoints|=step;
-        toBeVisited>>(p:=step[1]);
-        newCandidates:=(p+CROSS_D2.transpose).transpose.scramble
-        .map((n)->[shiftRight(p+n,1),n]).filter((s0,s1)->s0 in allowedMidPoints and s1 in toBeVisited);
-        for candidate in newCandidates do candidateStack.push(candidate);
         visualize(mazePoints,step);
+        toBeVisited>>(p:=step[1]);
+        for candidate
+        in (p+CROSS_D2.transpose).transpose
+            .map((n)->[shiftRight(p+n,1),n])
+            .filter((p0,p1)->p0 in allowedMidPoints and p1 in toBeVisited)
+            .scramble
+        do candidateStack.push(candidate);
       end
     : void;
   end;
+  ////////////////////////////////////////////////////////////////////////////////////
+  //helperPoints:=allowedMidPoints.minus(mazePoints).filter((_)->random<0.02).toList;
+  //mazePoints|=helperPoints;
+  //visualize(mazePoints,helperPoints);
+  ////////////////////////////////////////////////////////////////////////////////////
+
+
+  allowedMidPoints:=cross([0..ceil(width/2)-1]*2+1,[0..ceil(height/2)-1]*2  ).union(
+                    cross([0..ceil(width/2)-1]*2  ,[0..ceil(height/2)-1]*2+1)).intersect(mazePoints);
+
+  target:=[mazePoints.getInner(0).max,mazePoints.getInner(1).min];
+  p     :=[mazePoints.getInner(0).min,mazePoints.getInner(1).max];
+  scannedPoints:=[p];
+  candidateStack:=newStack;
+  toBeVisited:=mazePoints;
+
+  for candidate
+  in (p+CROSS_D2.transpose).transpose
+      .map((n)->[shiftRight(p+n,1),n])
+      .filter((p0,p1)->p0 in allowedMidPoints and p1 in toBeVisited)
+      .sort((q)->-euklideanNorm(q[1]-target))
+  do candidateStack.push(candidate);
+
+  while candidateStack.size>0 and not (p==target) do begin
+    step:=candidateStack.pop;
+    step[1] in toBeVisited
+    ? begin
+        scannedPoints|=step;
+        toBeVisited>>(p:=step[1]);
+        for candidate
+        in (p+CROSS_D2.transpose).transpose
+            .map((n)->[shiftRight(p+n,1),n])
+            .filter((p0,p1)->p0 in allowedMidPoints and p1 in toBeVisited)
+            .sort((q)->-euklideanNorm(q[1]-target))
+        do candidateStack.push(candidate);
+      end
+    : void;
+  end;
+
+  all:=[scannedPoints[0]];
+  visualize(mazePoints,all,"\e[92m");
+  for p in scannedPoints.tail do begin
+    if abs(p-all.trailing).agg(+)<=1 then begin
+      all||=p;
+      visualize(mazePoints,[p],"\e[92m");
+    end else begin
+      repeat
+        visualize(mazePoints,[all.trailing],"\e[91m");
+        all:=all.leading;
+      until abs(p-all.trailing).agg(+)<=1;
+      visualize(mazePoints,[all.trailing,p],"\e[92m");
+      all||=p;
+    end;
+  end;
+
+  printQueue.put("\e[0m");
   printQueue.closeQueue;
+  void;
 end;
+
 
 
 main->begin
   clearPrint;
-  console_size:=exec('cmd',['/C','mode','con'])[0].filter((L)->L.matches(': *\d+$'))[[1,0]].split(':').getInner(1).trim.softCast;
-  console_size:=
-  console_size.isIntList(2) and not isGuiStarted
-  ? begin
-      width :=console_size[0];
-      height:=console_size[1];
-      [width,height];
-    end
-  :
-  [80,40];
-  localAsync({makeMaze(console_size[0],console_size[1]*2)});
+  printQueue.put("\e[0m");
+  localAsync({makeMaze(console_size[0],console_size[1]*2) orElse callMemoryCleaner});
+
+  t:=0;
   for p in printQueue do begin
     printDirect(p);
-    sleep(0.001);
+    sleepUntil(t+=0.01);
   end;
 
   printDirect(f"\e[{console_size[1]-1};{1}H");

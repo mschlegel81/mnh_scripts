@@ -1,0 +1,52 @@
+console_size:=begin
+  not isGuiStarted and (tmp:=exec('cmd',['/C','mode','con'])[0].filter((L)->L.matches(': *\d+$'))[[1,0]].split(':').getInner(1).trim.softCast).isIntList(2)
+  ? begin
+      width :=tmp[0];
+      height:=tmp[1];
+      [width,height];
+    end
+  : [80,40];
+end;
+
+number_locations:=begin
+  numbersPerLine:=console_size[0] div 5;
+  rows:=console_size[1]-1;
+  [0..rows-1].each(y,
+  [0..numbersPerLine-1].each(x,
+    (2+x+y*numbersPerLine) => [x*5+1,y+1]),|).toMap;
+end;
+
+printNumber(i:Int,color)->begin
+  loc:=number_locations[i];
+  join(["\e[",loc[1],';',loc[0],'H',color,f'%{i}5s']); //Move cursor
+end;
+
+deleteNumber(i:Int)->begin
+  loc:=number_locations[i];
+  join(["\e[",loc[1],';',loc[0],'H     ']);
+end;
+
+main->begin
+   clearPrint;
+   print("\e[0m");
+   maxValue:=number_locations.getInner(0).max;
+   number_locations.getInner(0).map((i)->printNumber(i,'')).join.printDirect;
+
+   is_prime:=[0..maxValue]>=2;
+   for k in [2..isqrt(maxValue)[0]] do if is_prime[k] then begin
+     printNumber(k,"\e[92m").printDirect; sleep(1);
+     toPrint:='';
+     toDelete:=
+     for j in k*[2..maxValue div k] do begin
+       toPrint&=printNumber(j,is_prime[j] ? "\e[91m" : "\e[31m");
+       is_prime[j]:=false;
+       j;
+     end;
+     printDirect(toPrint);
+     sleep(1);
+     printDirect(toDelete.map(::deleteNumber).join&"\e[0m");
+     sleep(1);
+   end;
+   printDirect("\e[",console_size[1]-1,';',1,"H\e[0m");
+end;
+

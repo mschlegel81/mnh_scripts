@@ -1,0 +1,68 @@
+console_size:=begin
+  not isGuiStarted and (tmp:=exec('cmd',['/C','mode','con'])[0].filter((L)->L.matches(': *\d+$'))[[1,0]].split(':').getInner(1).trim.softCast).isIntList(2)
+  ? begin
+      width :=tmp[0];
+      height:=tmp[1];
+      [width,height];
+    end
+  : [80,40];
+end.*([1,2]).min;
+
+
+memoized
+private Ulam(1)->[[1]];
+private Ulam(n)->(n and 1)=0 ? [[n*n..n*(n-1)+1]] | [0..n-2].each(j,(Ulam(n-1).get(j))|(n*(n-1)-j))
+                             :                      [0..n-2].each(j,((sqr(n-1)+1+j)| Ulam(n-1).get(j))) | [[n*(n-1)+1..n*n]];
+
+PosOfK:=Ulam(console_size).each(row,begin
+          y:=index;
+          row.each(numberInRow,numberInRow=>[y,index]);
+        end,|).toMap;
+KOfPos:=PosOfK.map((key,value)->value=>key).toMap;
+
+deletePoint(k:Int,is_prime:BooleanList)->begin
+  P:=PosOfK[k];
+
+  toPrint:=["\e[",P[1] div 2+1,';',P[0]+1,'H',
+  if (P[1] and 1)=0 then begin
+    is_prime[KOfPos[[P[0],P[1]+1]]]
+    ? '▄'
+    : ' ';
+  end else begin
+    is_prime[KOfPos[[P[0],P[1]-1]]]
+    ? '▀'
+    : ' ';
+  end].join;
+end;
+
+main->begin
+  begin
+    M:=KOfPos.getInner(0).max;
+    width:=M[0];
+    clearPrint;
+    for i in [1..M[1] div 2] do print(repeatString('█',width));
+    print(repeatString('▀',width));
+  end;
+  maxValue:=KOfPos.getInner(1).max;
+  is_prime:=[0..maxValue]>1;
+  deletePoint(1,is_prime).printDirect;
+  sleep(1);
+  for k in [2..isqrt(maxValue)[0]] do if is_prime[k] then begin
+    sleepTime:=1;
+    T:=scriptTime;
+    for j in k*[k..maxValue div k] do if is_prime[j] then begin
+      is_prime[j]:=false;
+      deletePoint(j,is_prime).printDirect;
+      sleepUntil(T+=(sleepTime*=0.95));
+    end;
+    sleep(1);
+  end;
+  printDirect("\e[",console_size div 2-1,';',1,"H\e[0m");
+end;
+
+
+
+//M:=[' ','▀','▄','█'];
+
+
+

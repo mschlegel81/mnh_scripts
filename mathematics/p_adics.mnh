@@ -21,11 +21,13 @@ private crop(value:Int,base:Int)->begin
     [composeDigits(d,base),base].toPAdic;
   end else [value,base].toPAdic;
 end;
+
 P2(i:Int)->[i,2].toPAdic;
 P3(i:Int)->[i,3].toPAdic;
 P5(i:Int)->[i,5].toPAdic;
 P7(i:Int)->[i,7].toPAdic;
 P10(i:Int)->[i,10].toPAdic;
+P2(s:String)->[s.clean(['0'..'1'],'').chars.softCast.composeDigits(2),2].toPAdic;
 P3(s:String)->[s.clean(['0'..'2'],'').chars.softCast.composeDigits(3),3].toPAdic;
 P5(s:String)->[s.clean(['0'..'4'],'').chars.softCast.composeDigits(5),5].toPAdic;
 P7(s:String)->[s.clean(['0'..'6'],'').chars.softCast.composeDigits(7),7].toPAdic;

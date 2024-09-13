@@ -1,6 +1,5 @@
 USE fourierCurves;
 packReferenceCurve  (samples   :Timed4DSamples)->samples.serialize.compress;
-
 unpackReferenceCurve(packedData:String)->packedData.decompress.deserialize;
 
 //*Shifts a list L left periodically by shift
@@ -77,58 +76,62 @@ private timer(message)->timer(message,scriptTime);
 
 timedCurveError(timedSamples:Timed4DSamples,factors:NumericList,phase:Int,doPlotOutput:Boolean)->begin
   assert(!timedSamples.isFullCurve);
-  reconstructed:=sampleCurve(factors,phase,timedSamples[1].getInner(0)*2*pi);
-  weights:=(timedSamples[1].getInner(1).tail-timedSamples[1].getInner(1).leading).euklideanNorm;
-  weights:=weights.head|weights|weights.trailing;
-  weights:=weights.tail+weights.leading;
+  sortedSamples:=timedSamples[1].sort;
+//  sortedSamples:=[sortedSamples.head]|zip(sortedSamples.leading,sortedSamples.tail)
+//    .each((left,right),(left+right)*0.5,right);
 
-  D:=(timedSamples[1].getInner(1)-reconstructed).euklideanNorm;
+  T:=sortedSamples.getInner(0);
+  reconstructed:=sampleCurve(factors,phase,T*2*pi);
+  weights:=((T.head(2).agg(-)*-1)|(T.tail(2)-T.leading(2))|(T.trailing(2).agg(-)*-1));
+  weights/=weights.agg(+);
+
+  D :=(sortedSamples.getInner(1)-reconstructed).euklideanNorm;
   doPlotOutput
   ? begin
       setOptions(["fontsize"=>6,"preserveAspect"=>false,"x0"=>0,"y0"=>0,"y1"=>1,"autoscaleX"=>true,"autoscaleY"=>true].toMap);
-
-      [timedSamples[1].getInner(0).map(::periodicTime),D].transpose.sort.plot('red 0.5 f');
+      [T.map(::periodicTime),D].transpose.sort.plot('red 0.5 f');
       addAnimationFrame;
       postDisplay;
     end
   : void;
-  sqrt((D.sqr*weights).agg(+)/weights.agg(+)); //weighted average over all samples
+  (D²*weights).agg(+);
 end;
 
 private recommendedFourierCoeffCount(coefficients:NumericList)->ceil((indexOf(coefficients.abs>=coefficients.abs.max*1E-3).max+1)*1.3);
 
 private heptagonExe:=expandedFileName(myPath.extractFileDirectory&'/../packages/heptagon.exe');
-private improveSingleSample(k:Int,phi:NumericList(4))->begin
-  execOut:=exec(heptagonExe,map('opt'|k|(phi),::toString));
-  assert(execOut[1]=0);
-  execOut[0,0].split(";").head.replace('*','').trim.split(',').trim.softCast;
+
+private execHeptagonMultiCommand(commandList:StringList)->execHeptagonMultiCommand(commandList,false);
+private execHeptagonMultiCommand(commandList:StringList,parseErrorsInsteadOfPositions:Boolean)->begin
+  tempFile:='';
+  repeat tempFile:=f'temp_{intRandom(9999999)}.txt' until not tempFile.fileExists;
+  tempFile.writeFileLines(commandList);
+  execOut:=exec(heptagonExe,[tempFile]);
+  assert(execOut[1]==0);
+  assert(execOut[0].size==commandList.size);
+  deleteFile(tempFile);
+  parseErrorsInsteadOfPositions
+  ? for outputLine in execOut[0] do outputLine.split(";").trailing.replace('*','').trim.split(',').trim.softCast
+  : for outputLine in execOut[0] do outputLine.split(";").head    .replace('*','').trim.split(',').trim.softCast;
 end;
 
-getRefinementSteps(partiallyTimedCurve:List)->begin
-  L:=partiallyTimedCurve[1].getInner(0).map((t)->t.isNan ? Inf : 0);
-  k:=indexOf(!L.isInfinite);
-  level:=0;
-  while k.size<L.size do begin
-    level+=1;
-    k|=k[0]+L.size;
-    (k.tail+k.leading).div(2).each(i, L[i]:=min(L[i],level));
-    k:=indexOf(!L.isInfinite);
-  end;
-  indexOnReconstruction:=L.sortPerm.each(j,j=>index).toMap;
-  [1..L.max].each(k,begin
-    toReconstruct    :=indexOf(L=k);
-    toReconstructFrom:=indexOf(L=k-1);
-    toReconstruct.each(i,[i,
-      begin
-        j:=toReconstructFrom[toReconstructFrom<i].max;
-        j.isVoid ? [indexOnReconstruction[toReconstructFrom.max],-0.5] : [indexOnReconstruction[j],0.0];
-      end,
-      begin
-        j:=toReconstructFrom[toReconstructFrom>i].min;
-        j.isVoid ? [indexOnReconstruction[toReconstructFrom.min], 0.5] : [indexOnReconstruction[j],0.0];
-      end]);
-  end);
-end;
+private improveSingleSample_cmd  (k:Int,phi:NumericList(4))                    ->join('opt'|k|phi,' ');
+private getError_cmd             (k:Int,phi:NumericList(4))                    ->join('err'|k|phi,' ');
+private findSolutionNearCurve_cmd(k:Int,phi:NumericList(4),dPhi:NumericList(4))->join('dir'|k|phi|dPhi,' ');
+
+truncateCoefficients(dft:NumericList,intPhaseShift:Int,timedCurve:Timed4DSamples)->
+  dft.size<=5 ? dft : [dft.size div 2..dft.size].map((k)->min(k,300)).unique.map((k)->dft.head(k)).pEach(subDft,[timedCurveError(timedCurve,subDft,intPhaseShift,false),subDft],min)[1];
+
+thinOutSamples(timedCurve:Timed4DSamples,samplesTarget,maxFractionToDrop)->
+  if timedCurve[1].size>samplesTarget then begin
+    q:=timedCurve[1].sort;
+    gaps:=abs(q.getInner(0).tail(2)-q.getInner(0).leading(2));
+    toDropCount:=min(timedCurve[1].size-samplesTarget,round(timedCurve[1].size*maxFractionToDrop));
+    toDrop:=gaps.sortPerm.head(toDropCount);
+    undroppable:=[].toSet;
+    toDrop:=toDrop.each(di,di in undroppable ? void : begin undroppable|=[di-1,di+1]; di; end).head(toDropCount);
+    [timedCurve[0],q.each(p,index in toDrop ? void : p)];
+  end else timedCurve;
 
 calcCurveCoeff(c:List,curveIndex:Int,subCurveIndex:Int,scale:Int)->
 c.size<=8
@@ -200,92 +203,167 @@ c.size<=8
   stepDone();
   //------------:(1) Extract points with exact times from symmetry assumptions
   //(2) Refine samples:-------------------------------------------------------
-  stepDone:=timer('Samples refined');
+  stepDone:=timer('Initial timing ready');
   intPhaseShift:=round(phaseShift*7);
-//  partiallyTimedCurve:=[false,partiallyTimedCurve.pMap((pt)->[pt[0],improveSingleSample(curveIndex,pt[1]*0.5^scale/256*pi)])];
-  partiallyTimedCurve:=[false,partiallyTimedCurve.pMap((pt)->[pt[0],pt[1]*0.5^scale/256*pi])];
+  begin
+    tInt:=partiallyTimedCurve.getInner(0).each(t,t.isNan ? void : [index,t]).newLinearInterpolator;
+    partiallyTimedCurve:=[false,partiallyTimedCurve.pEach((t,p),tInt(index)=>p*0.5^scale/256*pi)];
+  end;
+
+  joinedCurve:=[0..3].each(dim,partiallyTimedCurve[1].getInner(1).each(x,(index/partiallyTimedCurve[1].size*0.5- phaseShift*dim)=>x[dim]),|);
   isGuiStarted ? begin
     setOptions(["fontsize"=>6,"preserveAspect"=>false].toMap);
-    plot();
-    map([0..3],(dim)->partiallyTimedCurve[1].getInner(1).each(x,(index/partiallyTimedCurve[1].size*0.5- phaseShift*dim)=>x[dim]).addPlot());
+    joinedCurve.sort.plot('black 0.5 l');
+    map([0..3],(dim)->partiallyTimedCurve[1].getInner(1).each(x,(index/partiallyTimedCurve[1].size*0.5- phaseShift*dim)=>x[dim]).addPlot('0.5 .'));
     addAnimationFrame;
   end : void;
-  timedCurve:=[false,partiallyTimedCurve[1].map((pt)->pt[0].isNan ? void : pt.head(2))];
-  stepDone();
+  timedCurve:=[false,partiallyTimedCurve[1].filter((t,x)->not t.isNan).sort];
   //-------------------------------------------------------:(2) Refine samples
   //(3) Interpolation of time:------------------------------------------------
-  stepDone:=timer('Timing interpolated');
-  dft:=timedCurve.splineFourierTransform(phaseShift,10);
   PLOT_INTERMEDIATE:=isGuiStarted
-  ? {begin
+  ? (dft,_4DSamples)->begin
       setOptions(["fontsize"=>6,"preserveAspect"=>false].toMap);
       plot();
-      map([0..3],(dim)->timedCurve[1].pMap((pt)->periodicTime(pt[0]- phaseShift*dim)=>pt[1,dim]).sort.addPlot('0.5 . black'));
-      f:=getCurveFunction([KEY_PHASE=>intPhaseShift,KEY_KOEFF=>$dft].toMap,0);
+      map([0..3],(dim)->_4DSamples.map((pt)->periodicTime(pt[0]- phaseShift*dim)=>pt[1,dim]).sort.addPlot('0.5 . black'));
+      f:=getCurveFunction([KEY_PHASE=>intPhaseShift,KEY_KOEFF=>dft].toMap,0);
       addPlot((t)->f(t*2*pi),0,1,5000,'red');
       addAnimationFrame;
       display;
-    end}
-  : {$dft};
-  PLOT_INTERMEDIATE(dft[0]);
-  bestDftError:=Inf;
+    end
+  : (dft,_4DSamples)->void;
 
-  getRefinementSteps(partiallyTimedCurve).each(refStep,begin
-    newlyTimedSamples:=refStep.each(entry,begin
-      p:=partiallyTimedCurve[1,entry[0],1];
-      t:=((timedCurve[1,entry[1,0],0]+entry[1,1])+
-                (timedCurve[1,entry[2,0],0]+entry[2,1]))*0.5;
-      t=>p;
-    end);
-    timedCurve:=[false,(timedCurve[1]|newlyTimedSamples)]
-               .retimeCurveByFourierCoeff(dft[0],intPhaseShift,false)['timedSamples'];
-    newDft:=timedCurve.splineFourierTransform(phaseShift,min(dft[0].recommendedFourierCoeffCount,timedCurve[1].size));
-    curveError:=timedCurveError(timedCurve,newDft[0],intPhaseShift,false);
-    curveError<bestDftError
-    ? begin
-        dft:=newDft;
-        bestDftError:=curveError;
-        timedCurve:=timedCurve.retimeCurveByFourierCoeff(dft[0],intPhaseShift,false)['timedSamples'];
-      end
-    : void;
+  stepDone:=timer('Find initial Fourier series');
+  dft:=[0..3].each(k,timedCurve[1].each((t,p),periodicTime(t-k*phaseShift)=>p[k])
+                                  .each((t,p),[t,p],[periodicTime(t+0.5),-p]),|)
+             .sort
+             .getInner(1)
+             .calculateFourierCoefficients(16*2+1)
+             .each((re,im),(index and 1)=1 ? im : void);
 
+  [1..dft.size].map((k)->dft.head(k)).pEach(C,begin
+    E:=curveIntegralError(C,curveIndex,intPhaseShift);
+    E=>C;
+    end,min)[1];
 
-    PLOT_INTERMEDIATE(dft[0]);
-    printf('  %5s samples; %3s coefficients; error %16.10f',timedCurve[1].size,dft[0].size,curveError);
-    [curveError,dft,timedCurve];
-  end,min);
+  PLOT_INTERMEDIATE(dft,timedCurve[1]);
+  stepDone();
+
+  if phaseShift>0.5 then begin
+    phaseShift:=1-phaseShift;
+    intPhaseShift:=round(phaseShift*7);
+  end;
+
+  bestDft:=dft;
+  bestError:=curveIntegralError(dft,curveIndex,intPhaseShift);
+  //timedCurveError(timedCurve,dft,intPhaseShift,false);
+  bestTiming:=timedCurve;
+  printf('  %5s samples; %3s coefficients; error´%16.10f - phase: %spi/7',timedCurve[1].size,dft.size,bestError,intPhaseShift);
+
+  stepDone:=timer('Timing interpolated');
+  //Initial Timing
+  begin
+    k:=max(1024,timedCurve[1].size);
+    T:=[0..k-1]/k;
+    samples:=transpose(f4(dft,intPhaseShift)(T*2*pi));
+    partiallyTimedCurve:=
+    newTimedCurve:=[timedCurve[0],partiallyTimedCurve[1].pMap((t,p)->[T[transpose(p-samples).euklideanNorm.argMin],p])];
+    dft:=splineFourierTransform(newTimedCurve,phaseShift,min(k div 4,dft.size)).truncateCoefficients(intPhaseShift,newTimedCurve);
+
+    newError:=curveIntegralError(dft,curveIndex,intPhaseShift);
+    PLOT_INTERMEDIATE(dft,newTimedCurve[1]);
+
+    printf('  %5s samples; %3s coefficients; error´%16.10f%s',newTimedCurve[1].size,dft.size,newError,newError<bestError ? ' *' :'');
+    bestError :=newError;
+    bestTiming:=timedCurve:=newTimedCurve.retimeCurveByFourierCoeff(dft,intPhaseShift,false)['timedSamples']
+                                         .thinOutSamples(recommendedSampleCount(dft),0.1);
+  end;
+  stepDone();
+
+  stepDone:=timer('Initial fitting ready');
+  errorGrows:=0;
+  repeat
+    dft:=splineFourierTransform(timedCurve,phaseShift,
+                                dft.recommendedFourierCoeffCount)
+         .truncateCoefficients(intPhaseShift,timedCurve);
+    timedCurve:=timedCurve.retimeCurveByFourierCoeff(dft,intPhaseShift,false)['timedSamples']
+                          .thinOutSamples(recommendedSampleCount(dft),0.1);
+
+    PLOT_INTERMEDIATE(dft,timedCurve[1]);
+    curveError:=curveIntegralError(dft,curveIndex,intPhaseShift);
+    printf('  %5s samples; %3s coefficients; error´%16.10f%s',timedCurve[1].size,dft.size,curveError,curveError<bestError ? curveError<bestError*0.9 ? ' **' : ' *' :'');
+
+    if curveError<bestError then begin
+      if curveError<bestError*0.9
+      then errorGrows:=0
+      else errorGrows+=1;
+      bestError :=curveError;
+      bestTiming:=timedCurve;
+      bestDft   :=dft;
+    end else errorGrows+=1;
+  until (errorGrows>10);
+
+  timedCurve:=bestTiming;
+  error     :=bestError:=timedCurveError(timedCurve,dft,intPhaseShift,false);
+  dft       :=bestDft;
 
   stepDone();
-  //------------------------------------------------:(3) Interpolation of time
-  //(4): Normalization--------------------------------------------------------
-  stepDone:=timer('Normalized and finished');
-  phaseShift>0.5
-  ? begin
-      note('Flip phase');
-      phaseShift:=1-phaseShift;
-      timedCurve[1]:=timedCurve[1].each(pt,pt,[periodicTime(pt[0]+0.5),-pt[1]])
-                                  .map((pt)->[periodicTime(0.5-pt[0]),pt[1]])
-                                  .filter((pt)->0<=pt[0]<0.5).sort;
-      intPhaseShift:=round(phaseShift*7);
-      PLOT_INTERMEDIATE(dft[0]);
-    end
-  : begin
-      timedCurve[1]:=timedCurve[1].each(pt,pt,[periodicTime(pt[0]+0.5),-pt[1]])
-                                  .filter((pt)->0<=pt[0]<0.5).sort;
-    end;
-  error:=timedCurveError(timedCurve,dft[0],intPhaseShift,false);
-  print('  Error: ',error);
-  result:=
+//  result:=
   [KEY_PHASE=>intPhaseShift,
-   KEY_KOEFF=>dft[0],
+   KEY_KOEFF=>bestDft,
    KEY_ERROR=>error,
    KEY_REFCV=>timedCurve.packReferenceCurve,
    KEY_CURVE=>subCurveIndex].toMap;
+//  didResampling:=false;
+
+  stepDone:=timer('Timing refinement');
+  errorGrows:=0;
+  repeat
+    dft:=splineFourierTransform(timedCurve,phaseShift,dft.recommendedFourierCoeffCount)
+         .truncateCoefficients(intPhaseShift,timedCurve);
+    timedCurve:=timedCurve.retimeCurveByFourierCoeff(dft,intPhaseShift,false)['timedSamples']
+                          .thinOutSamples(recommendedSampleCount(dft),0.1);
+
+    PLOT_INTERMEDIATE(dft,timedCurve[1]);
+    error:=timedCurveError(timedCurve,dft,intPhaseShift,false);
+    printf('  %5s samples; %3s coefficients; error %16.10f%s',timedCurve[1].size,dft.size,error,error<bestError ? error<bestError*0.99 ? ' **' : ' *' :'');
+
+    if error<bestError then begin
+      if error<bestError*0.99
+      then errorGrows:=0
+      else errorGrows+=1;
+      bestError :=error;
+      bestTiming:=timedCurve;
+      bestDft   :=dft;
+    end else errorGrows+=2;
+  until errorGrows>32;
   stepDone();
-  result:=resample(curveIndex,result,true);
-  result[KEY_OPTIMIZED]:=false;
-  result;
+  //------------------------------------------------:(3) Interpolation of time
+  [KEY_PHASE=>intPhaseShift,
+   KEY_KOEFF=>bestDft,
+   KEY_ERROR=>bestError,
+   KEY_REFCV=>bestTiming.packReferenceCurve,
+   KEY_CURVE=>subCurveIndex,
+   KEY_OPTIMIZED=>false].toMap.resample(curveIndex,true,true);
 end;
+
+curveIntegralError(coefficients:NumericList,curveIndex:Int,phase:Int)->begin
+  sampleCount:=recommendedSampleCount(coefficients);
+
+  errors:=
+  sampleCurve(coefficients,
+              phase,
+              [0..sampleCount-1]/sampleCount*pi)
+  .map((phi)->getError_cmd(curveIndex,phi))
+  .execHeptagonMultiCommand(true);
+  errors.euklideanNorm.sqr.agg(+)/errors.size;
+end;
+
+ensureCurveIntegralError(coeff:CurveCoefficients,curveIndex:Int,force:Boolean)->if coeff[KEY_ERROR_INTEGRAL].isVoid or force then begin
+  log('Updating curve integral error for curve ',curveIndex,'/',coeff[KEY_CURVE] orElse fail);
+  [KEY_ERROR_INTEGRAL=>curveIntegralError(coeff[KEY_KOEFF] orElse fail,curveIndex,coeff[KEY_PHASE] orElse fail)]
+  .toMap
+  .mergeMaps(coeff,::orElse);
+end else coeff;
 
 optimizeApproximation(coeff:CurveCoefficients,curveIndex:Int)->begin
   timedCurve  :=(coeff[KEY_REFCV] orElse fail).unpackReferenceCurve;
@@ -321,56 +399,50 @@ optimizeApproximation(coeff:CurveCoefficients,curveIndex:Int)->begin
   end;
   intermediateError:=initialError;
   invalidCoefficientsFound:=false;
+  runsSinceResampling:=0;
+  maxRunsSinceResampling:=10;
+
   while errorHistory.trailing>errorThreshold do begin
     timedCurveHistory    |=[timedCurve,timedCurve];
     curveParameterHistory|=[coefficients,coefficients];
     errorHistory         |=[Inf,intermediateError];
     movementHistory      |=[Inf,Inf];
 
-    targetCoeffCount:=coefficients.size;
+    if  firstOptimizationRun then errorThreshold:=max(initialError,errorThreshold);
 
-    firstRunWithAdditionalCoefficient:=false;
-    firstOptimizationRun
-    ? errorThreshold:=max(initialError,errorThreshold)
-    : begin
-        targetCoeffCount:=max(coefficients.size+1,coefficients.recommendedFourierCoeffCount);
-        while coefficients.size<targetCoeffCount do coefficients|=0;
-        firstRunWithAdditionalCoefficient:=true;
-      end;
-
-    while !invalidCoefficientsFound AND movementHistory.shrinksBy(0.95) AND errorHistory.shrinksBy(0.999) do begin
-      coefficients:=splineFourierTransform(timedCurve,phaseShift/7,coefficients.size)[0];
+    while !invalidCoefficientsFound AND movementHistory.shrinksBy(0.95) AND errorHistory.shrinksBy(0.99) do begin
+      coefficients:=splineFourierTransform(timedCurve,phaseShift/7,coefficients.recommendedSampleCount).truncateCoefficients(phaseShift,timedCurve);
 
       //Handle denormalized coefficients:
       !coefficients.isNan.agg(or) and !coefficients.isInfinite.agg(or)
       ? begin
           retimeOut:=timedCurve.retimeCurveByFourierCoeff(coefficients,phaseShift,true);
-          timedCurve    :=retimeOut['timedSamples'];
-          movement:=retimeOut['maxTimeDelta'];
+          timedCurve:=retimeOut['timedSamples'];
+          movement  :=retimeOut['maxTimeDelta'];
           historyPush(timedCurve,coefficients,timedCurveError(timedCurve,coefficients,phaseShift,isGuiStarted),movement);
-          printf('  Curve error : %16.10f (%5.1f%%); coeffCount: %3d%s; moving by: %12.4e',
+          printf('  Curve error : %16.10f (%5.1f%%); coeffCount: %3d; moving by: %12.4e',
             errorHistory.trailing,
             errorHistory.trailing/errorThreshold*100-100,
             coefficients.size,
-            firstRunWithAdditionalCoefficient ? '(+)' : '   ',
             movement);
-          firstRunWithAdditionalCoefficient AND errorHistory.trailing>errorHistory.trailing(2).head
-          ? begin
-              warn('ERROR GROWS! - forced resampling');
-              resampledCoeff:=resample(curveIndex,
-                [KEY_REFCV=>packReferenceCurve(timedCurve),
-                 KEY_KOEFF=>coefficients,
-                 KEY_OPTIMIZED=>true,
-                 KEY_ERROR=>errorHistory.trailing].toMap.mergeMaps(coeff,::orElse),true);
-              timedCurve       :=resampledCoeff[KEY_REFCV].unpackReferenceCurve;
-              coefficients     :=resampledCoeff[KEY_KOEFF];
-              intermediateError:=resampledCoeff[KEY_ERROR];
+          if (runsSinceResampling+=1)>maxRunsSinceResampling OR not(recommendedSampleCount(coefficients)*0.6<timedCurve[1].size<recommendedSampleCount(coefficients)*1.5)
+          then begin
+            k:=argMin(errorHistory);
+            resampledCoeff:=
+              [KEY_REFCV=>packReferenceCurve(timedCurveHistory[k]),
+               KEY_KOEFF=>curveParameterHistory[k],
+               KEY_OPTIMIZED=>true,
+               KEY_ERROR=>errorHistory.trailing].toMap.mergeMaps(coeff,::orElse).resample(curveIndex,true,true);
+            timedCurve       :=resampledCoeff[KEY_REFCV].unpackReferenceCurve;
+            coefficients     :=resampledCoeff[KEY_KOEFF];
+            intermediateError:=resampledCoeff[KEY_ERROR];
 
-              retimeOut:=timedCurve.retimeCurveByFourierCoeff(coefficients,phaseShift,true);
-              timedCurve    :=retimeOut['timedSamples'];
-              movement:=retimeOut['maxTimeDelta'];
-              historyPush(timedCurve,coefficients,timedCurveError(timedCurve,coefficients,phaseShift,isGuiStarted),movement);
-            end : void;
+            retimeOut:=timedCurve.retimeCurveByFourierCoeff(coefficients,phaseShift,true);
+            timedCurve:=retimeOut['timedSamples'];
+            movement  :=retimeOut['maxTimeDelta'];
+            historyPush(timedCurve,coefficients,timedCurveError(timedCurve,coefficients,phaseShift,isGuiStarted),movement);
+            runsSinceResampling:=0;
+          end;
         end
       : begin
           warn('Invalid coefficients encountered: ',coefficients);
@@ -380,20 +452,13 @@ optimizeApproximation(coeff:CurveCoefficients,curveIndex:Int)->begin
           //Log infinite error and infinite movement!
           historyPush(timedCurve,coefficients,Inf,Inf);
         end;
-      firstRunWithAdditionalCoefficient:=false;
     end;
     intermediateError:=min(errorHistory);
     k:=argMin(errorHistory);
     timedCurve  :=timedCurveHistory[k];
     coefficients:=curveParameterHistory[k];
     //Increase error tolerance to limit loop count
-    errorThreshold*=1.1;
-    intermediateError>errorThreshold
-    ? begin
-        //Ensure that the target coeff count is reached:
-        while coefficients.size<targetCoeffCount do coefficients|=0;
-      end
-    : void;
+    errorThreshold*=1.01;
   end;
 
   printf('  Final error : %16.10f         ; coeffCount: %3d',intermediateError,coefficients.size);
@@ -403,12 +468,12 @@ optimizeApproximation(coeff:CurveCoefficients,curveIndex:Int)->begin
   : [KEY_REFCV=>packReferenceCurve(timedCurve),
      KEY_KOEFF=>coefficients,
      KEY_OPTIMIZED=>true,
-     KEY_ERROR=>intermediateError].toMap.mergeMaps(coeff,::orElse);
+     KEY_ERROR=>intermediateError].toMap.mergeMaps(coeff,::orElse).ensureCurveIntegralError(curveIndex,true);
 end;
 
-resample(curveIndex:Int,coeff:CurveCoefficients,forceResampling:Boolean)->begin
+resample(coeff:CurveCoefficients,curveIndex:Int,forceResampling:Boolean,updateCoefficients:Boolean)->begin
   coefficients:=coeff[KEY_KOEFF] orElse fail;
-  samplesRequired:=ceil(max(coefficients.size,coefficients.recommendedFourierCoeffCount)*16/7)*7+1;
+  samplesRequired:=recommendedSampleCount(coeff);
   currentSamples:=coeff[KEY_REFCV].unpackReferenceCurve[1].size;
   !forceResampling AND (samplesRequired*0.6<currentSamples<samplesRequired*1.5 OR coeff[KEY_ERROR]=0)
   ? return coeff
@@ -420,40 +485,60 @@ resample(curveIndex:Int,coeff:CurveCoefficients,forceResampling:Boolean)->begin
   print("  Samples before\t",coeff[KEY_REFCV].unpackReferenceCurve[1].size,"\n",
         "  Resampling curve at\t",T.size,"\tpoints");
   print('  Error before resampling : ',coeff[KEY_ERROR] orElse fail);
+
   timedCurve:=[false,
-    sampleCurve(coefficients,phaseShift,T*2*pi).pEach(x,
-      [T[index],improveSingleSample(curveIndex,x)])];
-  coefficients:=splineFourierTransform(timedCurve,phaseShift/7,coefficients.size)[0];
+               zip(sampleCurve  (coefficients,phaseShift,T*2*pi),
+                   sampleCurveDt(coefficients,phaseShift,T*2*pi))
+               .each((phi,dPhi),findSolutionNearCurve_cmd(curveIndex,phi,dPhi))
+               .execHeptagonMultiCommand
+               .zip(T)
+               .each((phi,t),[t,phi])];
+
+  //timedCurve:=[false,
+  //  sampleCurve(coefficients,phaseShift,T*2*pi).pEach(x,
+  //    [T[index],improveSingleSample(curveIndex,x)])];
+  if updateCoefficients
+  then coefficients:=splineFourierTransform(timedCurve,phaseShift/7,coefficients.recommendedSampleCount).truncateCoefficients(phaseShift,timedCurve);
   timedCurve:=timedCurve.retimeCurveByFourierCoeff(coefficients,phaseShift,true)['timedSamples'];
 
   error:=timedCurve.timedCurveError(coefficients,phaseShift,isGuiStarted);
   print('  Error after  resampling : ',error);
+
   done();
+  result:=
   [KEY_REFCV=>packReferenceCurve(timedCurve),
    KEY_KOEFF=>coefficients,
    KEY_OPTIMIZED=>true,
    KEY_ERROR=>error].toMap.mergeMaps(coeff,::orElse);
+
+  if updateCoefficients and not(samplesRequired*0.6<currentSamples<samplesRequired*1.5)
+  then result.resample(curveIndex,forceResampling,updateCoefficients)
+  else result;
 end;
 
 reconstructSamples(c:List,curveIndex:Int,coeff:Map)->begin
   currentCurve:=sampleCurve(coeff);
   error:=coeff[KEY_ERROR];
   coefficients:=coeff[KEY_KOEFF];
-  t:=[0..currentCurve.size-1]/currentCurve.size;
+  T:=[0..currentCurve.size-1]/currentCurve.size;
 
   log('Timing ',c.size,' discrete samples');
   samples:=
-    c.pMap((x)->begin closest:=currentCurve.map((r)->euklideanNorm(r-x)).argMin; t[closest]=>x; end)
-     .filter((pt)->0<=pt[0]<=0.5)
-     .{log('Refining ',$L.size,' samples') orElse $L}
-     .pMap((pt)->[pt[0],improveSingleSample(curveIndex,pt[1])])
-     .{log('Retiming ',$L.size,' samples') orElse $L}
-     .{[false,$0]}
-     .retimeCurveByFourierCoeff(coefficients,coeff[KEY_PHASE],true)['timedSamples'];
+    c.pMap((x)->begin closest:=currentCurve.map((r)->euklideanNorm(r-x)).argMin; T[closest]=>x; end)
+     .filter((pt)->0<=pt[0]<=0.5);
+  log('Refining ',samples.size,' samples');
+  samples.map((_,p)->improveSingleSample_cmd(curveIndex,p))
+         .execHeptagonMultiCommand
+         .zip(samples.getInner(0))
+         .map((p,t)->[t,p]);
+  samples:=[false,samples].retimeCurveByFourierCoeff(coefficients,coeff[KEY_PHASE],true)['timedSamples'];
   printf('      Initial error : %16.10f; coeffCount: %3d',error,coefficients.size);
   [1..16].each(i,begin
-    coefficients:=splineFourierTransform(samples,coeff[KEY_PHASE]/7,max(coefficients.size,recommendedFourierCoeffCount(coefficients)))[0];
+    coefficients:=splineFourierTransform(samples,coeff[KEY_PHASE]/7,max(coefficients.size,recommendedFourierCoeffCount(coefficients)));
     samples:=samples.retimeCurveByFourierCoeff(coefficients,coeff[KEY_PHASE],true)['timedSamples'];
+    coefficients:=coefficients.truncateCoefficients(coeff[KEY_PHASE],samples);
+    samples:=samples.thinOutSamples(2*(coefficients.size*2+1),0.1);
+
     printf(' #%2d/16 Curve error : %16.10f; coeffCount: %3d',
            i,
            error:=timedCurveError(samples,coefficients,coeff[KEY_PHASE],isGuiStarted),

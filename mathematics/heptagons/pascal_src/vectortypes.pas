@@ -34,6 +34,8 @@ FUNCTION cross(CONST x,y,z:Vector4):Vector4;
 function vector4Of(CONST a,b,c,d:double): Vector4;
 PROCEDURE printVector4(CONST v:Vector4);
 FUNCTION euklideanDist(CONST x,y:Vector4):double;
+FUNCTION scalarError(CONST errorVector: Vector3):double;
+PROCEDURE sortSimplex(VAR simplex:SampledSimplex);
 
 implementation
 OPERATOR * (CONST x,y:Matrix3x3):Matrix3x3;
@@ -164,6 +166,22 @@ FUNCTION euklideanDist(CONST x,y:Vector4):double;
 PROCEDURE printVector4(CONST v:Vector4);
   begin
     writeln('[',v[0],',',v[1],',',v[2],',',v[3],']');
+  end;
+
+FUNCTION scalarError(CONST errorVector: Vector3):double;
+  begin
+    result:=sqr(errorVector[0])+sqr(errorVector[1])+sqr(errorVector[2]);
+  end;
+
+
+PROCEDURE sortSimplex(VAR simplex:SampledSimplex);
+  VAR i,j:longint;
+      tmp: SampledNode;
+  begin
+    for i:=1 to length(simplex)-1 do for j:=0 to i-1 do
+    if scalarError(simplex[i].err)<scalarError(simplex[j].err) then begin
+      tmp:=simplex[i]; simplex[i]:=simplex[j]; simplex[j]:=tmp;
+    end;
   end;
 
 end.

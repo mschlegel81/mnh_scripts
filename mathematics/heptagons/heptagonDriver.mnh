@@ -37,7 +37,7 @@ POINTS_OF_INTEREST:=[2000,4000,6000,2/3*7000];
 private taskIsPending(curveIndex)->curveIndex not in partitionedCurves.getInner(0);
 
 pendingTasks->begin
-  tbc:=unique([2000..2010,5990..6000,4002..4010,4660..4670]#|(5*[400..1200])
+  tbc:=unique([2000..2010,5990..6000,3990..3999,4002..4010,4660..4670]#|(5*[400..1200])
    |(10*[200..600]));
   tbc[tbc.map((i)->2^(5-trueCount((i mod [1000,500,100,50,10,5])=0))+(abs(i-POINTS_OF_INTEREST).min/200)-32*ord(i in [2001,5999,4010,3500])).sortPerm];
 end.filter(::taskIsPending);

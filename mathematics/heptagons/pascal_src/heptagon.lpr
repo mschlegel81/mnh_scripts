@@ -118,19 +118,6 @@ FUNCTION simplexContractionCenter(CONST S:SampledSimplex):Vector4;
       result:=offset+n*factor;
     end;
 
-  //procedure printContrationCenterStats(CONST cc:Vector4);
-  //  VAR myCenter:Vector4;
-  //      k:longint;
-  //  begin
-  //    myCenter:=vector4Of(0,0,0,0);
-  //    for k:=0 to length(S)-1 do myCenter+=S[k].phi;
-  //    myCenter*=1/length(S);
-  //
-  //    writeln('CC-Dist: ',euklideanDist(cc,myCenter));
-  //    for k:=0 to length(S)-1 do writeln(k,'-Dist: ',euklideanDist(S[k].phi,myCenter));
-  //
-  //  end;
-
   var k: Integer;
       linearTerm:array[0..2] of Vector4;
       offset    :array[0..2] of double;
@@ -141,7 +128,6 @@ FUNCTION simplexContractionCenter(CONST S:SampledSimplex):Vector4;
       result:=cross            (linearTerm[0],linearTerm[1],linearTerm[2]);
       result:=contractionCenter(linearTerm[0],linearTerm[1],linearTerm[2],result,
                                 -offset   [0],-offset   [1],-offset   [2]);
-      //printContrationCenterStats(result);
     except
       result:=vector4Of(0,0,0,0);
       for k:=0 to length(S)-1 do result+=S[k].phi;
@@ -169,15 +155,17 @@ FUNCTION shrinkSimplex(CONST S:SampledSimplex; CONST shrinkFactor:double; OUT an
         anyAccepted:=anyAccepted or accept;
       end else anyAccepted:=true;
     end;
+    if (alphaForResampling>0) and not anyAccepted then exit(S);
+  end;
+
+FUNCTION errorSign(CONST error:Vector3):byte; inline;
+  begin
+    if error[0]>0 then result:=           1 else if error[0]<0 then result:=           2 else result:=           3;
+    if error[1]>0 then result:=result or  4 else if error[1]<0 then result:=result or  8 else result:=result or 12;
+    if error[2]>0 then result:=result or 16 else if error[2]<0 then result:=result or 32 else result:=result or 48;
   end;
 
 FUNCTION simplexContainsSolution(CONST S:SampledSimplex; CONST phiCenter:Vector4; CONST threshold:double):boolean;
-  FUNCTION errorSign(CONST error:Vector3):byte; inline;
-    begin
-      if error[0]>0 then result:=           1 else if error[0]<0 then result:=           2 else result:=           3;
-      if error[1]>0 then result:=result or  4 else if error[1]<0 then result:=result or  8 else result:=result or 12;
-      if error[2]>0 then result:=result or 16 else if error[2]<0 then result:=result or 32 else result:=result or 48;
-    end;
   VAR contractionCenter:Vector4;
       b:byte=0;
       i:longint;
@@ -341,7 +329,6 @@ PROCEDURE findGridSolutionsDelta(CONST alphaIdx:longint; VAR outFile:text);
 
 PROCEDURE optimizeSolution(CONST alpha,phi1,phi2,phi3,phi4:double);
   VAR simplex:SampledSimplex;
-      i:longint=0;
       shrunk:boolean=true;
 
   PROCEDURE printBestNode(CONST prefix:string);
@@ -349,9 +336,9 @@ PROCEDURE optimizeSolution(CONST alpha,phi1,phi2,phi3,phi4:double);
         k:longint=0;
         j:longint=0;
     begin
-      eMin:=simplex[0].err*simplex[0].err;
+      eMin:=scalarError(simplex[0].err);
       for j:=1 to 4 do begin
-        e:=simplex[j].err*simplex[j].err;
+        e:=scalarError(simplex[j].err);
         if e<eMin then k:=j;
       end;
       with simplex[k] do writeln(prefix,phi[0],',',phi[1],',',phi[2],',',phi[3],';',err[0],',',err[1],',',err[2]);
@@ -360,30 +347,127 @@ PROCEDURE optimizeSolution(CONST alpha,phi1,phi2,phi3,phi4:double);
   FUNCTION sampledSimplexAround(CONST alpha:Double; CONST phi:Vector4; CONST h:double):SampledSimplex;
     VAR i:longint;
     begin
-      //setLength(result,16);
-      //for i:=0 to 15 do begin
-      //  if (i and 1)>0 then result[i].phi[0]:=phi[0]+h else result[i].phi[0]:=phi[0]-h;
-      //  if (i and 2)>0 then result[i].phi[1]:=phi[1]+h else result[i].phi[1]:=phi[1]-h;
-      //  if (i and 4)>0 then result[i].phi[2]:=phi[2]+h else result[i].phi[2]:=phi[2]-h;
-      //  if (i and 8)>0 then result[i].phi[3]:=phi[3]+h else result[i].phi[3]:=phi[3]-h;
-      //  result[i].err:=errorVectorAt(alpha,result[i].phi);
-      //end;
-
       setLength(result,5);
       for i:=0 to 4 do begin
         result[i].phi:=phi+SIMPLEX_NODE[i]*h;
         result[i].err:=errorVectorAt(alpha,result[i].phi);
       end;
     end;
-
+  VAR simplexSize:double;
   begin
-    simplex:=sampledSimplexAround(alpha,vector4Of(phi1,phi2,phi3,phi4),pi/FINE_GRID_GRANULARITY);
-    while (i<99) and shrunk do begin
-      inc(i);
-      simplex:=shrinkSimplex(simplex,0.5,shrunk,alpha);
-      //printBestNode('* ');
-    end;
+    simplexSize:=pi/FINE_GRID_GRANULARITY;
+    simplex:=sampledSimplexAround(alpha,vector4Of(phi1,phi2,phi3,phi4),simplexSize);
+    while shrunk do simplex:=shrinkSimplex(simplex,0.5,shrunk,alpha);
     printBestNode('');
+  end;
+
+PROCEDURE findSolutionAt(CONST alpha,phi1,phi2,phi3,phi4,dphi1,dphi2,dphi3,dphi4:double);
+  VAR h:double;
+      e0,de1,de2,de3,de4:Vector3;
+      M:array[0..3,0..4] of double;
+  PROCEDURE doPivot(CONST colIdx:longint);
+    VAR k:longint=0;
+        i:longint;
+        tmp:double;
+    begin
+      k:=colIdx;
+      for i:=colIdx+1 to 3 do if abs(M[i,colIdx])>abs(M[k,colIdx]) then k:=i;
+      if k<>colIdx then for i:=0 to 4 do begin
+        tmp        :=M[colIdx,i];
+        M[colIdx,i]:=M[k     ,i];
+        M[k     ,i]:=tmp;
+      end;
+    end;
+
+  VAR i,j,k,attempt:longint;
+      factor:double;
+      v:Vector4;
+      E_new: Vector3;
+  begin
+    h:=1E-6;
+    v :=vector4Of(phi1,phi2,phi3,phi4);
+    e0:=errorVectorAt(alpha,v);
+
+    for attempt:=0 to 6 do begin
+      de1:=(errorVectorAt(alpha,vector4Of(phi1+h/2,phi2,phi3,phi4))-errorVectorAt(alpha,vector4Of(phi1-h/2,phi2,phi3,phi4)))*(1/h);
+      de2:=(errorVectorAt(alpha,vector4Of(phi1,phi2+h/2,phi3,phi4))-errorVectorAt(alpha,vector4Of(phi1,phi2-h/2,phi3,phi4)))*(1/h);
+      de3:=(errorVectorAt(alpha,vector4Of(phi1,phi2,phi3+h/2,phi4))-errorVectorAt(alpha,vector4Of(phi1,phi2,phi3-h/2,phi4)))*(1/h);
+      de4:=(errorVectorAt(alpha,vector4Of(phi1,phi2,phi3,phi4+h/2))-errorVectorAt(alpha,vector4Of(phi1,phi2,phi3,phi4-h/2)))*(1/h);
+      M[0,0]:=dPhi1;  M[0,1]:=dPhi2;  M[0,2]:=dPhi3;  M[0,3]:=dPhi4;  M[0,4]:=0;
+      M[1,0]:=de1[0]; M[1,1]:=de2[0]; M[1,2]:=de3[0]; M[1,3]:=de4[0]; M[1,4]:=-e0[0];
+      M[2,0]:=de1[1]; M[2,1]:=de2[1]; M[2,2]:=de3[1]; M[2,3]:=de4[1]; M[2,4]:=-e0[1];
+      M[3,0]:=de1[2]; M[3,1]:=de2[2]; M[3,2]:=de3[2]; M[3,3]:=de4[2]; M[3,4]:=-e0[2];
+
+      //Gauss Jordan:-----------------------------------
+      for i:=0 to 3 do begin
+        doPivot(i);
+        factor:=1/M[i,i];
+        for j:=0 to 4 do M[i,j]*=factor;
+        for k:=0 to 3 do if k<>i then begin
+          factor:=M[k,i];
+          for j:=0 to 4 do M[k,j]-=factor*M[i,j];
+        end;
+      end;
+      //-----------------------------------:Gauss Jordan
+      h*=2;
+
+      v:=vector4Of(phi1+M[0,4],phi2+M[1,4],phi3+M[2,4],phi4+M[3,4]);
+      E_new:=  errorVectorAt(alpha,v);
+      if scalarError(E_new)<scalarError(e0) then begin
+        writeln(v[0],',',v[1],',',v[2],',',v[3],';',E_new[0],',',E_new[1],',',E_new[2]);
+        exit;
+      end;
+    end;
+    writeln(phi1,',',phi2,',',phi3,',',phi4,';',e0[0],',',e0[1],',',e0[2]);
+  end;
+
+PROCEDURE writeErrorAt(CONST alpha,phi1,phi2,phi3,phi4:double);
+  var e: Vector3;
+  begin
+    e:=errorVectorAt(alpha,vector4Of(phi1,phi2,phi3,phi4));
+    writeln(phi1,',',phi2,',',phi3,',',phi4,';',e[0],',',e[1],',',e[2]);
+  end;
+
+PROCEDURE readFile(filename:string);
+  VAR handle:text;
+      command:array[0..3] of char;
+      parameters:array [0..8] of double;
+      i:longint;
+  begin
+    assign(handle,filename);
+    reset(handle);
+    while not eof(handle) do begin
+      read(handle,command);
+      if command='opt'
+      then begin
+        for i:=0 to 4 do read(handle,parameters[i]);
+        optimizeSolution(parameters[0]*pi/7000,
+                         parameters[1],
+                         parameters[2],
+                         parameters[3],
+                         parameters[4]);
+      end else if command='dir' then begin
+        for i:=0 to 8 do read(handle,parameters[i]);
+        findSolutionAt(parameters[0]*pi/7000,
+                       parameters[1],
+                       parameters[2],
+                       parameters[3],
+                       parameters[4],
+                       parameters[5],
+                       parameters[6],
+                       parameters[7],
+                       parameters[8]);
+      end else if command='err' then begin
+        for i:=0 to 4 do read(handle,parameters[i]);
+        writeErrorAt(parameters[0]*pi/7000,
+                     parameters[1],
+                     parameters[2],
+                     parameters[3],
+                     parameters[4]);
+      end else writeln('Unknown command ',command);
+      readln(handle,command);
+    end;
+    close(handle);
   end;
 
 VAR parsedAngle:double;
@@ -406,5 +490,12 @@ begin
     parsedAngle:=StrToFloat(paramstr(2));
     optimizeSolution(parsedAngle*pi/7000,StrToFloat(paramstr(3)),StrToFloat(paramstr(4)),StrToFloat(paramstr(5)),StrToFloat(paramstr(6)));
   end;
+  if (paramCount=10) and (paramstr(1)='dir') then begin
+    parsedAngle:=StrToFloat(paramstr(2));
+    findSolutionAt(parsedAngle*pi/7000,StrToFloat(paramstr(3)),StrToFloat(paramstr(4)),StrToFloat(paramstr(5)),StrToFloat(paramstr(6)),
+                                       StrToFloat(paramstr(7)),StrToFloat(paramstr(8)),StrToFloat(paramstr(9)),StrToFloat(paramstr(10)));
+  end;
+  if (paramCount=1) and fileExists(paramstr(1)) then readFile(paramstr(1));
+
 end.
 

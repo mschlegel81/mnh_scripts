@@ -1,36 +1,5 @@
 #!C:\bin\mnh_light.exe -quiet -convertPrintToLog -logDateFmt hh:mm:ss.zzz -logLocationLength 20 +log stdOut(1)
-USE curvePartitioning;
-curveName(i)->'dc'&i&'.txt';
-
-printMethod(i:Int)->{log(i,' ',$0)};
-
-private calcCurve(i:Int)->begin
-  fileExists('heptagon.exe').assert('heptagon.exe does not exist! Compile and place in folder \packages');
-  calcMethod:='d';
-  print('Calculating curve: ',i);
-  exitCode:='heptagon.exe'.teeExec([calcMethod,i.toString],printMethod(i),true).trailing;
-  exitCode==0
-  ? log ('Call heptagon.exe ',calcMethod,' ',i,' stopped with exit code ',exitCode)
-  : warn('Call heptagon.exe ',calcMethod,' ',i,' failed with exit code ',exitCode);
-
-  (exitCode==0) AND fileExists(filename:=curveName(i))
-  ? begin
-      lines:=filename.fileLines;
-      granularity:=lines.trim.softCast.filter(::isInt).head(1)[0] orElse fail('No granualarity info found!');
-      samples:=lines.split(',')
-                    .trim
-                    .softCast
-                    .filter((phi)->phi.isNumericList(4))
-                    .map(granularity=0 ? ((phi)->phi.map((x)->x<-256 ? x+512 : x>255 ? x-512 : x))
-                                       : ((phi)->phi))
-                    .unique
-                    .each(s,s,-s)
-                    .unique;
-      deleteFile(filename);
-      [i,granularity,samples];
-    end
-  : false;
-end;
+USE curvePartitioning, heptagons_exe_adapter;
 
 POINTS_OF_INTEREST:=[2000,4000,6000,2/3*7000];
 

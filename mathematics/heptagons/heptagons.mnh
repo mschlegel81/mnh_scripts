@@ -1,5 +1,5 @@
 #!C:\bin\mnh.exe -quiet -logDateFmt hh:mm:ss -logLocationLength 15 +log stdOut(1)
-USE curvePartitioning,curveTiming,fourierCurves,visualization;
+USE curvePartitioning,curveTiming,fourierCurves,visualization, heptagons_exe_adapter;
 DEG_120:=2/3*7000;
 
 //Constants for plotRotating
@@ -58,7 +58,7 @@ end;
 datastore curveCoefficients:=[].toMap;
 
 getCurveCoefficients(i:Int)->curveCoefficients[i] orElse begin
-  assertUniqueInstance;
+  init_for_calculation;
   samples:=getPartitionedSamples(i);
   coeff:=samples[1].each(sample,begin
     print("\nCalculating curve coefficients ",i,'/',index);
@@ -71,51 +71,49 @@ end;
 
 //*Calculates all partitioned samples
 main->begin
-  assertUniqueInstance;
-  sortOrScramble:={$L.toList[sortPerm($L.toList.map((i)->abs(i-[2000,4000,4666+2/3,6000]).min))]};
-  //sortOrScramble:={$L.toList[sortPerm($L.size.random)]};
+  init_for_calculation;
+  sortOrScramble:={$L.sort((i)->abs(i-[2000,4000,DEG_120,6000]).min)}; //List[sortPerm($L.toList.map((i)->abs(i-[2000,4000,DEG_120,6000]).min))]};
+//  sortOrScramble:={$L.toList[sortPerm($L.size.random)]};
+
   print("╔═════════════════════════════╗\n"&
         "║ Updating curve coefficients ║\n"&
         "╚═════════════════════════════╝\n");
-
-  partitionedCurves.getInner(0).minus(curveCoefficients.getInner(0))
-    .sortOrScramble
-    .map(::print);
   partitionedCurves.getInner(0).minus(curveCoefficients.getInner(0))
     .sortOrScramble
     .map(::getCurveCoefficients);
+
   print("╔═════════════════════════════╗\n"&
         "║ Setting planar curves       ║\n"&
         "╚═════════════════════════════╝\n");
-  mapToPlanar:={$X.map((data:Map)->begin
+  mapToPlanar:=(data_set,curveIndex)->data_set.map((data:Map)->begin
     c:=data;
     c[KEY_CURVE]:=0;
-    c[KEY_ERROR]:=0;
-    c[KEY_KOEFF]:=[0];
-    c[KEY_OPTIMIZED]:=true;
+    c[KEY_ERROR]:=0.0;
+    c[KEY_KOEFF]:=[0.0,0.0,0.0];
+    c[KEY_OPTCT]:=1;
     c[KEY_REFCV]:=[false,[[0,[0.0,0.0,0.0,0.0]],[0.5,[0.0,0.0,0.0,0.0]]]].packReferenceCurve;
-    c;
-  end)};
+    c.ensureCurveIntegralError(curveIndex,true);
+  end);
 
   curveCoefficients[2001].isVoid ? void : begin
     //planar configuration at 2*pi/7
     curveCoefficients[2000].isVoid OR curveCoefficients[2000].size=0 OR (getCurveCoefficients(2000).getInner(KEY_PHASE)=0).agg(or)
-    ? curveCoefficients[2000]:=getCurveCoefficients(2001).mapToPlanar
+    ? curveCoefficients[2000]:=getCurveCoefficients(2001).mapToPlanar(2000)
     : void;
   end;
 
   curveCoefficients[5999].isVoid ? void : begin
     //planar configuration at 6*pi/7
     curveCoefficients[6000].isVoid OR curveCoefficients[6000].size=0 OR (getCurveCoefficients(6000).getInner(KEY_PHASE)=0).agg(or)
-    ? curveCoefficients[6000]:=getCurveCoefficients(5999).mapToPlanar
+    ? curveCoefficients[6000]:=getCurveCoefficients(5999).mapToPlanar(6000)
     : void;
   end;
 
-  curveCoefficients[4000].isVoid OR curveCoefficients[4005].isVoid ? void : begin
+  curveCoefficients[4000].isVoid OR curveCoefficients[4002].isVoid ? void : begin
     //planar configuration at 4*pi/7
     ((a:=getCurveCoefficients(4000)).getInner(KEY_PHASE)=0).agg(or)
     ? begin
-        b:=getCurveCoefficients(4005);
+        b:=getCurveCoefficients(4002);
         validA:=a[a.getInner(KEY_PHASE)<>0];
         commonCoeffDist:=(x,y)->euklideanNorm(x.head(min(x.size,y.size))-y.head(min(x.size,y.size)));
         validA|=b.each(bc,[validA.each(ac,ac[KEY_PHASE]==bc[KEY_PHASE]
@@ -124,16 +122,19 @@ main->begin
                  .sort
                  .trailing(2)
                  .getInner(1)
-                 .mapToPlanar;
+                 .mapToPlanar(4000);
         curveCoefficients[4000]:=validA;
       end
     : void;
   end;
+
+  if scriptTime<118 then main('optimize',round(120-scriptTime).toString);
 end;
 
 //*Show a rotating plot for an angle alpha=2*pi/7000 * i
 main('show',k)->begin
   assertGuiStarted;
+  freeConsole;
   curveIdx:=k.toInt;
   coefficients:=curveCoefficients[curveIdx];
   coefficients.isVoid
@@ -149,6 +150,7 @@ end;
 main('drop',...)->
   (...).each(k,
     begin
+      assertUniqueInstance;
       k=='*' ? curveCoefficients:=[].toMap :
       curveCoefficients[k.toInt].isVoid
       ? begin
@@ -168,7 +170,7 @@ main('drop',...)->
     end);
 
 //*Lists the currently available samples
-main('list')->begin
+main('list')->
   partitionedCurves
     .getInner(0)
     .sort
@@ -176,11 +178,11 @@ main('list')->begin
     .chunkMap(10,(l)->l.join('  '))
     .map(::print)
     .agg(|);
-end;
 
 //*Shows a walk through all available values of i (alpha=2*pi/7000 * i)
 main('walk',dim1 in ['0'..'3'],dim2 in ['0'..'3'])->begin
   assertGuiStarted;
+  freeConsole;
   clearAnimation;
   d1:=dim1.toInt;
   d2:=dim2.toInt;
@@ -224,6 +226,7 @@ end;
 //*Shows an animation of approximated curves
 main('walk1D')->begin
   assertGuiStarted;
+  freeConsole;
   clearAnimation;
   setOptions(["preserveAspect"=>false,'fontsize' => 6.0].toMap);
 
@@ -276,39 +279,38 @@ end;
 
 //*Shows an info table on existing curves
 main('infoTable')->begin
+  if isGuiStarted then freeConsole;
   partIdx:=partitionedCurves.getInner(0);
   coefIdx:=curveCoefficients.getInner(0);
 
 
   tabData:=
-  [['curve','','sc','#','phase','error','int.Error','opt','cc']].|(
+  [['curve','','opt','phase','error','int.Error','cc']].|(
   union(partIdx,coefIdx).sort.pEach(k,
     k in coefIdx
        ? begin
-           part :=getPartitionedSamples(k);
            coeff:=curveCoefficients[k];
            coeff.each(subCoeff,
              [k,
               index,
-              part[0],
-              part[1,subCoeff[KEY_CURVE]].orElse([]).size,
+              subCoeff[KEY_OPTCT] orElse '?',
+//              part[1,subCoeff[KEY_CURVE]].orElse([]).size,
               subCoeff[KEY_PHASE],
               subCoeff[KEY_ERROR],
               subCoeff[KEY_ERROR_INTEGRAL],
-              (subCoeff[KEY_OPTIMIZED] orElse false)?'X':'',
               subCoeff[KEY_KOEFF].size,
               isGuiStarted ? subCoeff[KEY_KOEFF].head(20) : void].flatten);
          end
        : k in partIdx
        ? begin
            part:=getPartitionedSamples(k);
-           part[1].each(subCurve,[k,index,part[0], subCurve.size]);
+           part[1].each(subCurve,[k,index]);
          end
        : [k]
   ,|));
   tabData:=tabData.transpose('');
   tabData:=tabData.each(col,
-    index in [5,6] ? col.head | col.tail.barVisualization(100)
+    index in [4,5] ? col.head | col.tail.barVisualization(80)
                    : col);
   tabData:=tabData.transpose('');
 
@@ -316,32 +318,27 @@ main('infoTable')->begin
   ? begin
       [8..tabData[0].size-1].map((k)->tabData[0,k]:='c_'&(k-8)&'('&((k-8)*2+1)&')');
       showTable(tabData,1,'Info table');
-      main('walk1D');
+      if ask('Display walk1D?',['Yes','No'])=='Yes' then main('walk1D');
     end
   : tabData.map((row)->row.join("\t")).join("\n").print;
 end;
 
-resampleFromPartitioned(curveIndex:Int,coeff:Map)->begin
-  partitionedSamples:=getPartitionedSamples(curveIndex);
-  scale:=partitionedSamples[0];
-  assert(!scale.isVoid);
-
-  partitionedSamples:=partitionedSamples[1,coeff[KEY_CURVE]].pMap((x)->x*0.5^scale/256*pi);
-  assert(!partitionedSamples.isVoid);
-
-  reconstructSamples(partitionedSamples,curveIndex,coeff);
-end;
-
-private canOptimizeSingleCurve(curveIdx,subCurveIdx)->begin
-  assertUniqueInstance;
+private canOptimizeSingleCurve(curveIdx,subCurveIdx,hard:Boolean)->begin
+  init_for_calculation;
   coeff  :=getCurveCoefficients(curveIdx)[subCurveIdx];
   coeff[KEY_ERROR]=0 ? return false : void;
-  optimized:=
-  coeff .optimizeApproximation(curveIdx);
-  coeff==optimized OR optimized[KEY_ERROR]>coeff[KEY_ERROR]
+  print('  Optimization run #',coeff[KEY_OPTCT]+1);
+  optimized:=hard ? coeff : coeff.optimizeApproximation(curveIdx,true);
+  coeff==optimized OR optimized[KEY_ERROR_INTEGRAL]>coeff[KEY_ERROR_INTEGRAL]
   ? begin
-      warn('Optimization for ',curveIdx,'/',subCurveIdx,' failed');
-      curveCoefficients[curveIdx,subCurveIdx]:=resampleFromPartitioned(curveIdx,coeff);
+      writeDataStores;
+      hard ? warn('Hard optimization for ',curveIdx,'/',subCurveIdx)
+           : warn('Optimization for ',curveIdx,'/',subCurveIdx,' failed');
+      optimized:=coeff.optimizeApproximation_hard(curveIdx)
+                      .optimizeApproximation(curveIdx,not hard)
+                      .ensureCurveIntegralError(curveIdx,false);
+      curveCoefficients[curveIdx,subCurveIdx]:=optimized;
+      assert(optimized[KEY_ERROR_INTEGRAL]<coeff[KEY_ERROR_INTEGRAL]);
       writeDataStoresOnceAMinute;
       false;
     end
@@ -354,43 +351,27 @@ end;
 
 //*Optimizes the currently worst curve for the given time
 main('optimize',timeoutInSeconds)->begin
-  pendingFirstRuns:=
-    curveCoefficients.each((curveIdx,value),
-      value.each(e,(e[KEY_OPTIMIZED] orElse false) ? void : [e[KEY_ERROR],curveIdx,index])
-    ,|).sort.reverseList;
-  print(pendingFirstRuns.size,' first optimizations are pending');
-  pendingFirstRuns.size=0
-  ? void
-  : pendingFirstRuns.size<10
-    ? printf('  %s/%s',pendingFirstRuns.getInner(1),pendingFirstRuns.getInner(2))
-    : begin
-        printf('  %s/%s',pendingFirstRuns.head(5).getInner(1),pendingFirstRuns.head(5).getInner(2));
-        print('  ...');
-        printf('  %s/%s',pendingFirstRuns.trailing(5).getInner(1),pendingFirstRuns.trailing(5).getInner(2));
-      end;
+  if timeoutInSeconds.hasPrefix('c') then begin
+    curveIndex:=timeoutInSeconds.copy(1).toInt;
+    log(curveIndex);
+    for subCurveIndex in [0..(curveCoefficients[curveIndex] orElse fail).size-1] do canOptimizeSingleCurve(curveIndex,subCurveIndex,false);
+    halt;
+  end;
 
-  timeoutInSeconds.isString AND timeoutInSeconds.copy(0,1) in ['c','C']
-  ? begin
-      curveIdx:=timeoutInSeconds.copy(1).toInt;
-      [0..getCurveCoefficients(curveIdx).size-1].each(subCurveIdx,begin
-        print("\nOptimizing curve ",curveIdx,'/',subCurveIdx);
-        canOptimizeSingleCurve(curveIdx,subCurveIdx);
-      end);
-    end
-  : begin
-      timeout:=scriptTime+timeoutInSeconds.toInt;
-      nonoptimizableCurves:=[].toSet;
-      while scriptTime<timeout and curveCoefficients.size>0 do begin
-        worstEntry:=curveCoefficients
-          .each((key,value),value.each(subCoeff,[[!(subCoeff[KEY_OPTIMIZED] orElse false), subCoeff[KEY_ERROR] orElse -Inf],[key,index]]),|)
-          .filter((error,curveSpec)->curveSpec not in nonoptimizableCurves)
-          .max[1];
-        print("\nOptimizing curve ",worstEntry[0],'/',worstEntry[1],'; timeout in ',round(timeout-scriptTime),'s');
-        canOptimizeSingleCurve(worstEntry[0],worstEntry[1])
-        ? void
-        : nonoptimizableCurves||=worstEntry;
-      end;
-    end;
+  timeout:=scriptTime+timeoutInSeconds.toInt;
+  while scriptTime<timeout do begin
+    errorKey:=KEY_ERROR_INTEGRAL;
+    worstEntry:=curveCoefficients.each((key,value),
+                                       value.each(s,
+                                                  [(s[KEY_OPTCT] orElse 0)=0,   //optimize those which have never been optimized first
+                                                    s[errorKey]/(1E-3+s[KEY_OPTCT]),
+                                                    [key,index,s[KEY_OPTCT]>=10]]),
+                                                  |)
+                                 .max[2];
+    print;
+    log("Optimizing curve ",worstEntry[0],'/',worstEntry[1],'; timeout in ',round(timeout-scriptTime),'s');
+    canOptimizeSingleCurve(worstEntry[0],worstEntry[1],worstEntry[2]);
+  end;
 end;
 
 private discriminator(c:CurveCoefficients)->c[KEY_PHASE]+(c[KEY_PHASE]=3 ? ord(((c[KEY_KOEFF,1] orElse 0)/(c[KEY_KOEFF,0] orElse 1))>0.2) : 0);
@@ -408,6 +389,7 @@ end;
 //*Shows a plot of the first 3 coefficients
 main('coeffPlot')->begin
   assertGuiStarted;
+  freeConsole;
   dataSets:=coefficientsByComponent((c:CurveCoefficients)->c[KEY_KOEFF]);
   setOptions(["preserveAspect"=>false].toMap);
   dataSets.each(set,begin
@@ -420,10 +402,45 @@ main('coeffPlot')->begin
   display;
 end;
 
-main('animate','walk',componentIndex)->makeWalk(curveCoefficients,componentIndex.toInt,2*pi*random);
+main('animate','walk',componentIndex)->begin
+  assertGuiStarted;
+  freeConsole;
+  makeWalk(curveCoefficients,componentIndex.toInt,2*pi*random);
+end;
+
 main('animate',curveIndex,subCurveIndex)->begin
   assertGuiStarted;
+  freeConsole;
   coeff:=curveCoefficients[curveIndex.toInt,subCurveIndex.toInt] orElse fail('There is no such curve');
   alpha:=curveIndex.toInt*pi/7000;
   animateHeptagon(alpha,coeff);
 end;
+
+interpolateCurve(curveIndex in [2002..3998,4001..4665,4668..5998])->begin
+  I:=curveCoefficients.getInner(0).toList;
+  iA:=I[I<curveIndex].max;
+  iB:=I[I>curveIndex].min;
+
+  w:=(iB-curveIndex)/(iB-iA);
+  log('Interpolating between ',iA,' (weight ',w,') and ',iB,' (weight ',1-w,')');
+
+  A:=curveCoefficients[iA].map((q)->[q[KEY_PHASE],q[KEY_KOEFF]]);
+  B:=curveCoefficients[iB].map((q)->[q[KEY_PHASE],q[KEY_KOEFF]]);
+  coeffCount:=max(A.getInner(1).map(::size)|B.getInner(1).map(::size));
+  fill:=(L)->begin out:=L; while out.size<coeffCount do out|=0.0; out; end;
+  coeffDist:=(ca,cb)->euklideanNorm(fill(ca)-fill(cb));
+
+  if A.size>B.size then begin _:=A; A:=B; B:=_; w:=1-w; end;
+
+  curveCoefficients[curveIndex]:=
+    A.each((pa,ca),begin
+      closeOne:=B.each((pb,cb),pb=pa ? [coeffDist(cb,ca),cb] : void).min[1];
+      [KEY_PHASE=>pa,
+       KEY_KOEFF=>(fill(ca)*w+fill(closeOne)*(1-w)),
+       KEY_ERROR=>Inf,
+       KEY_REFCV=>[false,[]].packReferenceCurve,
+       KEY_CURVE=>index,
+       KEY_OPTCT=>0].toMap.resample(curveIndex,true,true).ensureCurveIntegralError(curveIndex,true);
+    end);
+end;
+

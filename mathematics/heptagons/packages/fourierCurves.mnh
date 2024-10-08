@@ -4,7 +4,8 @@ KEY_ERROR:='error';
 KEY_ERROR_INTEGRAL:='error_integral';
 KEY_CURVE:='curveIdx';
 KEY_REFCV:='referenceData';
-KEY_OPTIMIZED:='ever_optimized';
+KEY_OPTCT:='optCount';
+MAX_NUMBER_OF_COEFFICIENTS:=800;
 
 ducktype CurveCoefficients(C:Map)->C[KEY_PHASE].isInt AND C[KEY_KOEFF].isNumericList AND C[KEY_KOEFF].size>0;
 ducktype Timed4DSamples(L:List(2))->L[0].isBoolean AND L[1].each(x,x.isList(2) AND x[0].isNumeric AND x[1].isNumericList(4),AND);
@@ -20,17 +21,27 @@ periodicHalfCurveSample(pt:List(2))->begin
   : [t    , pt[1]];
 end;
 
-splineFourierTransform(timedCurve:Timed4DSamples,realPhaseShift:Real,maxCoeff>=1)->begin
+//splineFourierTransform(timedCurve:Timed4DSamples,realPhaseShift:Real,maxCoeff>=1)->begin
+//  effectiveMaxCoeff:=min(maxCoeff*2-1,timedCurve[1].size div 2);
+//  [0..3].pEach(dimension,begin
+//    phaseShift:=dimension*realPhaseShift;
+//    samplesInTime:=timedCurve[1].map((t,p)->periodicTime(t-phaseShift)=>p[dimension]);
+//    if not timedCurve.isFullCurve
+//    then samplesInTime:=samplesInTime.each((t,p),[t,p],[periodicTime(t+0.5),-p]);
+//    allCoefficients:=samplesInTime.sort.transpose.*([2*pi,1]).transpose.calculateFourierCoefficients(effectiveMaxCoeff);
+//    allCoefficients.each((re,im),(index and 1)=1 ? im : void);
+//  end,+)*0.25;
+//end;
+
+splineFourierTransform(timedCurve:Timed4DSamples,maxCoeff>=1)->begin
   effectiveMaxCoeff:=min(maxCoeff*2-1,timedCurve[1].size div 2);
-  [0..3].pEach(dimension,begin
-    phaseShift:=dimension*realPhaseShift;
-    samplesInTime:=timedCurve[1].map((t,p)->periodicTime(t-phaseShift)=>p[dimension]);
-    if not timedCurve.isFullCurve
-    then samplesInTime:=samplesInTime.each((t,p),[t,p],[periodicTime(t+0.5),-p]);
-    allCoefficients:=samplesInTime.sort.transpose.*([2*pi,1]).transpose.calculateFourierCoefficients(effectiveMaxCoeff);
-    allCoefficients.each((re,im),(index and 1)=1 ? im : void);
-  end,+)*0.25;
+  samplesInTime:=timedCurve[1].map((t,p)->periodicTime(t)=>p[0]);
+  if not timedCurve.isFullCurve
+  then samplesInTime:=samplesInTime.each((t,p),[t,p],[periodicTime(t+0.5),-p]);
+  allCoefficients:=samplesInTime.sort.transpose.*([2*pi,1]).transpose.calculateFourierCoefficients(effectiveMaxCoeff);
+  allCoefficients.each((re,im),(index and 1)=1 ? im : void);
 end;
+
 
 getCurveFunction(coeff:CurveCoefficients,dim:Int)->begin
   phaseShift:=-coeff[KEY_PHASE]*2*pi/7*dim;
@@ -45,17 +56,17 @@ getCurveFunction2D(coeff:CurveCoefficients,dim1:Int,dim2:Int)->
   combine2D(getCurveFunction(coeff,dim1),
             getCurveFunction(coeff,dim2));
 
-recommendedSampleCount(dft:NumericList)->//round up to next power of two
-                                         (dft.size*2-1)*4;
+maxFourierCoeffiencts(sampleCount:Int) ->round((sampleCount/2+1)/2);
+recommendedSampleCount(dft:NumericList)->max(20,(dft.size*2-1)*2);
 recommendedSampleCount(coeff:CurveCoefficients)->coeff[KEY_KOEFF].recommendedSampleCount;
 
 //private combine4D(f:Expression(1),ps1,ps2,ps3)->(t)->[f(t),f(t-ps1),f(t-ps2),f(t-ps3)];
-private combine4D(f:FourierSeries,ps1,ps2,ps3)->{begin
-  r:=[f($0),f($0-ps1),f($0-ps2),f($0-ps3)];
-  $0.isNumericList
+private combine4D(f:FourierSeries,ps1,ps2,ps3)->(t)->begin
+  r:=[f(t),f(t-ps1),f(t-ps2),f(t-ps3)];
+  t.isNumericList
   ? r.transpose
   : r;
-end};
+end;
 
 f4(factors:NumericList,phase:Int)->
     combine4D(factors.each(a,0,a).newFourierSeries,
@@ -79,15 +90,15 @@ retimeCurveByFourierCoeff(TY:Timed4DSamples,factors:NumericList,phase:Int,normal
     t:=t0*2*pi;
     factor:=1;
     step:=1;
-    [[1..64].each(iterationStep,abs(step)<1E-16 or factor<0.01 ? void : begin
+    [[1..32].each(iterationStep,abs(step)<1E-16 or factor<0.01 ? void : begin
        df:=dF(t);
        oldDistance:=p-F(t);
        step:=factor*((oldDistance*df).agg(+)/(df.sqr.agg(+)));
        t+=step;
        newDistance:=euklideanNorm(p-F(t));
-       if newDistance>euklideanNorm(oldDistance) then begin
+       if newDistance>(oldDistance:=euklideanNorm(oldDistance)) then begin
          t-=step; factor*=0.5;
-         [euklideanNorm(oldDistance),t];
+         [oldDistance,t];
        end else [newDistance,t];
      end,min)[1]/(2*pi),p];
   end);

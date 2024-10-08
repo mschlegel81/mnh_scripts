@@ -1,0 +1,56 @@
+private heptagonExe:=expandedFileName(myPath.extractFileDirectory&'/../packages/heptagon.exe');
+
+memoized init_for_calculation->begin
+  assertUniqueInstance;
+  heptagonExe.fileExists.assert('heptagon.exe does not exist! Compile and place in folder \packages');
+  for f in files('temp_*.txt') do try(::deleteFile,[f]);
+end;
+
+execHeptagonMultiCommand(commandList:StringList)->execHeptagonMultiCommand(commandList,false);
+execHeptagonMultiCommand(commandList:StringList,parseErrorsInsteadOfPositions:Boolean)->begin
+  tempFile:='';
+  repeat tempFile:=f'temp_{intRandom(9999999)}.txt' until not tempFile.fileExists;
+  tempFile.writeFileLines(commandList);
+  execOut:=exec(heptagonExe,[tempFile]);
+  assert(execOut[1]==0);
+  assert(execOut[0].size==commandList.size);
+  deleteFile(tempFile);
+  parseErrorsInsteadOfPositions
+  ? for outputLine in execOut[0] do outputLine.split(";").trailing.replace('*','').trim.split(',').trim.softCast
+  : for outputLine in execOut[0] do outputLine.split(";").head    .replace('*','').trim.split(',').trim.softCast;
+end;
+
+//improveSingleSample_cmd(k:Int,phi:NumericList(4))                    ->join('opt'|k|phi,' ');
+getError_cmd             (k:Int,phi:NumericList(4))                    ->join('err'|k|phi,' ');
+findSolutionNearCurve_cmd(k:Int,phi:NumericList(4),dPhi:NumericList(4))->join('dir'|k|phi|dPhi,' ');
+
+curveName(i)->'dc'&i&'.txt';
+printMethod(i:Int)->{log(i,' ',$0)};
+calcCurve(i:Int)->begin
+  calcMethod:='d';
+  print('Calculating curve: ',i);
+  exitCode:=heptagonExe.teeExec([calcMethod,i.toString],printMethod(i),true).trailing;
+  exitCode==0
+  ? log ('Call heptagon.exe ',calcMethod,' ',i,' stopped with exit code ',exitCode)
+  : warn('Call heptagon.exe ',calcMethod,' ',i,' failed with exit code ',exitCode);
+
+  (exitCode==0) AND fileExists(filename:=curveName(i))
+  ? begin
+      lines:=filename.fileLines;
+      granularity:=lines.trim.softCast.filter(::isInt).head(1)[0] orElse fail('No granualarity info found!');
+      samples:=lines.split(',')
+                    .trim
+                    .softCast
+                    .filter((phi)->phi.isNumericList(4))
+                    .map(granularity=0 ? ((phi)->phi.map((x)->x<-256 ? x+512 : x>255 ? x-512 : x))
+                                       : ((phi)->phi))
+                    .unique
+                    .each(s,s,-s)
+                    .unique;
+      deleteFile(filename);
+      [i,granularity,samples];
+    end
+  : false;
+end;
+
+

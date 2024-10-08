@@ -28,7 +28,7 @@ end;
 
 M:=[' ','▀','▄','█'];
 @MaxAge=1
-worldToText(world:IntList)->join("\f"|F12.each(f,M[world[f[0]]+world[f[1]]*2].join.trimRight),"\n");
+worldToText(world:IntList)->join("\e[1;1H"|F12.each(f,M[world[f[0]]+world[f[1]]*2].join));
 
 //*Shifts - this returns a list of intLists, indicating adjacent cells
 shifts:=begin

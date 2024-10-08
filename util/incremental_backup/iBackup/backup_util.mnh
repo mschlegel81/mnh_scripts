@@ -191,7 +191,6 @@ createFullBackup(config:BackupConfig)->begin
 end;
 
 createBackup(config:BackupConfig)->begin
-  printWithTime('Creating backup for ',config['root'],' (',config['backupNameBase'],')');
   backups:=findBackups(config);
   requireFullBackup:=backups[1];
   backupState:=backups[0]
@@ -200,10 +199,11 @@ createBackup(config:BackupConfig)->begin
   localState:=localFolderContents(config);
   delta:=contentsDelta(backupState,localState).filterMatchedFiles(config);
   delta.size=0
-  ? (printWithTime('  Backup for ',config['root'],' (',config['backupNameBase'],') is up to date'))
+  ? (printWithTime('Backup for ',config['root'],' (',config['backupNameBase'],') is up to date'))
   : requireFullBackup
     ? createFullBackup(config)
     : begin
+        printWithTime('Creating backup for ',config['root'],' (',config['backupNameBase'],')');
         zip(backupFilenameGenerator(config,false),
             delta.chunkContents)
         .map(::writeContents)

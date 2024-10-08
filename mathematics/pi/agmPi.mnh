@@ -19,18 +19,19 @@ end;
 //*Fixed point version
 agmPi(scale:Int)->begin
   //We use a fixed point representation
-  a:=[SCALE_FACTOR:=10^scale,isqrt(10^(scale*2-1)*5)[0]]; //=1 * 10^scale, sqrt(1/2)* 10^scale
+  a:=[SCALE_FACTOR:=10^scale,isqrt(10^(scale*2-1)*5)[0]]; //=1 * 10^scale, sqrt(1/2)* 10^scale = 10^scale, sqrt(5*10^(2*scale-1))
+  fmt:=(i:Int)->(s:=i.toString).copy(0,1)&'.'&s.copy(1);
   prevQuotient:=1;
   quotient:=0;
   quotFactor:=2;
   while quotient!=prevQuotient do begin
-    note(a.agg(-));
     a:=[a.agg(+).shiftRight(1),a.agg(*).isqrt[0]];
     prevQuotient:=quotient;
     quotient+=sqr(a).agg(-)*(quotFactor*=2) div SCALE_FACTOR;
+    log(fmt(4*a[0]^2 div (SCALE_FACTOR - quotient)));
   end;
   a:=4*a[0]^2 div (SCALE_FACTOR - quotient);
-  '3.'&toString(a).copy(1);
+  fmt(a);
 end;
 
 //*Computes and outputs pi based on the method of Gauss, Salamin and Brent
@@ -38,6 +39,4 @@ main(digitsToCompute)->digitsToCompute.toInt.agmPi.print;
 
 //*Computes and outputs pi based on the method of Gauss, Salamin and Brent
 main->agmPi.print;
-
-
 

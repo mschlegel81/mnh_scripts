@@ -16,7 +16,8 @@ decimalForm(rat:IntList(2))->begin
           : [decimals.head(h),decimals.tail(h)];
   decimals[1]==[0] ? decimals[1]:=[] : void;
 
-  ['integerPart'    =>integerPart,
+  ['rational'       =>rat,
+   'integerPart'    =>integerPart,
    'nonperiodicPart'=>decimals[0],
    'periodicPart'   =>decimals[1],
    'stringForm'     =>integerPart&(decimals.flatten.size>0
@@ -25,5 +26,13 @@ decimalForm(rat:IntList(2))->begin
                                    : void)].toMap;
 end;
 
-decimalForm([1,13]);
+//rangeGenerator(2).filter((n)->n mod 2 != 0 != n mod 5)
+//                 .pMap((i)->decimalForm([1,i]))
+//                 .map((m)->[m['rational',1],
+//                            m['periodicPart'].size,
+//                            m['rational',1]-m['periodicPart'].size])
+//                 .head(1000)
+//                 .{group($L.getInner(0),$L.getInner(2))}
+//                 .sort;
 
+pMap(10^[1..30]-1, (n)->f'{n}={n.factorize.join("*")}');

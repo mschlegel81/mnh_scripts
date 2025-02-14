@@ -1,8 +1,8 @@
-#!C:\bin\mnh.exe -GUI -quiet -headless -convertPrintToLog -logDateFmt hh:mm:ss.zzz -logLocationLength 15 +log ?.log(1)
+#!C:\bin\mnh.exe -convertPrintToLog -logDateFmt hh:mm:ss.zzz -logLocationLength 15 +log ?.log(1)
 IP_AND_PORT:='127.0.0.1:80';
 NULL_MARKER:='[[0]]';
-plain datastore contents:=[];
-
+mutable contents:=[];
+contents_filename:=$1;
 datastore cachedSecondaries:=[].toMap;
 
 //RESOURCES:=begin
@@ -88,14 +88,9 @@ page->begin
           '<td><button onclick="postDropLine('&index&')">-</button></td></tr>').join("\n");
   bindings:=map(contents.size=0 ? [] : [0..contents.size-1],(index)->
           "\ntext"&index&" = $('#text"&index&"').bind('keydown keypress', function() {"&
-//          '  var prev = text'&index&'.val();'&
-//          '  setTimeout(function() {'&
           '    var now = text'&index&'.val();'&
-          //'    if (now !== prev) {'&
           '    mq'&index&'.latex(now);'&
           '    postUpdate('&index&',now);'&
-//          '  }'&
-//          '  });'&
           '});'&
           "\nmq"&index&" = MQ.MathField($('#math"&index&"')[0], {  handlers: {  edit: function() {if (!text"&index&".is(':focus')) {postUpdate("&index&",mq"&index&".latex()); text"&index&".val(mq"&index&".latex());}}}});"&
           (contents[index,0]==false ? void : "text"&index&".val(mq"&index&".latex());"))
@@ -109,7 +104,7 @@ backgroundUpdate->begin
 save;
   scriptTime>lastWrite+WRITE_INTERVAL
   ? begin
-      writeDataStores;
+      contents_filename.writeFile(contents.serialize);
       log('Saved state:',"\n",contents.map(::toString).join("\n"));
       lastWrite:=scriptTime;
     end
@@ -167,7 +162,11 @@ handleRequest('GET',path,body)->obtainFile(path) orElse warnOnce('GET',path,body
 
 handleRequest(method,path,body)->warnOnce(method,path,body);
 
-main->begin
+main(path)->begin
+  if fileExists(path)
+  then contents:=fileContents(path).deserialize
+  else if ask('File '&path&' does not exist. Do you want to create it?',['Y','N'])!='Y' then halt;
+
   serverIp:=startHttpServer(IP_AND_PORT,(request:Map)->handleRequest(request['request','method'],request['request','path'],request['body']) ,600);
   print('Now running at ',serverIp);
   openUrl('http://'&serverIp&'/page.html');

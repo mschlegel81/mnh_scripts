@@ -1,4 +1,4 @@
-_T_->f"\e[90m{formatTime('hh:nn:ss',systime)}\e[0m ";
+_T_->f"\e[90m{formatTime('dd.mm.yyyy hh:nn:ss',systime)}\e[0m ";
 MAX_SIZE:=16;
 
 mutable updated:=[];

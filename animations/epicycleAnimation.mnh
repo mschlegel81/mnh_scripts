@@ -5,8 +5,8 @@ B:=0.6;
 SUMMAND_COUNT:=15;
 
 runningSummands(t)->begin
-  sum:=0;
-  [[0,0]]|[0..SUMMAND_COUNT].map({B^$i*[sin(A^$i*t),cos(A^$i*t)]}).each(x,sum+=x);
+  s:=0;
+  [[0,0]]|[0..SUMMAND_COUNT].map({B^$i*[sin(A^$i*t),cos(A^$i*t)]}).each(x,s+=x);
 end;
 
 main->begin

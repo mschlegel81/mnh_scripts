@@ -23,7 +23,7 @@ KOfPos:=PosOfK.map((key,value)->value=>key).toMap;
 deletePoint(k:Int,is_prime:BooleanList)->begin
   P:=PosOfK[k];
 
-  toPrint:=["\e[",P[1] div 2+1,';',P[0]+1,'H',
+  ["\e[",P[1] div 2+1,';',P[0]+1,'H',
   if (P[1] and 1)=0 then begin
     is_prime[KOfPos[[P[0],P[1]+1]]]
     ? '▄'

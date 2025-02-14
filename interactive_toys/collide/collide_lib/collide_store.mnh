@@ -71,7 +71,7 @@ canReplay(name:String)->!(collisions[name].isVoid);
 
 doReplay(name:String)->begin
   data:=collisions[name];
-  if data.isVoid then return;
+  if data.isVoid then return false;
   print('Replaying ',name);
   geometry  :=getGeometryInfo(data[0]);
   prevPos   :=data[1];

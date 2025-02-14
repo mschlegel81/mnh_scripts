@@ -344,5 +344,3 @@ main('plot','frequencies')->begin
   setOptions(["x0"=>1E-100,"y0"=>1E-100,"logscaleX"=>true,"logscaleY"=>true].toMap);
   sequences.pMap({$seq[0<$seq<1E6]}).flatten.elementFrequency.sort.plot('. red 0.5');
 end;
-
-implementationOf(15);
